@@ -3,6 +3,7 @@ import { Card, Button } from "../components/UI";
 import { StudentPortalService } from "../services/StudentPortalService";
 import { Dumbbell, PlayCircle, Clock3, CreditCard, LogOut } from "lucide-react";
 import { formatDate } from "../utils/dateUtils";
+import { ExerciseVideoModal } from "../components/ExerciseVideoModal";
 
 interface StudentPortalViewProps {
   studentId: string;
@@ -16,6 +17,11 @@ export default function StudentPortalView({
   const [data, setData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [timer, setTimer] = useState<number | null>(null);
+  const [videoModal, setVideoModal] = useState<{
+    isOpen: boolean;
+    exerciseName: string;
+    videoUrl: string;
+  }>({ isOpen: false, exerciseName: "", videoUrl: "" });
 
   useEffect(() => {
     const load = async () => {
@@ -157,15 +163,20 @@ export default function StudentPortalView({
                     </div>
 
                     {exercise.video_url ? (
-                      <a
-                        href={exercise.video_url}
-                        target="_blank"
-                        rel="noreferrer"
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setVideoModal({
+                            isOpen: true,
+                            exerciseName: exercise.exercise_name,
+                            videoUrl: exercise.video_url,
+                          })
+                        }
                         className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors text-sm font-bold"
                       >
                         <PlayCircle size={16} />
                         Ver video
-                      </a>
+                      </button>
                     ) : null}
                   </div>
                 ))
@@ -208,6 +219,13 @@ export default function StudentPortalView({
           </div>
         </Card>
       </div>
+
+      <ExerciseVideoModal
+        isOpen={videoModal.isOpen}
+        onClose={() => setVideoModal({ isOpen: false, exerciseName: "", videoUrl: "" })}
+        exerciseName={videoModal.exerciseName}
+        videoUrl={videoModal.videoUrl}
+      />
     </div>
   );
 }

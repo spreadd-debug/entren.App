@@ -8,10 +8,10 @@ interface BadgeProps {
 
 export const StatusBadge: React.FC<BadgeProps> = ({ status }) => {
   const styles = {
-    active: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-    expiring: 'bg-amber-100 text-amber-700 border-amber-200',
-    expired: 'bg-rose-100 text-rose-700 border-rose-200',
-    inactive: 'bg-slate-100 text-slate-700 border-slate-200',
+    active: 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-400 dark:border-emerald-800',
+    expiring: 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/40 dark:text-amber-400 dark:border-amber-800',
+    expired: 'bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-900/40 dark:text-rose-400 dark:border-rose-800',
+    inactive: 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600',
   };
 
   const labels = {
@@ -35,9 +35,9 @@ interface BillingBadgeProps {
   whatsapp_opt_in?: boolean;
 }
 
-export const BillingBadge: React.FC<BillingBadgeProps> = ({ 
-  cobra_cuota, 
-  recordatorio_automatico, 
+export const BillingBadge: React.FC<BillingBadgeProps> = ({
+  cobra_cuota,
+  recordatorio_automatico,
   tipo_beca,
   whatsapp_opt_in = false
 }) => {
@@ -45,13 +45,13 @@ export const BillingBadge: React.FC<BillingBadgeProps> = ({
 
   if (tipo_beca === 'complete') {
     badges.push(
-      <span key="beca" className="px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-purple-100 text-purple-700 border border-purple-200">
+      <span key="beca" className="px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-purple-100 text-purple-700 border border-purple-200 dark:bg-purple-900/40 dark:text-purple-400 dark:border-purple-800">
         Beca Completa
       </span>
     );
   } else if (tipo_beca === 'partial') {
     badges.push(
-      <span key="beca" className="px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-indigo-100 text-indigo-700 border border-indigo-200">
+      <span key="beca" className="px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-indigo-100 text-indigo-700 border border-indigo-200 dark:bg-indigo-900/40 dark:text-indigo-400 dark:border-indigo-800">
         Beca Parcial
       </span>
     );
@@ -59,13 +59,13 @@ export const BillingBadge: React.FC<BillingBadgeProps> = ({
 
   if (!cobra_cuota) {
     badges.push(
-      <span key="exento" className="px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-slate-100 text-slate-700 border border-slate-200">
+      <span key="exento" className="px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600">
         Exento
       </span>
     );
   } else {
     badges.push(
-      <span key="remind" className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider border ${recordatorio_automatico ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-amber-100 text-amber-700 border-amber-200'}`}>
+      <span key="remind" className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider border ${recordatorio_automatico ? 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-400 dark:border-emerald-800' : 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/40 dark:text-amber-400 dark:border-amber-800'}`}>
         {recordatorio_automatico ? 'Auto' : 'Manual'}
       </span>
     );
@@ -93,9 +93,9 @@ interface CardProps {
 }
 
 export const Card: React.FC<CardProps> = ({ children, className = '', onClick }) => (
-  <div 
+  <div
     onClick={onClick}
-    className={`bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden ${onClick ? 'cursor-pointer active:scale-[0.98] transition-transform' : ''} ${className}`}
+    className={`bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden ${onClick ? 'cursor-pointer active:scale-[0.98] transition-transform' : ''} ${className}`}
   >
     {children}
   </div>
@@ -107,21 +107,21 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   fullWidth?: boolean;
 }
 
-export const Button: React.FC<ButtonProps> = ({ 
-  children, 
-  variant = 'primary', 
-  size = 'md', 
+export const Button: React.FC<ButtonProps> = ({
+  children,
+  variant = 'primary',
+  size = 'md',
   fullWidth = false,
   className = '',
-  ...props 
+  ...props
 }) => {
   const baseStyles = 'inline-flex items-center justify-center font-semibold transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none';
-  
+
   const variants = {
-    primary: 'bg-slate-900 text-white hover:bg-slate-800 shadow-sm',
+    primary: 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-white shadow-sm',
     secondary: 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-sm',
-    outline: 'bg-transparent border-2 border-slate-200 text-slate-700 hover:bg-slate-50',
-    ghost: 'bg-transparent text-slate-600 hover:bg-slate-100',
+    outline: 'bg-transparent border-2 border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700',
+    ghost: 'bg-transparent text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700',
     danger: 'bg-rose-500 text-white hover:bg-rose-600 shadow-sm',
   };
 
@@ -133,7 +133,7 @@ export const Button: React.FC<ButtonProps> = ({
   };
 
   return (
-    <button 
+    <button
       className={`${baseStyles} ${variants[variant]} ${sizes[size]} ${fullWidth ? 'w-full' : ''} ${className}`}
       {...props}
     >
@@ -143,8 +143,8 @@ export const Button: React.FC<ButtonProps> = ({
 };
 
 export const Input: React.FC<React.InputHTMLAttributes<HTMLInputElement>> = ({ className = '', ...props }) => (
-  <input 
-    className={`w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition-all ${className}`}
+  <input
+    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 dark:focus:ring-white/10 focus:border-slate-400 dark:focus:border-slate-500 transition-all ${className}`}
     {...props}
   />
 );
@@ -155,8 +155,8 @@ export const KPICard: React.FC<{ label: string; value: string | number; icon: Re
       {icon}
     </div>
     <div>
-      <p className="text-sm font-medium text-slate-500">{label}</p>
-      <p className="text-2xl font-bold text-slate-900">{value}</p>
+      <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{label}</p>
+      <p className="text-2xl font-bold text-slate-900 dark:text-white">{value}</p>
     </div>
   </Card>
 );

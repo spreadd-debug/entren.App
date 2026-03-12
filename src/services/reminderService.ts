@@ -20,7 +20,7 @@ export const BillingReminderService = {
     templates: MessageTemplate[],
     existingLogs: ReminderLog[],
     plans: Plan[],
-    gymName: string = "Gimnasio Pro"
+    gymName: string = "entrenApp"
   ): ReminderCheckResult => {
     const todayStr = new Date().toISOString().split('T')[0];
     const today = new Date(todayStr);
@@ -111,7 +111,7 @@ export const BillingReminderService = {
   /**
    * Replaces variables in template body
    */
-  formatMessage: (body: string, student: Student, plan?: Plan, gymName: string = "Gimnasio Pro"): string => {
+  formatMessage: (body: string, student: Student, plan?: Plan, gymName: string = "entrenApp"): string => {
     const dueDate = new Date(student.nextDueDate);
     const today = new Date();
     const diffTime = today.getTime() - dueDate.getTime();

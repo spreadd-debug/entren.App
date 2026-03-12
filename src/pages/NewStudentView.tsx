@@ -127,22 +127,22 @@ export const NewStudentView: React.FC<NewStudentViewProps> = ({
       <div className="flex items-center gap-3">
         <button
           onClick={onBack}
-          className="p-2 rounded-xl bg-white border border-slate-100 text-slate-600"
+          className="p-2 rounded-xl bg-white dark:bg-slate-700 border border-slate-100 dark:border-slate-600 text-slate-600 dark:text-slate-300"
         >
           <ChevronLeft size={20} />
         </button>
-        <h2 className="text-xl font-bold text-slate-900">Nuevo Alumno</h2>
+        <h2 className="text-xl font-bold text-slate-900 dark:text-white">Nuevo Alumno</h2>
       </div>
 
       <div className="space-y-6">
         <section className="space-y-3">
-          <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 px-1">
+          <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 px-1">
             Datos Personales
           </h4>
           <Card className="p-5 space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 ml-1">
                   Nombre
                 </label>
                 <div className="relative">
@@ -162,7 +162,7 @@ export const NewStudentView: React.FC<NewStudentViewProps> = ({
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 ml-1">
                   Apellido
                 </label>
                 <Input
@@ -177,7 +177,7 @@ export const NewStudentView: React.FC<NewStudentViewProps> = ({
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 ml-1">
                 Teléfono
               </label>
               <div className="relative">
@@ -199,12 +199,12 @@ export const NewStudentView: React.FC<NewStudentViewProps> = ({
         </section>
 
         <section className="space-y-3">
-          <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 px-1">
+          <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 px-1">
             Datos del Plan
           </h4>
           <Card className="p-5 space-y-4">
             <div className="space-y-1.5">
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 ml-1">
                 Seleccionar Plan
               </label>
               <div className="relative">
@@ -213,7 +213,7 @@ export const NewStudentView: React.FC<NewStudentViewProps> = ({
                   size={16}
                 />
                 <select
-                  className="w-full pl-9 pr-4 h-12 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-slate-900 font-bold text-sm bg-white appearance-none"
+                  className="w-full pl-9 pr-4 h-12 rounded-2xl border border-slate-200 dark:border-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-slate-900 dark:text-white font-bold text-sm bg-white dark:bg-slate-700 appearance-none"
                   value={formData.planId}
                   onChange={(e) => handlePlanChange(e.target.value)}
                 >
@@ -232,7 +232,7 @@ export const NewStudentView: React.FC<NewStudentViewProps> = ({
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 ml-1">
                   Precio Final ($)
                 </label>
                 <div className="relative">
@@ -252,7 +252,7 @@ export const NewStudentView: React.FC<NewStudentViewProps> = ({
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 ml-1">
                   Fecha Inicio
                 </label>
                 <div className="relative">
@@ -275,16 +275,16 @@ export const NewStudentView: React.FC<NewStudentViewProps> = ({
         </section>
 
         <section className="space-y-3">
-          <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 px-1">
+          <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 px-1">
             Cobranza
           </h4>
           <Card className="p-5 space-y-5">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <label className="text-sm font-bold text-slate-900">
+                <label className="text-sm font-bold text-slate-900 dark:text-white">
                   Cobra Cuota
                 </label>
-                <p className="text-[10px] text-slate-500">
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">
                   ¿Este alumno debe pagar mensualmente?
                 </p>
               </div>
@@ -311,12 +311,12 @@ export const NewStudentView: React.FC<NewStudentViewProps> = ({
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
                 <div className="flex items-center gap-2">
-                  <label className="text-sm font-bold text-slate-900">
+                  <label className="text-sm font-bold text-slate-900 dark:text-white">
                     Recordatorio Automático
                   </label>
                   <Bell size={12} className="text-slate-400" />
                 </div>
-                <p className="text-[10px] text-slate-500">
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">
                   Enviar mensajes de vencimiento
                 </p>
               </div>
@@ -348,12 +348,12 @@ export const NewStudentView: React.FC<NewStudentViewProps> = ({
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
                 <div className="flex items-center gap-2">
-                  <label className="text-sm font-bold text-slate-900">
+                  <label className="text-sm font-bold text-slate-900 dark:text-white">
                     Opt-in WhatsApp
                   </label>
                   <MessageSquare size={12} className="text-slate-400" />
                 </div>
-                <p className="text-[10px] text-slate-500">
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">
                   El alumno acepta recibir mensajes
                 </p>
               </div>
@@ -379,7 +379,7 @@ export const NewStudentView: React.FC<NewStudentViewProps> = ({
 
             <div className="space-y-1.5">
               <div className="flex items-center gap-2 ml-1">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">
                   Tipo de Beca
                 </label>
                 <ShieldCheck size={12} className="text-slate-400" />
@@ -404,7 +404,7 @@ export const NewStudentView: React.FC<NewStudentViewProps> = ({
                     className={`flex-1 py-2.5 rounded-xl border font-bold text-[10px] uppercase tracking-widest transition-all ${
                       formData.tipo_beca === type
                         ? 'bg-slate-900 border-slate-900 text-white shadow-md'
-                        : 'bg-white border-slate-100 text-slate-400'
+                        : 'bg-white dark:bg-slate-700 border-slate-100 dark:border-slate-600 text-slate-400 dark:text-slate-500'
                     }`}
                   >
                     {type === 'ninguna'
@@ -418,11 +418,11 @@ export const NewStudentView: React.FC<NewStudentViewProps> = ({
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 ml-1">
                 Observaciones de Cobranza
               </label>
               <textarea
-                className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-slate-900 font-medium text-sm min-h-[60px]"
+                className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-slate-900 font-medium text-sm min-h-[60px]"
                 placeholder="Ej: Paga los 15 de cada mes..."
                 value={formData.observaciones_cobranza}
                 onChange={(e) =>
@@ -437,12 +437,12 @@ export const NewStudentView: React.FC<NewStudentViewProps> = ({
         </section>
 
         <section className="space-y-3">
-          <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 px-1">
+          <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 px-1">
             Otros
           </h4>
           <Card className="p-5 space-y-4">
             <div className="space-y-1.5">
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 ml-1">
                 Estado Inicial
               </label>
               <div className="flex gap-2">
@@ -454,7 +454,7 @@ export const NewStudentView: React.FC<NewStudentViewProps> = ({
                     className={`flex-1 py-3 rounded-xl border font-bold text-xs uppercase tracking-widest transition-all ${
                       formData.status === status
                         ? 'bg-slate-900 border-slate-900 text-white shadow-lg'
-                        : 'bg-white border-slate-100 text-slate-400'
+                        : 'bg-white dark:bg-slate-700 border-slate-100 dark:border-slate-600 text-slate-400 dark:text-slate-500'
                     }`}
                   >
                     {status === 'activo' ? 'Activo' : 'Baja'}
@@ -464,13 +464,13 @@ export const NewStudentView: React.FC<NewStudentViewProps> = ({
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 ml-1">
                 Observaciones Generales
               </label>
               <div className="relative">
                 <FileText className="absolute left-3 top-4 text-slate-400" size={16} />
                 <textarea
-                  className="w-full pl-9 pr-4 py-3 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-slate-900 font-medium text-sm min-h-[100px]"
+                  className="w-full pl-9 pr-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-slate-900 font-medium text-sm min-h-[100px]"
                   placeholder="Ej: Tiene una lesión en el hombro..."
                   value={formData.observaciones}
                   onChange={(e) =>

@@ -15,6 +15,7 @@ import { LoginView } from './pages/LoginView';
 import { RegisterGymView } from './pages/RegisterGymView';
 import { AutomationView } from './pages/AutomationView';
 import WorkoutPlansView from "./pages/WorkoutPlansView";
+import { ThemeProvider } from './context/ThemeContext';
 
 import {
   Student,
@@ -335,38 +336,46 @@ const [studentPortalId, setStudentPortalId] = useState<string | null>(
     }
 
   };
+
 if (isStudentPortalMode) {
   if (!studentPortalId) {
     return (
-      <StudentPortalAccessView
-        onSuccess={(studentId) => {
-          localStorage.setItem("studentPortalId", studentId);
-          setStudentPortalId(studentId);
-        }}
-      />
+      <ThemeProvider>
+        <StudentPortalAccessView
+          onSuccess={(studentId) => {
+            localStorage.setItem("studentPortalId", studentId);
+            setStudentPortalId(studentId);
+          }}
+        />
+      </ThemeProvider>
     );
   }
 
   return (
-    <StudentPortalView
-      studentId={studentPortalId}
-      onLogout={() => {
-        localStorage.removeItem("studentPortalId");
-        setStudentPortalId(null);
-      }}
-    />
+    <ThemeProvider>
+      <StudentPortalView
+        studentId={studentPortalId}
+        onLogout={() => {
+          localStorage.removeItem("studentPortalId");
+          setStudentPortalId(null);
+        }}
+      />
+    </ThemeProvider>
   );
 }
+
   if (isRegistering) {
 
     return (
-      <RegisterGymView
-        onBack={() => setIsRegistering(false)}
-        onSuccess={() => {
-          setIsRegistering(false);
-          alert('¡Gimnasio registrado con éxito! Ahora podés iniciar sesión.');
-        }}
-      />
+      <ThemeProvider>
+        <RegisterGymView
+          onBack={() => setIsRegistering(false)}
+          onSuccess={() => {
+            setIsRegistering(false);
+            alert('¡Gimnasio registrado con éxito! Ahora podés iniciar sesión.');
+          }}
+        />
+      </ThemeProvider>
     );
 
   }
@@ -374,10 +383,12 @@ if (isStudentPortalMode) {
   if (!isAuthenticated) {
 
     return (
-      <LoginView
-        onLogin={() => setIsAuthenticated(true)}
-        onRegisterClick={() => setIsRegistering(true)}
-      />
+      <ThemeProvider>
+        <LoginView
+          onLogin={() => setIsAuthenticated(true)}
+          onRegisterClick={() => setIsRegistering(true)}
+        />
+      </ThemeProvider>
     );
 
   }
@@ -537,20 +548,22 @@ if (isStudentPortalMode) {
         return 'Nuevo Alumno';
 
       default:
-        return 'Gimnasio Pro';
+        return 'entrenApp';
 
     }
 
   };
 
   return (
-    <AppShell
-      currentView={currentView === 'student-detail' ? 'students' : currentView}
-      onNavigate={handleNavigate}
-      title={getViewTitle()}
-    >
-      {renderView()}
-    </AppShell>
+    <ThemeProvider>
+      <AppShell
+        currentView={currentView === 'student-detail' ? 'students' : currentView}
+        onNavigate={handleNavigate}
+        title={getViewTitle()}
+      >
+        {renderView()}
+      </AppShell>
+    </ThemeProvider>
   );
 
 }

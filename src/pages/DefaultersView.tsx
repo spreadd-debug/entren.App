@@ -123,7 +123,7 @@ export const DefaultersView: React.FC<DefaultersViewProps> = ({
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h4 className="font-bold text-slate-900">{student.displayName}</h4>
+                    <h4 className="font-bold text-slate-900 dark:text-white">{student.displayName}</h4>
                     <BillingBadge
                       cobra_cuota={student.cobra_cuota}
                       recordatorio_automatico={student.recordatorio_automatico}
@@ -131,7 +131,7 @@ export const DefaultersView: React.FC<DefaultersViewProps> = ({
                       whatsapp_opt_in={student.whatsapp_opt_in}
                     />
                   </div>
-                  <p className="text-xs text-slate-500">{student.planDisplay}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">{student.planDisplay}</p>
                 </div>
               </div>
 
@@ -140,7 +140,7 @@ export const DefaultersView: React.FC<DefaultersViewProps> = ({
                   <Clock size={12} />
                   {student.dueDateDisplay ? getDaysLate(String(student.dueDateDisplay)) : 0} días
                 </p>
-                <p className="font-black text-slate-900">${student.debtDisplay}</p>
+                <p className="font-black text-slate-900 dark:text-white">${student.debtDisplay}</p>
               </div>
             </div>
 
@@ -172,8 +172,8 @@ export const DefaultersView: React.FC<DefaultersViewProps> = ({
             <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4 text-emerald-500">
               <AlertCircle size={40} />
             </div>
-            <h3 className="text-lg font-bold text-slate-900">¡Todo al día!</h3>
-            <p className="text-slate-500">No hay alumnos con cuotas vencidas.</p>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white">¡Todo al día!</h3>
+            <p className="text-slate-500 dark:text-slate-400">No hay alumnos con cuotas vencidas.</p>
           </div>
         )}
       </div>

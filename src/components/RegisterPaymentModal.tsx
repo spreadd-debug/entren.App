@@ -70,15 +70,15 @@ export const RegisterPaymentModal: React.FC<RegisterPaymentModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4 bg-slate-900/60 backdrop-blur-sm">
-      <div className="w-full max-w-lg bg-white rounded-t-3xl md:rounded-3xl overflow-hidden shadow-2xl animate-in slide-in-from-bottom duration-300">
-        <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+      <div className="w-full max-w-lg bg-white dark:bg-slate-800 rounded-t-3xl md:rounded-3xl overflow-hidden shadow-2xl animate-in slide-in-from-bottom duration-300">
+        <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between bg-slate-50 dark:bg-slate-900">
           <div>
-            <h3 className="text-xl font-bold text-slate-900">Registrar Pago</h3>
-            <p className="text-sm text-slate-500">{studentName}</p>
+            <h3 className="text-xl font-bold text-slate-900 dark:text-white">Registrar Pago</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400">{studentName}</p>
           </div>
           <button
             onClick={onClose}
-            className="p-2 bg-white rounded-xl border border-slate-200 text-slate-400 hover:text-slate-900 transition-colors"
+            className="p-2 bg-white dark:bg-slate-700 rounded-xl border border-slate-200 dark:border-slate-600 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
           >
             <X size={20} />
           </button>
@@ -86,7 +86,7 @@ export const RegisterPaymentModal: React.FC<RegisterPaymentModalProps> = ({
 
         <div className="p-6 space-y-6 max-h-[80vh] overflow-y-auto">
           <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700 ml-1">Monto a Cobrar</label>
+            <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">Monto a Cobrar</label>
             <div className="relative">
               <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
               <Input
@@ -99,7 +99,7 @@ export const RegisterPaymentModal: React.FC<RegisterPaymentModalProps> = ({
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700 ml-1">Método de Pago</label>
+            <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">Método de Pago</label>
             <div className="grid grid-cols-3 gap-2">
               <button
                 type="button"
@@ -107,7 +107,7 @@ export const RegisterPaymentModal: React.FC<RegisterPaymentModalProps> = ({
                 className={`flex flex-col items-center gap-2 p-3 rounded-2xl border-2 transition-all ${
                   method === 'cash'
                     ? 'border-slate-900 bg-slate-900 text-white'
-                    : 'border-slate-100 bg-slate-50 text-slate-500'
+                    : 'border-slate-100 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
                 }`}
               >
                 <DollarSign size={20} />
@@ -120,7 +120,7 @@ export const RegisterPaymentModal: React.FC<RegisterPaymentModalProps> = ({
                 className={`flex flex-col items-center gap-2 p-3 rounded-2xl border-2 transition-all ${
                   method === 'transfer'
                     ? 'border-slate-900 bg-slate-900 text-white'
-                    : 'border-slate-100 bg-slate-50 text-slate-500'
+                    : 'border-slate-100 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
                 }`}
               >
                 <CreditCard size={20} />
@@ -133,7 +133,7 @@ export const RegisterPaymentModal: React.FC<RegisterPaymentModalProps> = ({
                 className={`flex flex-col items-center gap-2 p-3 rounded-2xl border-2 transition-all ${
                   method === 'mercadopago'
                     ? 'border-slate-900 bg-slate-900 text-white'
-                    : 'border-slate-100 bg-slate-50 text-slate-500'
+                    : 'border-slate-100 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
                 }`}
               >
                 <Smartphone size={20} />
@@ -144,7 +144,7 @@ export const RegisterPaymentModal: React.FC<RegisterPaymentModalProps> = ({
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className="text-sm font-bold text-slate-700 ml-1">Fecha Pago</label>
+              <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">Fecha Pago</label>
               <div className="relative">
                 <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                 <Input
@@ -157,7 +157,7 @@ export const RegisterPaymentModal: React.FC<RegisterPaymentModalProps> = ({
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-bold text-slate-700 ml-1">Vencimiento</label>
+              <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">Vencimiento</label>
               <div className="relative">
                 <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-rose-400" size={18} />
                 <Input
@@ -178,12 +178,12 @@ export const RegisterPaymentModal: React.FC<RegisterPaymentModalProps> = ({
           </div>
         </div>
 
-        <div className="p-6 bg-slate-50 border-t border-slate-100">
+        <div className="p-6 bg-slate-50 dark:bg-slate-900 border-t border-slate-100 dark:border-slate-700">
           <Button
             fullWidth
             size="lg"
             onClick={() => onConfirm({ amount, method, date, nextDueDate })}
-            className="shadow-xl shadow-slate-200"
+            className="shadow-xl shadow-slate-200 dark:shadow-slate-900"
           >
             Confirmar Pago
           </Button>

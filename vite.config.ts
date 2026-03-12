@@ -22,8 +22,8 @@ export default defineConfig(({ mode }) => {
           'masked-icon.svg',
         ],
         manifest: {
-          name: 'Gimnasio Pro',
-          short_name: 'Gimnasio Pro',
+          name: 'entrenApp',
+          short_name: 'entrenApp',
           description: 'Gestión de gimnasio y portal del alumno',
           theme_color: '#0f172a',
           background_color: '#f8fafc',

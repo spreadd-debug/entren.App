@@ -1,6 +1,17 @@
 import { supabase } from "../db/supabase";
 
+export interface LibraryExercise {
+  id: string;
+  name: string;
+  description: string | null;
+  video_url: string | null;
+  muscle_group: string | null;
+  created_at: string;
+}
+
 export const WorkoutPlanService = {
+  // ─── Workout Plans ────────────────────────────────────────────────────────
+
   async getPlans(gymId: string) {
     const { data, error } = await supabase
       .from("workout_plans")
@@ -52,17 +63,33 @@ export const WorkoutPlanService = {
     if (error) throw error;
   },
 
-  async addExercise(planId: string, exercise: any) {
+  // ─── Workout Exercises ────────────────────────────────────────────────────
+
+  async addExercise(
+    planId: string,
+    exercise: {
+      exerciseName: string;
+      exerciseOrder: number;
+      sets?: number | null;
+      reps?: string | null;
+      weight?: string | null;
+      restSeconds?: number | null;
+      notes?: string | null;
+      videoUrl?: string | null;
+      exerciseLibraryId?: string | null;
+    }
+  ) {
     const { error } = await supabase.from("workout_exercises").insert({
       workout_plan_id: planId,
       exercise_name: exercise.exerciseName,
       exercise_order: exercise.exerciseOrder,
-      sets: exercise.sets,
-      reps: exercise.reps,
-      weight: exercise.weight,
-      rest_seconds: exercise.restSeconds,
-      notes: exercise.notes,
+      sets: exercise.sets ?? null,
+      reps: exercise.reps ?? null,
+      weight: exercise.weight ?? null,
+      rest_seconds: exercise.restSeconds ?? null,
+      notes: exercise.notes ?? null,
       video_url: exercise.videoUrl || null,
+      exercise_library_id: exercise.exerciseLibraryId || null,
     });
 
     if (error) throw error;
@@ -87,6 +114,7 @@ export const WorkoutPlanService = {
       reps?: string | null;
       weight?: string | null;
       videoUrl?: string | null;
+      exerciseLibraryId?: string | null;
     }
   ) {
     const { data, error } = await supabase
@@ -97,6 +125,9 @@ export const WorkoutPlanService = {
         ...(updates.reps !== undefined ? { reps: updates.reps } : {}),
         ...(updates.weight !== undefined ? { weight: updates.weight } : {}),
         ...(updates.videoUrl !== undefined ? { video_url: updates.videoUrl } : {}),
+        ...(updates.exerciseLibraryId !== undefined
+          ? { exercise_library_id: updates.exerciseLibraryId }
+          : {}),
       })
       .eq("id", exerciseId)
       .select()
@@ -114,6 +145,8 @@ export const WorkoutPlanService = {
 
     if (error) throw error;
   },
+
+  // ─── Student Workout Assignments ──────────────────────────────────────────
 
   async assignPlanToStudent(gymId: string, studentId: string, planId: string) {
     await supabase
@@ -150,5 +183,47 @@ export const WorkoutPlanService = {
       .order("exercise_order");
 
     return exercises || [];
+  },
+
+  // ─── Exercise Library ─────────────────────────────────────────────────────
+
+  async getLibraryExercises(): Promise<LibraryExercise[]> {
+    const { data, error } = await supabase
+      .from("exercise_library")
+      .select("*")
+      .order("name");
+
+    if (error) throw error;
+    return (data as LibraryExercise[]) || [];
+  },
+
+  async createLibraryExercise(exercise: {
+    name: string;
+    description?: string | null;
+    muscleGroup?: string | null;
+    videoUrl?: string | null;
+  }): Promise<LibraryExercise> {
+    const { data, error } = await supabase
+      .from("exercise_library")
+      .insert({
+        name: exercise.name,
+        description: exercise.description || null,
+        muscle_group: exercise.muscleGroup || null,
+        video_url: exercise.videoUrl || null,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data as LibraryExercise;
+  },
+
+  async deleteLibraryExercise(id: string) {
+    const { error } = await supabase
+      .from("exercise_library")
+      .delete()
+      .eq("id", id);
+
+    if (error) throw error;
   },
 };

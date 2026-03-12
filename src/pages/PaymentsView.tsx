@@ -88,24 +88,24 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({ payments, canViewFin
   return (
     <div className="space-y-6">
       {canViewFinancials && (
-  <div className="grid grid-cols-2 gap-4">
-    <Card className="p-4 bg-slate-900 text-black border-0">
-      <div className="flex items-center gap-2 mb-2 opacity-80">
-        <ArrowUpRight size={16} />
-        <span className="text-xs font-bold uppercase tracking-wider">Cobrado Hoy</span>
-      </div>
-      <p className="text-2xl font-black italic">{currency(todayIncome)}</p>
-    </Card>
+        <div className="grid grid-cols-2 gap-4">
+          <Card className="p-4 bg-slate-900 text-black border-0">
+            <div className="flex items-center gap-2 mb-2 opacity-80">
+              <ArrowUpRight size={16} />
+              <span className="text-xs font-bold uppercase tracking-wider">Cobrado Hoy</span>
+            </div>
+            <p className="text-2xl font-black italic">{currency(todayIncome)}</p>
+          </Card>
 
-    <Card className="p-4 bg-emerald-500 text-black border-0">
-      <div className="flex items-center gap-2 mb-2 opacity-80">
-        <CreditCard size={16} />
-        <span className="text-xs font-bold uppercase tracking-wider">Cobrado Mes</span>
-      </div>
-      <p className="text-2xl font-black italic">{currency(monthlyIncome)}</p>
-    </Card>
-  </div>
-)}
+          <Card className="p-4 bg-emerald-500 text-black border-0">
+            <div className="flex items-center gap-2 mb-2 opacity-80">
+              <CreditCard size={16} />
+              <span className="text-xs font-bold uppercase tracking-wider">Cobrado Mes</span>
+            </div>
+            <p className="text-2xl font-black italic">{currency(monthlyIncome)}</p>
+          </Card>
+        </div>
+      )}
 
       <div className="flex gap-2">
         <div className="relative flex-1">
@@ -123,19 +123,19 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({ payments, canViewFin
       </Button>
 
       <div className="space-y-3">
-        <h3 className="font-bold text-slate-900 px-1">Pagos Recientes</h3>
+        <h3 className="font-bold text-slate-900 dark:text-white px-1">Pagos Recientes</h3>
 
         {normalizedPayments.length > 0 ? (
           normalizedPayments.map((payment: any) => (
             <Card key={payment.id} className="p-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-600">
+                <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300">
                   {getPaymentIcon(payment.displayMethod)}
                 </div>
 
                 <div>
-                  <p className="text-sm font-bold text-slate-900">{payment.displayStudentName}</p>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-sm font-bold text-slate-900 dark:text-white">{payment.displayStudentName}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
                     {payment.displayDate ? formatDate(String(payment.displayDate)) : 'Sin fecha'} •{' '}
                     {String(payment.displayMethod).replaceAll('_', ' ').toUpperCase()}
                   </p>
@@ -143,13 +143,13 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({ payments, canViewFin
               </div>
 
               <div className="text-right">
-                <p className="font-black text-slate-900">${payment.displayAmount}</p>
+                <p className="font-black text-slate-900 dark:text-white">${payment.displayAmount}</p>
                 <p className="text-[10px] font-bold text-emerald-600 uppercase">Completado</p>
               </div>
             </Card>
           ))
         ) : (
-          <p className="text-sm text-slate-400 text-center py-12">No hay pagos registrados.</p>
+          <p className="text-sm text-slate-400 dark:text-slate-500 text-center py-12">No hay pagos registrados.</p>
         )}
       </div>
     </div>

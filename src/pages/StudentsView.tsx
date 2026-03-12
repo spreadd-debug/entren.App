@@ -93,12 +93,12 @@ export const StudentsView: React.FC<StudentsViewProps> = ({ students, onSelectSt
           >
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center font-bold text-slate-600 text-lg">
+                <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-700 flex items-center justify-center font-bold text-slate-600 dark:text-slate-300 text-lg">
                   {student.firstLetter}
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h4 className="font-bold text-slate-900">{student.displayName}</h4>
+                    <h4 className="font-bold text-slate-900 dark:text-white">{student.displayName}</h4>
                     <BillingBadge
                       cobra_cuota={student.cobra_cuota}
                       recordatorio_automatico={student.recordatorio_automatico}
@@ -106,23 +106,23 @@ export const StudentsView: React.FC<StudentsViewProps> = ({ students, onSelectSt
                       whatsapp_opt_in={student.whatsapp_opt_in}
                     />
                   </div>
-                  <p className="text-xs text-slate-500 font-medium">{student.planDisplay}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">{student.planDisplay}</p>
                 </div>
               </div>
 
               <StatusBadge status={student.status} />
             </div>
 
-            <div className="flex items-center justify-between pt-3 border-t border-slate-50">
+            <div className="flex items-center justify-between pt-3 border-t border-slate-50 dark:border-slate-700">
               <div className="text-xs">
-                <p className="text-slate-400 uppercase tracking-wider font-bold mb-0.5">Vencimiento</p>
+                <p className="text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold mb-0.5">Vencimiento</p>
                 <p
                   className={`font-bold ${
                     student.dueStatus === 'expired'
                       ? 'text-rose-600'
                       : student.dueStatus === 'expiring'
                       ? 'text-amber-600'
-                      : 'text-slate-900'
+                      : 'text-slate-900 dark:text-white'
                   }`}
                 >
                   {student.nextDueDisplay ? formatDate(String(student.nextDueDisplay)) : 'Sin fecha'}
@@ -147,7 +147,7 @@ export const StudentsView: React.FC<StudentsViewProps> = ({ students, onSelectSt
                 >
                   <CreditCard size={18} />
                 </button>
-                <div className="p-2.5 text-slate-300">
+                <div className="p-2.5 text-slate-300 dark:text-slate-600">
                   <ChevronRight size={18} />
                 </div>
               </div>
@@ -157,11 +157,11 @@ export const StudentsView: React.FC<StudentsViewProps> = ({ students, onSelectSt
 
         {filteredStudents.length === 0 && (
           <div className="py-12 text-center">
-            <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-400">
+            <div className="w-20 h-20 bg-slate-100 dark:bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-400 dark:text-slate-500">
               <Users size={40} />
             </div>
-            <h3 className="text-lg font-bold text-slate-900">No se encontraron alumnos</h3>
-            <p className="text-slate-500">Probá con otro nombre o agregá uno nuevo.</p>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white">No se encontraron alumnos</h3>
+            <p className="text-slate-500 dark:text-slate-400">Probá con otro nombre o agregá uno nuevo.</p>
           </div>
         )}
       </div>

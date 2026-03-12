@@ -82,11 +82,11 @@ export const PlansView: React.FC<PlansViewProps> = ({
               setIsEditing(false);
               setCurrentPlan(null);
             }}
-            className="p-2 rounded-xl bg-white border border-slate-100 text-slate-600"
+            className="p-2 rounded-xl bg-white dark:bg-slate-700 border border-slate-100 dark:border-slate-600 text-slate-600 dark:text-slate-300"
           >
             <ChevronLeft size={20} />
           </button>
-          <h2 className="text-xl font-bold text-slate-900">
+          <h2 className="text-xl font-bold text-slate-900 dark:text-white">
             {currentPlan.id ? 'Editar Plan' : 'Nuevo Plan'}
           </h2>
         </div>
@@ -94,7 +94,7 @@ export const PlansView: React.FC<PlansViewProps> = ({
         <Card className="p-6">
           <form onSubmit={handleSave} className="space-y-5">
             <div className="space-y-2">
-              <label className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">
+              <label className="text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 ml-1">
                 Nombre del Plan
               </label>
               <Input
@@ -109,7 +109,7 @@ export const PlansView: React.FC<PlansViewProps> = ({
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">
+                <label className="text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 ml-1">
                   Precio ($)
                 </label>
                 <div className="relative">
@@ -134,7 +134,7 @@ export const PlansView: React.FC<PlansViewProps> = ({
               </div>
 
               <div className="space-y-2">
-                <label className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">
+                <label className="text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 ml-1">
                   Duración (Días)
                 </label>
                 <div className="relative">
@@ -160,7 +160,7 @@ export const PlansView: React.FC<PlansViewProps> = ({
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">
+              <label className="text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 ml-1">
                 Clases por Semana (Opcional)
               </label>
               <div className="relative">
@@ -184,11 +184,11 @@ export const PlansView: React.FC<PlansViewProps> = ({
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">
+              <label className="text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 ml-1">
                 Descripción
               </label>
               <textarea
-                className="w-full p-4 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-slate-900 font-medium text-sm"
+                className="w-full p-4 rounded-2xl border border-slate-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-slate-900 font-medium text-sm"
                 rows={3}
                 placeholder="Detalles del plan..."
                 value={currentPlan.description ?? ''}
@@ -198,7 +198,7 @@ export const PlansView: React.FC<PlansViewProps> = ({
               />
             </div>
 
-            <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+            <div className="flex items-center gap-3 p-4 bg-slate-50 dark:bg-slate-700 rounded-2xl border border-slate-100 dark:border-slate-600">
               <input
                 type="checkbox"
                 id="active"
@@ -208,7 +208,7 @@ export const PlansView: React.FC<PlansViewProps> = ({
                   setCurrentPlan({ ...currentPlan, active: e.target.checked })
                 }
               />
-              <label htmlFor="active" className="text-sm font-bold text-slate-700">
+              <label htmlFor="active" className="text-sm font-bold text-slate-700 dark:text-slate-200">
                 Plan Activo
               </label>
             </div>
@@ -241,11 +241,11 @@ export const PlansView: React.FC<PlansViewProps> = ({
         <div className="flex items-center gap-3">
           <button
             onClick={onBack}
-            className="p-2 rounded-xl bg-white border border-slate-100 text-slate-600"
+            className="p-2 rounded-xl bg-white dark:bg-slate-700 border border-slate-100 dark:border-slate-600 text-slate-600 dark:text-slate-300"
           >
             <ChevronLeft size={20} />
           </button>
-          <h2 className="text-xl font-bold text-slate-900">Planes y Precios</h2>
+          <h2 className="text-xl font-bold text-slate-900 dark:text-white">Planes y Precios</h2>
         </div>
 
         <Button size="sm" className="gap-2" onClick={handleCreate}>
@@ -262,17 +262,17 @@ export const PlansView: React.FC<PlansViewProps> = ({
           >
             <div className="flex justify-between items-start mb-4">
               <div>
-                <h3 className="text-lg font-black text-slate-900 italic uppercase tracking-tight">
+                <h3 className="text-lg font-black text-slate-900 dark:text-white italic uppercase tracking-tight">
                   {plan.name || 'Sin nombre'}
                 </h3>
-                <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest mt-1">
                   {plan.durationDays} días{' '}
                   {plan.classesPerWeek ? `• ${plan.classesPerWeek} veces x semana` : ''}
                 </p>
               </div>
 
               <div className="text-right">
-                <p className="text-2xl font-black text-slate-900 tracking-tighter">
+                <p className="text-2xl font-black text-slate-900 dark:text-white tracking-tighter">
                   ${plan.price}
                 </p>
                 {!plan.active && (
@@ -284,12 +284,12 @@ export const PlansView: React.FC<PlansViewProps> = ({
             </div>
 
             {plan.description && (
-              <p className="text-sm text-slate-600 mb-4 leading-relaxed">
+              <p className="text-sm text-slate-600 dark:text-slate-300 mb-4 leading-relaxed">
                 {plan.description}
               </p>
             )}
 
-            <div className="flex gap-2 pt-4 border-t border-slate-50">
+            <div className="flex gap-2 pt-4 border-t border-slate-50 dark:border-slate-700">
               <Button
                 variant="outline"
                 size="sm"
