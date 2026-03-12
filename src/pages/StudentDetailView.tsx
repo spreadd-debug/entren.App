@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
   Phone,
@@ -16,11 +16,14 @@ import {
   Info,
   Save,
   X,
+  Dumbbell,
+  PlayCircle,
 } from 'lucide-react';
 import { Card, StatusBadge, Button, BillingBadge, Input } from '../components/UI';
 import { Student, Payment, Plan } from '../../shared/types';
 import { formatDate } from '../utils/dateUtils';
 import { RegisterPaymentModal } from '../components/RegisterPaymentModal';
+import { WorkoutPlanService } from '../services/WorkoutPlanService';
 
 interface StudentDetailViewProps {
   student: Student;
@@ -38,6 +41,8 @@ interface StudentDetailViewProps {
   onDeleteStudent: (id: string) => void;
 }
 
+const gymId = '11111111-1111-1111-1111-111111111111';
+
 export const StudentDetailView: React.FC<StudentDetailViewProps> = ({
   student,
   payments,
@@ -49,6 +54,12 @@ export const StudentDetailView: React.FC<StudentDetailViewProps> = ({
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+
+  const [workoutPlans, setWorkoutPlans] = useState<any[]>([]);
+  const [studentWorkoutExercises, setStudentWorkoutExercises] = useState<any[]>([]);
+  const [selectedWorkoutPlanId, setSelectedWorkoutPlanId] = useState('');
+  const [isLoadingWorkout, setIsLoadingWorkout] = useState(true);
+  const [isAssigningWorkout, setIsAssigningWorkout] = useState(false);
 
   const normalizedPlans = useMemo(() => {
     const safePlans = Array.isArray(plans) ? plans : [];
@@ -91,6 +102,46 @@ export const StudentDetailView: React.FC<StudentDetailViewProps> = ({
     precio_personalizado: (student as any).precio_personalizado ?? '',
     observaciones_cobranza: (student as any).observaciones_cobranza ?? '',
   });
+
+  const loadWorkoutData = async () => {
+    try {
+      setIsLoadingWorkout(true);
+
+      const [plansData, exercisesData] = await Promise.all([
+        WorkoutPlanService.getPlans(gymId),
+        WorkoutPlanService.getStudentWorkout(student.id),
+      ]);
+
+      setWorkoutPlans(Array.isArray(plansData) ? plansData : []);
+      setStudentWorkoutExercises(Array.isArray(exercisesData) ? exercisesData : []);
+    } catch (error) {
+      console.error('Error loading workout data:', error);
+      setWorkoutPlans([]);
+      setStudentWorkoutExercises([]);
+    } finally {
+      setIsLoadingWorkout(false);
+    }
+  };
+
+  useEffect(() => {
+    loadWorkoutData();
+  }, [student.id]);
+
+  const handleAssignWorkout = async () => {
+    if (!selectedWorkoutPlanId) return;
+
+    try {
+      setIsAssigningWorkout(true);
+      await WorkoutPlanService.assignPlanToStudent(gymId, student.id, selectedWorkoutPlanId);
+      await loadWorkoutData();
+      alert('Rutina asignada correctamente');
+    } catch (error) {
+      console.error('Error assigning workout:', error);
+      alert('No se pudo asignar la rutina');
+    } finally {
+      setIsAssigningWorkout(false);
+    }
+  };
 
   const handleConfirmPayment = (paymentData: any) => {
     onRegisterPayment({
@@ -351,6 +402,88 @@ export const StudentDetailView: React.FC<StudentDetailViewProps> = ({
                 ? formatDate((student as any).lastPaymentDate ?? (student as any).last_payment_date)
                 : '-'}
             </span>
+          </div>
+        </Card>
+
+        <Card className="p-4 space-y-4">
+          <h3 className="font-bold text-slate-900 border-b border-slate-50 pb-2">Rutina</h3>
+
+          <div className="flex items-start gap-3">
+            <div className="p-2 bg-slate-100 rounded-lg text-slate-600">
+              <Dumbbell size={18} />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-bold text-slate-900">Rutina actual</p>
+              <p className="text-xs text-slate-500">
+                {isLoadingWorkout
+                  ? 'Cargando rutina...'
+                  : studentWorkoutExercises.length > 0
+                  ? `${studentWorkoutExercises.length} ejercicios cargados`
+                  : 'Sin rutina asignada'}
+              </p>
+            </div>
+          </div>
+
+          <select
+            className="w-full px-4 h-12 rounded-2xl border border-slate-200 bg-white"
+            value={selectedWorkoutPlanId}
+            onChange={(e) => setSelectedWorkoutPlanId(e.target.value)}
+          >
+            <option value="">Seleccionar rutina</option>
+            {workoutPlans.map((plan: any) => (
+              <option key={plan.id} value={plan.id}>
+                {plan.name}
+              </option>
+            ))}
+          </select>
+
+          <Button
+            variant="secondary"
+            fullWidth
+            onClick={handleAssignWorkout}
+            disabled={!selectedWorkoutPlanId || isAssigningWorkout}
+          >
+            {isAssigningWorkout ? 'Asignando...' : 'Asignar / Cambiar rutina'}
+          </Button>
+
+          <div className="space-y-3">
+            {studentWorkoutExercises.length > 0 ? (
+              studentWorkoutExercises.map((exercise: any, index: number) => (
+                <div
+                  key={exercise.id}
+                  className="flex items-center justify-between py-3 border-b border-slate-50 last:border-0 gap-3"
+                >
+                  <div>
+                    <p className="text-sm font-bold text-slate-900">
+                      {index + 1}. {exercise.exercise_name}
+                    </p>
+                    <p className="text-[11px] text-slate-500">
+                      {exercise.sets || '-'} series · {exercise.reps || '-'} reps · {exercise.weight || '-'}
+                    </p>
+                  </div>
+
+                  {exercise.video_url ? (
+                    <a
+                      href={exercise.video_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors text-xs font-bold shrink-0"
+                    >
+                      <PlayCircle size={15} />
+                      Ver video
+                    </a>
+                  ) : (
+                    <Dumbbell size={16} className="text-slate-300 shrink-0" />
+                  )}
+                </div>
+              ))
+            ) : (
+              !isLoadingWorkout && (
+                <p className="text-sm text-slate-400 text-center py-2">
+                  Este alumno todavía no tiene rutina asignada.
+                </p>
+              )
+            )}
           </div>
         </Card>
 
