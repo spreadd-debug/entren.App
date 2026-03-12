@@ -1,3 +1,4 @@
+import { CURRENT_USER } from './config/currentUser';
 import React, { useState, useEffect } from 'react';
 import { AppShell } from './components/AppShell';
 import { DashboardView } from './pages/DashboardView';
@@ -50,6 +51,9 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
 
   const gymId = '11111111-1111-1111-1111-111111111111';
+  const currentUserRole = CURRENT_USER.role;
+  const canViewFinancials = currentUserRole === 'admin';
+  const canManageSettings = currentUserRole === 'admin';
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -160,7 +164,8 @@ export default function App() {
       setPayments(updatedPayments);
 
       if (selectedStudent?.id === paymentData.studentId) {
-        const updatedStudent = updatedStudents.find((s: any) => s.id === paymentData.studentId) ?? null;
+        const updatedStudent =
+          updatedStudents.find((s: any) => s.id === paymentData.studentId) ?? null;
         setSelectedStudent(updatedStudent);
       }
     } catch (error) {
@@ -193,33 +198,71 @@ export default function App() {
     }
   };
 
-  const handleCreateStudent = async (studentData: Partial<Student>, registerPayment: boolean) => {
+  const handleCreateStudent = async (
+  studentData: Partial<Student>,
+  registerPayment: boolean
+) => {
+  try {
+    const newStudent: any = await api.students.create({
+      ...studentData,
+      gym_id: gymId,
+    });
+
+    if (registerPayment) {
+      const selectedPlan: any = plans.find(
+        (p: any) => p.id === (newStudent.plan_id ?? newStudent.planId)
+      );
+
+      await api.payments.register({
+  student_id: newStudent.id,
+  gym_id: gymId,
+  monto: Number(selectedPlan?.precio ?? selectedPlan?.price ?? 0),
+  metodo_pago: 'cash',
+  fecha_pago: new Date().toISOString().split('T')[0],
+  next_due_date: newStudent.next_due_date ?? newStudent.nextDueDate,
+});
+    }
+
+    const [updatedStudents, updatedPayments] = await Promise.all([
+      api.students.getAll(gymId),
+      api.payments.getAll(gymId),
+    ]);
+
+    setStudents(updatedStudents);
+    setPayments(updatedPayments);
+    setCurrentView('students');
+  } catch (error) {
+    console.error('Error creating student:', error);
+  }
+};
+
+  const handleUpdateStudent = async (id: string, updates: any) => {
     try {
-      const newStudent: any = await api.students.create({
-        ...studentData,
-        gym_id: gymId,
-      });
+      await api.students.update(id, updates);
 
-      if (registerPayment) {
-        const selectedPlan: any = plans.find(
-          (p: any) => p.id === (newStudent.plan_id ?? newStudent.planId)
-        );
+      const updatedStudents = await api.students.getAll(gymId);
+      setStudents(updatedStudents);
 
-        await handleRegisterPayment({
-          studentId: newStudent.id,
-          amount: Number(selectedPlan?.precio ?? selectedPlan?.price ?? 0),
-          method: 'cash',
-          date: new Date().toISOString().split('T')[0],
-          nextDueDate: newStudent.next_due_date ?? newStudent.nextDueDate,
-        });
-      } else {
-        const updatedStudents = await api.students.getAll(gymId);
-        setStudents(updatedStudents);
-      }
+      const updatedStudent =
+        updatedStudents.find((s: any) => s.id === id) ?? null;
 
+      setSelectedStudent(updatedStudent);
+    } catch (error) {
+      console.error('Error updating student:', error);
+    }
+  };
+
+  const handleDeleteStudent = async (id: string) => {
+    try {
+      await api.students.delete(id);
+
+      const updatedStudents = await api.students.getAll(gymId);
+      setStudents(updatedStudents);
+
+      setSelectedStudent(null);
       setCurrentView('students');
     } catch (error) {
-      console.error('Error creating student:', error);
+      console.error('Error deleting student:', error);
     }
   };
 
@@ -250,15 +293,16 @@ export default function App() {
     }
 
     switch (currentView) {
-      case 'dashboard':
-        return (
-          <DashboardView
-            onNavigate={handleNavigate}
-            students={students}
-            payments={payments}
-            onSelectStudent={handleSelectStudent}
-          />
-        );
+    case 'dashboard':
+  return (
+    <DashboardView
+      onNavigate={handleNavigate}
+      students={students}
+      payments={payments}
+      onSelectStudent={handleSelectStudent}
+      canViewFinancials={canViewFinancials}
+    />
+  );
 
       case 'students':
         return (
@@ -273,10 +317,14 @@ export default function App() {
         return selectedStudent ? (
           <StudentDetailView
             student={selectedStudent}
-            payments={payments.filter((p: any) => (p.studentId ?? p.student_id) === selectedStudent.id)}
+            payments={payments.filter(
+              (p: any) => (p.studentId ?? p.student_id) === selectedStudent.id
+            )}
             plans={plans}
             onBack={() => setCurrentView('students')}
             onRegisterPayment={handleRegisterPayment}
+            onUpdateStudent={handleUpdateStudent}
+            onDeleteStudent={handleDeleteStudent}
           />
         ) : (
           <StudentsView
@@ -298,8 +346,8 @@ export default function App() {
           />
         );
 
-      case 'settings':
-        return <SettingsView onNavigate={handleNavigate} />;
+      case 'payments':
+  return <PaymentsView payments={payments} canViewFinancials={canViewFinancials} />;
 
       case 'automation':
         return (
@@ -335,14 +383,15 @@ export default function App() {
         );
 
       default:
-        return (
-          <DashboardView
-            onNavigate={handleNavigate}
-            students={students}
-            payments={payments}
-            onSelectStudent={handleSelectStudent}
-          />
-        );
+  return (
+    <DashboardView
+      onNavigate={handleNavigate}
+      students={students}
+      payments={payments}
+      onSelectStudent={handleSelectStudent}
+      canViewFinancials={canViewFinancials}
+    />
+  );
     }
   };
 
@@ -370,9 +419,11 @@ export default function App() {
         return 'Gimnasio Pro';
     }
   };
-console.log('students state', students);
-console.log('plans state', plans);
-console.log('payments state', payments);
+
+  console.log('students state', students);
+  console.log('plans state', plans);
+  console.log('payments state', payments);
+
   return (
     <AppShell
       currentView={currentView === 'student-detail' ? 'students' : currentView}

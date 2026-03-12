@@ -1,11 +1,26 @@
-
-import React, { useState } from 'react';
-import { ArrowLeft, Phone, Mail, Calendar, CreditCard, History, Edit2, MessageSquare, Trash2, Smartphone } from 'lucide-react';
-import { Card, StatusBadge, Button, BillingBadge } from '../components/UI';
+import React, { useMemo, useState } from 'react';
+import {
+  ArrowLeft,
+  Phone,
+  Mail,
+  Calendar,
+  CreditCard,
+  History,
+  Edit2,
+  MessageSquare,
+  Trash2,
+  Smartphone,
+  Bell,
+  ShieldCheck,
+  DollarSign as DollarIcon,
+  Info,
+  Save,
+  X,
+} from 'lucide-react';
+import { Card, StatusBadge, Button, BillingBadge, Input } from '../components/UI';
 import { Student, Payment, Plan } from '../../shared/types';
 import { formatDate } from '../utils/dateUtils';
 import { RegisterPaymentModal } from '../components/RegisterPaymentModal';
-import { Bell, ShieldCheck, DollarSign as DollarIcon, Info } from 'lucide-react';
 
 interface StudentDetailViewProps {
   student: Student;
@@ -19,54 +34,268 @@ interface StudentDetailViewProps {
     date: string;
     nextDueDate: string;
   }) => void;
+  onUpdateStudent: (id: string, updates: any) => void;
+  onDeleteStudent: (id: string) => void;
 }
 
-export const StudentDetailView: React.FC<StudentDetailViewProps> = ({ 
-  student, 
-  payments, 
+export const StudentDetailView: React.FC<StudentDetailViewProps> = ({
+  student,
+  payments,
   plans,
-  onBack, 
-  onRegisterPayment 
+  onBack,
+  onRegisterPayment,
+  onUpdateStudent,
+  onDeleteStudent,
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+
+  const normalizedPlans = useMemo(() => {
+    const safePlans = Array.isArray(plans) ? plans : [];
+    return safePlans.map((plan: any) => ({
+      ...plan,
+      name: plan.name ?? plan.nombre ?? '',
+      price: Number(plan.price ?? plan.precio ?? 0),
+      durationDays: Number(plan.durationDays ?? plan.duracion_dias ?? 30),
+      active: plan.active ?? plan.activo ?? true,
+    }));
+  }, [plans]);
+
+  const normalizedStudentName =
+    (student as any).name ??
+    `${(student as any).nombre ?? ''} ${(student as any).apellido ?? ''}`.trim();
+
+  const [editData, setEditData] = useState({
+    nombre: (student as any).nombre ?? '',
+    apellido: (student as any).apellido ?? '',
+    telefono: (student as any).telefono ?? '',
+    plan_id: (student as any).plan_id ?? (student as any).planId ?? '',
+    status:
+      (student as any).status === 'active'
+        ? 'activo'
+        : (student as any).status === 'inactive'
+        ? 'baja'
+        : (student as any).status ?? 'activo',
+    observaciones: (student as any).observaciones ?? (student as any).observations ?? '',
+    cobra_cuota: (student as any).cobra_cuota ?? true,
+    recordatorio_automatico: (student as any).recordatorio_automatico ?? true,
+    whatsapp_opt_in: (student as any).whatsapp_opt_in ?? false,
+    tipo_beca:
+      (student as any).tipo_beca === 'none'
+        ? 'ninguna'
+        : (student as any).tipo_beca === 'partial'
+        ? 'parcial'
+        : (student as any).tipo_beca === 'complete'
+        ? 'completa'
+        : (student as any).tipo_beca ?? 'ninguna',
+    precio_personalizado: (student as any).precio_personalizado ?? '',
+    observaciones_cobranza: (student as any).observaciones_cobranza ?? '',
+  });
 
   const handleConfirmPayment = (paymentData: any) => {
     onRegisterPayment({
       studentId: student.id,
-      ...paymentData
+      ...paymentData,
     });
     setIsModalOpen(false);
   };
 
+  const handleSave = () => {
+    onUpdateStudent(student.id, {
+      ...editData,
+      precio_personalizado:
+        editData.precio_personalizado === '' ? null : Number(editData.precio_personalizado),
+    });
+    setIsEditing(false);
+  };
+
+  const handleDelete = () => {
+    const confirmed = window.confirm('¿Seguro que querés eliminar este alumno?');
+    if (!confirmed) return;
+    onDeleteStudent(student.id);
+  };
+
+  if (isEditing) {
+    return (
+      <div className="space-y-6 pb-10">
+        <div className="flex items-center justify-between">
+          <button onClick={() => setIsEditing(false)} className="p-2 -ml-2 text-slate-600 hover:text-slate-900 transition-colors">
+            <ArrowLeft size={24} />
+          </button>
+
+          <div className="flex gap-2">
+            <Button variant="outline" size="icon" onClick={() => setIsEditing(false)}>
+              <X size={18} />
+            </Button>
+            <Button variant="secondary" size="icon" onClick={handleSave}>
+              <Save size={18} />
+            </Button>
+          </div>
+        </div>
+
+        <Card className="p-5 space-y-4">
+          <h3 className="font-bold text-slate-900">Editar Alumno</h3>
+
+          <div className="grid grid-cols-2 gap-4">
+            <Input
+              placeholder="Nombre"
+              value={editData.nombre}
+              onChange={(e) => setEditData({ ...editData, nombre: e.target.value })}
+            />
+            <Input
+              placeholder="Apellido"
+              value={editData.apellido}
+              onChange={(e) => setEditData({ ...editData, apellido: e.target.value })}
+            />
+          </div>
+
+          <Input
+            placeholder="Teléfono"
+            value={editData.telefono}
+            onChange={(e) => setEditData({ ...editData, telefono: e.target.value })}
+          />
+
+          <select
+            className="w-full px-4 h-12 rounded-2xl border border-slate-200 bg-white"
+            value={editData.plan_id}
+            onChange={(e) => setEditData({ ...editData, plan_id: e.target.value })}
+          >
+            {normalizedPlans.map((plan: any) => (
+              <option key={plan.id} value={plan.id}>
+                {plan.name} - ${plan.price}
+              </option>
+            ))}
+          </select>
+
+          <div className="grid grid-cols-2 gap-4">
+            <select
+              className="w-full px-4 h-12 rounded-2xl border border-slate-200 bg-white"
+              value={editData.status}
+              onChange={(e) => setEditData({ ...editData, status: e.target.value })}
+            >
+              <option value="activo">Activo</option>
+              <option value="pausado">Pausado</option>
+              <option value="baja">Baja</option>
+            </select>
+
+            <Input
+              type="number"
+              placeholder="Precio personalizado"
+              value={editData.precio_personalizado}
+              onChange={(e) =>
+                setEditData({ ...editData, precio_personalizado: e.target.value })
+              }
+            />
+          </div>
+
+          <textarea
+            className="w-full px-4 py-3 rounded-2xl border border-slate-200"
+            rows={3}
+            placeholder="Observaciones"
+            value={editData.observaciones}
+            onChange={(e) => setEditData({ ...editData, observaciones: e.target.value })}
+          />
+
+          <textarea
+            className="w-full px-4 py-3 rounded-2xl border border-slate-200"
+            rows={3}
+            placeholder="Observaciones de cobranza"
+            value={editData.observaciones_cobranza}
+            onChange={(e) =>
+              setEditData({ ...editData, observaciones_cobranza: e.target.value })
+            }
+          />
+
+          <div className="space-y-3">
+            <label className="flex items-center justify-between">
+              <span className="text-sm font-medium">Cobra cuota</span>
+              <input
+                type="checkbox"
+                checked={editData.cobra_cuota}
+                onChange={(e) =>
+                  setEditData({ ...editData, cobra_cuota: e.target.checked })
+                }
+              />
+            </label>
+
+            <label className="flex items-center justify-between">
+              <span className="text-sm font-medium">Recordatorio automático</span>
+              <input
+                type="checkbox"
+                checked={editData.recordatorio_automatico}
+                onChange={(e) =>
+                  setEditData({
+                    ...editData,
+                    recordatorio_automatico: e.target.checked,
+                  })
+                }
+              />
+            </label>
+
+            <label className="flex items-center justify-between">
+              <span className="text-sm font-medium">Opt-in WhatsApp</span>
+              <input
+                type="checkbox"
+                checked={editData.whatsapp_opt_in}
+                onChange={(e) =>
+                  setEditData({ ...editData, whatsapp_opt_in: e.target.checked })
+                }
+              />
+            </label>
+          </div>
+
+          <div className="flex gap-2">
+            {(['ninguna', 'parcial', 'completa'] as const).map((tipo) => (
+              <Button
+                key={tipo}
+                variant={editData.tipo_beca === tipo ? 'primary' : 'outline'}
+                fullWidth
+                onClick={() => setEditData({ ...editData, tipo_beca: tipo })}
+              >
+                {tipo}
+              </Button>
+            ))}
+          </div>
+
+          <Button variant="secondary" fullWidth onClick={handleSave}>
+            Guardar cambios
+          </Button>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 pb-10">
-      {/* Header with Back Button */}
       <div className="flex items-center justify-between">
         <button onClick={onBack} className="p-2 -ml-2 text-slate-600 hover:text-slate-900 transition-colors">
           <ArrowLeft size={24} />
         </button>
         <div className="flex gap-2">
-          <Button variant="outline" size="icon">
+          <Button variant="outline" size="icon" onClick={() => setIsEditing(true)}>
             <Edit2 size={18} />
           </Button>
-          <Button variant="outline" size="icon" className="text-rose-500 border-rose-100 hover:bg-rose-50">
+          <Button
+            variant="outline"
+            size="icon"
+            className="text-rose-500 border-rose-100 hover:bg-rose-50"
+            onClick={handleDelete}
+          >
             <Trash2 size={18} />
           </Button>
         </div>
       </div>
 
-      {/* Profile Info */}
       <div className="text-center">
         <div className="w-24 h-24 rounded-3xl bg-slate-900 text-white flex items-center justify-center text-3xl font-black mx-auto mb-4 shadow-xl shadow-slate-200 italic">
-          {student.name.charAt(0)}
+          {normalizedStudentName?.charAt(0) || '?'}
         </div>
-        <h2 className="text-2xl font-bold text-slate-900">{student.name}</h2>
+        <h2 className="text-2xl font-bold text-slate-900">{normalizedStudentName}</h2>
         <div className="mt-2">
-          <StatusBadge status={student.status} />
+          <StatusBadge status={(student as any).status} />
         </div>
       </div>
 
-      {/* Quick Contact Actions */}
       <div className="grid grid-cols-3 gap-3">
         <Button variant="outline" className="flex-col gap-2 py-4 h-auto">
           <Phone size={20} className="text-indigo-600" />
@@ -82,11 +311,10 @@ export const StudentDetailView: React.FC<StudentDetailViewProps> = ({
         </Button>
       </div>
 
-      {/* Details Grid */}
       <div className="grid gap-4">
         <Card className="p-4 space-y-4">
           <h3 className="font-bold text-slate-900 border-b border-slate-50 pb-2">Información del Plan</h3>
-          
+
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-slate-100 rounded-lg text-slate-600">
@@ -94,18 +322,20 @@ export const StudentDetailView: React.FC<StudentDetailViewProps> = ({
               </div>
               <span className="text-sm font-medium text-slate-500">Plan Actual</span>
             </div>
-            <span className="text-sm font-bold text-slate-900">{student.planName}</span>
+            <span className="text-sm font-bold text-slate-900">
+              {(student as any).planName ?? (student as any).plan_nombre ?? 'Sin plan'}
+            </span>
           </div>
 
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${student.status === 'expired' ? 'bg-rose-50 text-rose-600' : 'bg-slate-100 text-slate-600'}`}>
+              <div className="p-2 bg-slate-100 rounded-lg text-slate-600">
                 <Calendar size={18} />
               </div>
               <span className="text-sm font-medium text-slate-500">Vencimiento</span>
             </div>
-            <span className={`text-sm font-bold ${student.status === 'expired' ? 'text-rose-600' : 'text-slate-900'}`}>
-              {formatDate(student.nextDueDate)}
+            <span className="text-sm font-bold text-slate-900">
+              {formatDate((student as any).nextDueDate ?? (student as any).next_due_date)}
             </span>
           </div>
 
@@ -116,58 +346,68 @@ export const StudentDetailView: React.FC<StudentDetailViewProps> = ({
               </div>
               <span className="text-sm font-medium text-slate-500">Último Pago</span>
             </div>
-            <span className="text-sm font-bold text-slate-900">{formatDate(student.lastPaymentDate)}</span>
+            <span className="text-sm font-bold text-slate-900">
+              {(student as any).lastPaymentDate || (student as any).last_payment_date
+                ? formatDate((student as any).lastPaymentDate ?? (student as any).last_payment_date)
+                : '-'}
+            </span>
           </div>
         </Card>
 
         <Card className="p-4 space-y-4">
           <h3 className="font-bold text-slate-900 border-b border-slate-50 pb-2">Configuración de Cobranza</h3>
-          
+
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${student.cobra_cuota ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+              <div className={`p-2 rounded-lg ${(student as any).cobra_cuota ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
                 <DollarIcon size={18} />
               </div>
               <div>
                 <p className="text-sm font-bold text-slate-900">Cobra Cuota</p>
-                <p className="text-[10px] text-slate-500">{student.cobra_cuota ? 'Habilitado' : 'Exento'}</p>
+                <p className="text-[10px] text-slate-500">
+                  {(student as any).cobra_cuota ? 'Habilitado' : 'Exento'}
+                </p>
               </div>
             </div>
-            <BillingBadge 
-              cobra_cuota={student.cobra_cuota} 
-              recordatorio_automatico={student.recordatorio_automatico} 
-              tipo_beca={student.tipo_beca} 
-              whatsapp_opt_in={student.whatsapp_opt_in}
+            <BillingBadge
+              cobra_cuota={(student as any).cobra_cuota}
+              recordatorio_automatico={(student as any).recordatorio_automatico}
+              tipo_beca={(student as any).tipo_beca}
+              whatsapp_opt_in={(student as any).whatsapp_opt_in}
             />
           </div>
 
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${student.recordatorio_automatico ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-400'}`}>
+              <div className={`p-2 rounded-lg ${(student as any).recordatorio_automatico ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-400'}`}>
                 <Bell size={18} />
               </div>
               <div>
                 <p className="text-sm font-bold text-slate-900">Recordatorios</p>
-                <p className="text-[10px] text-slate-500">{student.recordatorio_automatico ? 'Automáticos' : 'Manuales'}</p>
+                <p className="text-[10px] text-slate-500">
+                  {(student as any).recordatorio_automatico ? 'Automáticos' : 'Manuales'}
+                </p>
               </div>
             </div>
           </div>
 
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${student.whatsapp_opt_in ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+              <div className={`p-2 rounded-lg ${(student as any).whatsapp_opt_in ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
                 <MessageSquare size={18} />
               </div>
               <div>
                 <p className="text-sm font-bold text-slate-900">Opt-in WhatsApp</p>
                 <p className="text-[10px] text-slate-500">
-                  {student.whatsapp_opt_in ? `Aceptado ${student.whatsapp_opt_in_at ? `el ${formatDate(student.whatsapp_opt_in_at)}` : ''}` : 'No aceptado'}
+                  {(student as any).whatsapp_opt_in
+                    ? `Aceptado ${(student as any).whatsapp_opt_in_at ? `el ${formatDate((student as any).whatsapp_opt_in_at)}` : ''}`
+                    : 'No aceptado'}
                 </p>
               </div>
             </div>
           </div>
 
-          {student.tipo_beca !== 'none' && (
+          {(student as any).tipo_beca && (student as any).tipo_beca !== 'ninguna' && (
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-purple-50 rounded-lg text-purple-600">
@@ -175,16 +415,20 @@ export const StudentDetailView: React.FC<StudentDetailViewProps> = ({
                 </div>
                 <div>
                   <p className="text-sm font-bold text-slate-900">Beca</p>
-                  <p className="text-[10px] text-slate-500 uppercase font-black">{student.tipo_beca === 'complete' ? 'Completa' : 'Parcial'}</p>
+                  <p className="text-[10px] text-slate-500 uppercase font-black">
+                    {(student as any).tipo_beca}
+                  </p>
                 </div>
               </div>
             </div>
           )}
 
-          {student.observaciones_cobranza && (
+          {(student as any).observaciones_cobranza && (
             <div className="p-3 bg-slate-50 rounded-xl flex gap-3">
               <Info size={16} className="text-slate-400 shrink-0 mt-0.5" />
-              <p className="text-xs text-slate-600 leading-relaxed">{student.observaciones_cobranza}</p>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                {(student as any).observaciones_cobranza}
+              </p>
             </div>
           )}
         </Card>
@@ -194,40 +438,52 @@ export const StudentDetailView: React.FC<StudentDetailViewProps> = ({
             <h3 className="font-bold text-slate-900">Historial de Pagos</h3>
             <History size={18} className="text-slate-400" />
           </div>
-          
+
           <div className="space-y-3">
-            {payments.length > 0 ? payments.map(payment => (
-              <div key={payment.id} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-slate-50 rounded-lg text-slate-400">
-                    {payment.method === 'mercadopago' ? <Smartphone size={14} /> : <CreditCard size={14} />}
+            {payments.length > 0 ? (
+              payments.map((payment: any) => (
+                <div key={payment.id} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-slate-50 rounded-lg text-slate-400">
+                      {(payment.method ?? payment.metodo_pago) === 'mercadopago' ||
+                      (payment.method ?? payment.metodo_pago) === 'mercado_pago' ? (
+                        <Smartphone size={14} />
+                      ) : (
+                        <CreditCard size={14} />
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-slate-900">
+                        {formatDate((payment.date ?? payment.fecha_pago) as string)}
+                      </p>
+                      <p className="text-[10px] text-slate-500 uppercase font-bold">
+                        {String(payment.method ?? payment.metodo_pago ?? '').replaceAll('_', ' ')}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm font-bold text-slate-900">{formatDate(payment.date)}</p>
-                    <p className="text-[10px] text-slate-500 uppercase font-bold">{payment.method}</p>
-                  </div>
+                  <p className="font-bold text-emerald-600">
+                    ${Number(payment.amount ?? payment.monto ?? 0)}
+                  </p>
                 </div>
-                <p className="font-bold text-emerald-600">${payment.amount}</p>
-              </div>
-            )) : (
+              ))
+            ) : (
               <p className="text-sm text-slate-400 text-center py-4">No hay pagos registrados.</p>
             )}
           </div>
         </Card>
       </div>
 
-      {/* Main Action Button */}
-      <Button 
-        variant="secondary" 
-        fullWidth 
-        size="lg" 
+      <Button
+        variant="secondary"
+        fullWidth
+        size="lg"
         className="shadow-xl shadow-emerald-100"
         onClick={() => setIsModalOpen(true)}
       >
         Registrar Nuevo Pago
       </Button>
 
-      <RegisterPaymentModal 
+      <RegisterPaymentModal
         student={student}
         plans={plans}
         isOpen={isModalOpen}

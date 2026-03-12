@@ -106,7 +106,7 @@ export const DefaultersView: React.FC<DefaultersViewProps> = ({
       <div className="relative">
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
         <Input
-          placeholder="Buscar moroso..."
+          placeholder="Buscar Deudor..."
           className="pl-12"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}

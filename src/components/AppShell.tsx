@@ -15,7 +15,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children, currentView, onNav
     { id: 'dashboard', label: 'Inicio', icon: LayoutDashboard },
     { id: 'students', label: 'Alumnos', icon: Users },
     { id: 'payments', label: 'Pagos', icon: CreditCard },
-    { id: 'defaulters', label: 'Morosos', icon: AlertCircle },
+    { id: 'defaulters', label: 'Deudores', icon: AlertCircle },
     { id: 'settings', label: 'Ajustes', icon: Settings },
   ];
 

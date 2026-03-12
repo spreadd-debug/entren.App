@@ -1,17 +1,31 @@
 import React from 'react';
-import { CreditCard, Search, Filter, Plus, ArrowUpRight, ArrowDownLeft, Smartphone } from 'lucide-react';
+import {
+  CreditCard,
+  Search,
+  Filter,
+  Plus,
+  ArrowUpRight,
+  Smartphone,
+  Wallet,
+} from 'lucide-react';
 import { Card, Input, Button } from '../components/UI';
 import { Payment } from '../../shared/types';
 import { formatDate } from '../utils/dateUtils';
 
 interface PaymentsViewProps {
   payments: Payment[];
+  canViewFinancials: boolean;
 }
 
-export const PaymentsView: React.FC<PaymentsViewProps> = ({ payments }) => {
-  const safePayments = Array.isArray(payments) ? payments : [];
+const currency = (value: number) =>
+  new Intl.NumberFormat('es-AR', {
+    style: 'currency',
+    currency: 'ARS',
+    maximumFractionDigits: 0,
+  }).format(value);
 
-  const todayStr = new Date().toISOString().split('T')[0];
+export const PaymentsView: React.FC<PaymentsViewProps> = ({ payments, canViewFinancials }) => {
+  const safePayments = Array.isArray(payments) ? payments : [];
 
   const normalizedPayments = safePayments.map((payment: any) => {
     const date = payment.fecha_pago ?? payment.date ?? null;
@@ -22,10 +36,9 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({ payments }) => {
       payment.studentName ??
       payment.student_name ??
       payment.nombre_completo ??
-      payment.student?.nombre_completo ??
-      payment.student?.nombre
-        ? `${payment.student?.nombre ?? ''} ${payment.student?.apellido ?? ''}`.trim()
-        : 'Alumno';
+      (payment.student
+        ? `${payment.student.nombre ?? ''} ${payment.student.apellido ?? ''}`.trim()
+        : 'Alumno');
 
     return {
       ...payment,
@@ -36,27 +49,35 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({ payments }) => {
     };
   });
 
+  const todayStr = new Date().toISOString().split('T')[0];
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+
   const todayIncome = normalizedPayments
     .filter((p: any) => p.displayDate === todayStr)
     .reduce((sum: number, p: any) => sum + p.displayAmount, 0);
 
-  const formattedToday = new Intl.NumberFormat('es-AR', {
-    style: 'currency',
-    currency: 'ARS',
-    maximumFractionDigits: 0,
-  }).format(todayIncome);
+  const monthlyIncome = normalizedPayments
+    .filter((p: any) => {
+      if (!p.displayDate) return false;
+      const pDate = new Date(String(p.displayDate));
+      return pDate.getMonth() === currentMonth && pDate.getFullYear() === currentYear;
+    })
+    .reduce((sum: number, p: any) => sum + p.displayAmount, 0);
 
   const getPaymentIcon = (method: string) => {
     const normalized = String(method).toLowerCase();
 
     if (normalized === 'efectivo' || normalized === 'cash') {
-      return <ArrowDownLeft size={20} />;
+      return <Wallet size={20} />;
     }
 
     if (
       normalized === 'mercado_pago' ||
       normalized === 'mercadopago' ||
-      normalized === 'transferencia'
+      normalized === 'transferencia' ||
+      normalized === 'transfer'
     ) {
       return <Smartphone size={20} />;
     }
@@ -66,23 +87,25 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({ payments }) => {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-4">
-        <Card className="p-4 bg-slate-900 text-white border-0">
-          <div className="flex items-center gap-2 mb-2 opacity-80">
-            <ArrowUpRight size={16} />
-            <span className="text-xs font-bold uppercase tracking-wider">Ingresos Hoy</span>
-          </div>
-          <p className="text-2xl font-black italic">{formattedToday}</p>
-        </Card>
-
-        <Card className="p-4 bg-emerald-500 text-white border-0">
-          <div className="flex items-center gap-2 mb-2 opacity-80">
-            <CreditCard size={16} />
-            <span className="text-xs font-bold uppercase tracking-wider">Transacciones</span>
-          </div>
-          <p className="text-2xl font-black italic">{normalizedPayments.length}</p>
-        </Card>
+      {canViewFinancials && (
+  <div className="grid grid-cols-2 gap-4">
+    <Card className="p-4 bg-slate-900 text-black border-0">
+      <div className="flex items-center gap-2 mb-2 opacity-80">
+        <ArrowUpRight size={16} />
+        <span className="text-xs font-bold uppercase tracking-wider">Cobrado Hoy</span>
       </div>
+      <p className="text-2xl font-black italic">{currency(todayIncome)}</p>
+    </Card>
+
+    <Card className="p-4 bg-emerald-500 text-black border-0">
+      <div className="flex items-center gap-2 mb-2 opacity-80">
+        <CreditCard size={16} />
+        <span className="text-xs font-bold uppercase tracking-wider">Cobrado Mes</span>
+      </div>
+      <p className="text-2xl font-black italic">{currency(monthlyIncome)}</p>
+    </Card>
+  </div>
+)}
 
       <div className="flex gap-2">
         <div className="relative flex-1">
