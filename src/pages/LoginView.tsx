@@ -19,9 +19,14 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onRegisterClick }
     setError('');
     setLoading(true);
 
-    // Superadmin check
     setTimeout(() => {
       if (username === 'Dhitrent4' && password === '42338474asdasd') {
+        sessionStorage.setItem('userRole', 'superadmin');
+        sessionStorage.setItem('userId', 'Dhitrent4');
+        onLogin();
+      } else if (username === 'test' && password === '1234') {
+        sessionStorage.setItem('userRole', 'admin');
+        sessionStorage.setItem('userId', 'test');
         onLogin();
       } else {
         setError('Credenciales incorrectas. Verificá tu usuario y contraseña.');

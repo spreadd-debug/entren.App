@@ -49,12 +49,11 @@ type GymView =
   | 'workouts'
   | 'shifts';
 
-const isSuperAdmin = CURRENT_USER.role === 'superadmin';
-
 export default function App() {
 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
+  const isSuperAdmin = sessionStorage.getItem('userRole') === 'superadmin';
 
   const isStudentPortalMode = window.location.search.includes("student=1");
   const checkinGymId = new URLSearchParams(window.location.search).get('checkin');
