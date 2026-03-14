@@ -1,11 +1,6 @@
 {
-  "buildCommand": "vite build",
+  "buildCommand": "npx esbuild api/index.ts --bundle --platform=node --target=node18 --format=esm --outfile=api/index.js --external:express --external:cors --external:dotenv --external:@supabase/supabase-js && vite build",
   "outputDirectory": "dist",
-  "functions": {
-    "api/index.ts": {
-      "includeFiles": "server/**"
-    }
-  },
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/index" },
     { "source": "/(.*)", "destination": "/index.html" }
