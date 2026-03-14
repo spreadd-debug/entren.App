@@ -1,7 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { Card, Button } from "../components/UI";
 import { StudentPortalService } from "../services/StudentPortalService";
-import { Dumbbell, PlayCircle, Clock3, CreditCard, LogOut } from "lucide-react";
+import {
+  Dumbbell,
+  PlayCircle,
+  Timer,
+  CreditCard,
+  LogOut,
+  ChevronRight,
+  Zap,
+} from "lucide-react";
 import { formatDate } from "../utils/dateUtils";
 import { ExerciseVideoModal } from "../components/ExerciseVideoModal";
 
@@ -36,55 +43,69 @@ export default function StudentPortalView({
         setIsLoading(false);
       }
     };
-
     load();
   }, [studentId]);
 
   useEffect(() => {
-    if (timer === null) return;
-    if (timer <= 0) return;
-
+    if (timer === null || timer <= 0) return;
     const interval = setInterval(() => {
       setTimer((prev) => (prev !== null ? prev - 1 : null));
     }, 1000);
-
     return () => clearInterval(interval);
   }, [timer]);
 
   const quotaStatus = useMemo(() => {
     if (!data?.student) return null;
-
     const nextDueDate = data.student.next_due_date;
-    if (!nextDueDate) return { label: "Sin vencimiento", color: "bg-slate-100 text-slate-600" };
-
-    const today = new Date();
-    const due = new Date(nextDueDate);
-
-    const diffMs = due.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-
-    if (diffDays < 0) {
-      return { label: "Cuota vencida", color: "bg-rose-100 text-rose-700" };
-    }
-
-    if (diffDays <= 3) {
-      return { label: "Vence pronto", color: "bg-amber-100 text-amber-700" };
-    }
-
-    return { label: "Al día", color: "bg-emerald-100 text-emerald-700" };
+    if (!nextDueDate)
+      return {
+        label: "Sin vencimiento",
+        bg: "bg-slate-100 dark:bg-slate-800",
+        text: "text-slate-600 dark:text-slate-300",
+        dot: "bg-slate-400",
+      };
+    const diffDays = Math.ceil(
+      (new Date(nextDueDate).getTime() - new Date().getTime()) /
+        (1000 * 60 * 60 * 24)
+    );
+    if (diffDays < 0)
+      return {
+        label: "Cuota vencida",
+        bg: "bg-rose-500/10",
+        text: "text-rose-500",
+        dot: "bg-rose-500",
+      };
+    if (diffDays <= 3)
+      return {
+        label: "Vence pronto",
+        bg: "bg-amber-500/10",
+        text: "text-amber-500",
+        dot: "bg-amber-500",
+      };
+    return {
+      label: "Al día",
+      bg: "bg-emerald-500/10",
+      text: "text-emerald-500",
+      dot: "bg-emerald-500",
+    };
   }, [data]);
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <p className="text-slate-500">Cargando...</p>
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 bg-cyan-500 rounded-lg flex items-center justify-center animate-pulse">
+            <Zap size={16} className="text-slate-950" />
+          </div>
+          <p className="text-sm text-slate-500">Cargando...</p>
+        </div>
       </div>
     );
   }
 
   if (!data?.student) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
         <p className="text-slate-500">No se encontró el alumno.</p>
       </div>
     );
@@ -94,135 +115,215 @@ export default function StudentPortalView({
     data.student.name ??
     `${data.student.nombre ?? ""} ${data.student.apellido ?? ""}`.trim();
 
+  const firstName = studentName.split(" ")[0];
+
+  const timerDisplay =
+    timer === null
+      ? "00:00"
+      : `${String(Math.floor(timer / 60)).padStart(2, "0")}:${String(
+          timer % 60
+        ).padStart(2, "0")}`;
+
+  const isTimerActive = timer !== null && timer > 0;
+  const isTimerWarning = timer !== null && timer <= 5 && timer > 0;
+  const timerColor = isTimerWarning
+    ? "text-rose-400"
+    : isTimerActive
+    ? "text-cyan-400"
+    : "text-slate-600 dark:text-slate-600";
+
+  const timerGlow = isTimerActive
+    ? isTimerWarning
+      ? "drop-shadow-[0_0_16px_rgba(251,113,133,0.5)]"
+      : "drop-shadow-[0_0_20px_rgba(34,211,238,0.4)]"
+    : "";
+
   return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-8">
-      <div className="max-w-4xl mx-auto space-y-6">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900">Hola, {studentName}</h1>
-            <p className="text-slate-500">Acá tenés tu rutina y el estado de tu cuenta.</p>
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+      {/* ── Header ──────────────────────────────────────────────── */}
+      <div className="bg-white dark:bg-slate-950 border-b border-slate-100 dark:border-slate-800 px-4 py-3.5 flex items-center justify-between sticky top-0 z-10">
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 bg-cyan-500 rounded-lg flex items-center justify-center shadow-sm shadow-cyan-500/30">
+            <Zap size={13} className="text-slate-950" strokeWidth={2.5} />
           </div>
-
-          <Button variant="outline" onClick={onLogout}>
-            <LogOut size={16} />
-          </Button>
+          <div>
+            <p className="text-sm font-black text-slate-900 dark:text-white leading-tight tracking-tight">
+              Hola, {firstName}
+            </p>
+            <p className="text-[10px] text-slate-400 dark:text-slate-600 font-medium">
+              Tu portal de entrenamiento
+            </p>
+          </div>
         </div>
+        <button
+          onClick={onLogout}
+          className="p-2 rounded-xl text-slate-400 dark:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-900 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
+        >
+          <LogOut size={17} />
+        </button>
+      </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <Card className="p-5 space-y-3">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl bg-slate-100 text-slate-700">
-                <CreditCard size={18} />
-              </div>
-              <h3 className="font-bold text-slate-900">Estado de cuota</h3>
+      <div className="px-4 py-4 space-y-4 max-w-lg mx-auto">
+
+        {/* ── Quota status ─────────────────────────────────────── */}
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800">
+              <CreditCard size={16} className="text-slate-500 dark:text-slate-400" />
             </div>
-
-            <div className={`inline-flex px-3 py-1.5 rounded-xl text-sm font-bold ${quotaStatus?.color}`}>
-              {quotaStatus?.label}
-            </div>
-
-            <p className="text-sm text-slate-500">
-              Próximo vencimiento:{" "}
-              <span className="font-bold text-slate-900">
+            <div>
+              <p className="text-xs text-slate-400 dark:text-slate-500 font-medium">
+                Estado de cuota
+              </p>
+              <p className="text-sm text-slate-900 dark:text-white font-bold">
                 {data.student.next_due_date
                   ? formatDate(data.student.next_due_date)
-                  : "-"}
-              </span>
-            </p>
-          </Card>
-
-          <Card className="p-5 space-y-4 lg:col-span-2">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl bg-slate-100 text-slate-700">
-                <Dumbbell size={18} />
-              </div>
-              <div>
-                <h3 className="font-bold text-slate-900">
-                  {data.workoutPlan?.name || "Sin rutina asignada"}
-                </h3>
-                <p className="text-sm text-slate-500">
-                  {data.workoutPlan?.description || "Todavía no tenés una rutina cargada."}
-                </p>
-              </div>
+                  : "Sin fecha"}
+              </p>
             </div>
-
-            <div className="space-y-3">
-              {data.exercises.length > 0 ? (
-                data.exercises.map((exercise: any, index: number) => (
-                  <div
-                    key={exercise.id}
-                    className="flex items-center justify-between gap-4 p-4 rounded-2xl border border-slate-200 bg-white"
-                  >
-                    <div>
-                      <p className="font-bold text-slate-900">
-                        {index + 1}. {exercise.exercise_name}
-                      </p>
-                      <p className="text-sm text-slate-500">
-                        {exercise.sets || "-"} series · {exercise.reps || "-"} reps · {exercise.weight || "-"}
-                      </p>
-                    </div>
-
-                    {exercise.video_url ? (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setVideoModal({
-                            isOpen: true,
-                            exerciseName: exercise.exercise_name,
-                            videoUrl: exercise.video_url,
-                          })
-                        }
-                        className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors text-sm font-bold"
-                      >
-                        <PlayCircle size={16} />
-                        Ver video
-                      </button>
-                    ) : null}
-                  </div>
-                ))
-              ) : (
-                <p className="text-slate-400 text-sm">No hay ejercicios cargados.</p>
-              )}
-            </div>
-          </Card>
+          </div>
+          {quotaStatus && (
+            <span
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${quotaStatus.bg} ${quotaStatus.text}`}
+            >
+              <span
+                className={`w-1.5 h-1.5 rounded-full ${quotaStatus.dot}`}
+              />
+              {quotaStatus.label}
+            </span>
+          )}
         </div>
 
-        <Card className="p-5 space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-slate-100 text-slate-700">
-              <Clock3 size={18} />
+        {/* ── Workout plan ─────────────────────────────────────── */}
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+          <div className="px-4 pt-4 pb-3 flex items-center gap-3 border-b border-slate-100 dark:border-slate-800">
+            <div className="p-2.5 rounded-xl bg-cyan-500/10">
+              <Dumbbell size={16} className="text-cyan-500" />
             </div>
-            <h3 className="font-bold text-slate-900">Cronómetro de descanso</h3>
+            <div>
+              <h2 className="text-sm font-black text-slate-900 dark:text-white">
+                {data.workoutPlan?.name || "Sin rutina asignada"}
+              </h2>
+              {data.workoutPlan?.description && (
+                <p className="text-xs text-slate-400 dark:text-slate-500">
+                  {data.workoutPlan.description}
+                </p>
+              )}
+            </div>
           </div>
 
-          <div className="text-4xl font-black text-slate-900">
-            {timer === null ? "00:00" : `${String(Math.floor(timer / 60)).padStart(2, "0")}:${String(timer % 60).padStart(2, "0")}`}
+          <div className="divide-y divide-slate-100 dark:divide-slate-800">
+            {data.exercises.length > 0 ? (
+              data.exercises.map((exercise: any, index: number) => (
+                <div
+                  key={exercise.id}
+                  className="px-4 py-3 flex items-center justify-between gap-3"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="text-xs font-black text-slate-300 dark:text-slate-700 w-5 shrink-0 text-center">
+                      {String(index + 1).padStart(2, "0")}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                        {exercise.exercise_name}
+                      </p>
+                      <p className="text-xs text-slate-400 dark:text-slate-500">
+                        {[
+                          exercise.sets && `${exercise.sets} series`,
+                          exercise.reps && `${exercise.reps} reps`,
+                          exercise.weight,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ") || "Sin datos"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {exercise.video_url ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setVideoModal({
+                          isOpen: true,
+                          exerciseName: exercise.exercise_name,
+                          videoUrl: exercise.video_url,
+                        })
+                      }
+                      className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 text-xs font-bold border border-cyan-500/20 hover:bg-cyan-500/20 transition-colors"
+                    >
+                      <PlayCircle size={13} />
+                      Video
+                    </button>
+                  ) : (
+                    <ChevronRight
+                      size={16}
+                      className="text-slate-200 dark:text-slate-700 shrink-0"
+                    />
+                  )}
+                </div>
+              ))
+            ) : (
+              <p className="px-4 py-8 text-center text-sm text-slate-400 dark:text-slate-600">
+                No hay ejercicios cargados.
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* ── Rest Timer ───────────────────────────────────────── */}
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-5 space-y-5">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-cyan-500/10">
+              <Timer size={16} className="text-cyan-500" />
+            </div>
+            <h2 className="text-sm font-bold text-slate-900 dark:text-white">
+              Descanso
+            </h2>
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          {/* Timer display */}
+          <div className="text-center py-2">
+            <p
+              className={`text-6xl font-black tabular-nums tracking-tight ${timerColor} ${timerGlow} transition-all`}
+            >
+              {timerDisplay}
+            </p>
+          </div>
+
+          {/* Preset buttons */}
+          <div className="grid grid-cols-4 gap-2">
             {[30, 60, 90, 120].map((seconds) => (
               <button
                 key={seconds}
                 onClick={() => setTimer(seconds)}
-                className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 font-bold text-sm"
+                className={`py-3 rounded-xl text-sm font-bold transition-all active:scale-95 ${
+                  timer === seconds && isTimerActive
+                    ? "bg-cyan-500 text-slate-950 shadow-sm shadow-cyan-500/30"
+                    : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
+                }`}
               >
                 {seconds}s
               </button>
             ))}
-
-            <button
-              onClick={() => setTimer(null)}
-              className="px-4 py-2 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 font-bold text-sm"
-            >
-              Reset
-            </button>
           </div>
-        </Card>
+
+          {/* Reset */}
+          <button
+            onClick={() => setTimer(null)}
+            className="w-full py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-bold text-sm hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors active:scale-[0.98]"
+          >
+            Resetear
+          </button>
+        </div>
+
+        <div className="h-4" />
       </div>
 
       <ExerciseVideoModal
         isOpen={videoModal.isOpen}
-        onClose={() => setVideoModal({ isOpen: false, exerciseName: "", videoUrl: "" })}
+        onClose={() =>
+          setVideoModal({ isOpen: false, exerciseName: "", videoUrl: "" })
+        }
         exerciseName={videoModal.exerciseName}
         videoUrl={videoModal.videoUrl}
       />

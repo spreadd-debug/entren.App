@@ -182,7 +182,17 @@ export const RegisterPaymentModal: React.FC<RegisterPaymentModalProps> = ({
           <Button
             fullWidth
             size="lg"
-            onClick={() => onConfirm({ amount, method, date, nextDueDate })}
+            onClick={() => {
+              if (!amount || amount <= 0) {
+                alert('El monto debe ser mayor a $0');
+                return;
+              }
+              if (!date) {
+                alert('Seleccioná una fecha de pago');
+                return;
+              }
+              onConfirm({ amount, method, date, nextDueDate });
+            }}
             className="shadow-xl shadow-slate-200 dark:shadow-slate-900"
           >
             Confirmar Pago

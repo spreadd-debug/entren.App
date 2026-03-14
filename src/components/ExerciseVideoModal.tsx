@@ -8,6 +8,10 @@ interface ExerciseVideoModalProps {
   videoUrl: string;
 }
 
+function isImageUrl(url: string): boolean {
+  return /\.(jpe?g|png|gif|webp)(\?.*)?$/i.test(url);
+}
+
 export function ExerciseVideoModal({
   isOpen,
   onClose,
@@ -16,7 +20,8 @@ export function ExerciseVideoModal({
 }: ExerciseVideoModalProps) {
   if (!isOpen) return null;
 
-  const embedUrl = getYouTubeEmbedUrl(videoUrl);
+  const isImage = isImageUrl(videoUrl);
+  const embedUrl = isImage ? null : getYouTubeEmbedUrl(videoUrl);
 
   return (
     <div
@@ -41,23 +46,33 @@ export function ExerciseVideoModal({
           </button>
         </div>
 
-        {/* Video */}
-        <div className="relative w-full bg-black" style={{ aspectRatio: '16/9' }}>
-          {embedUrl ? (
-            <iframe
-              src={embedUrl}
-              className="absolute inset-0 w-full h-full"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-              title={exerciseName}
+        {/* Media */}
+        {isImage ? (
+          <div className="flex items-center justify-center bg-slate-50 dark:bg-slate-900 p-4">
+            <img
+              src={videoUrl}
+              alt={exerciseName}
+              className="max-h-96 object-contain rounded-2xl"
             />
-          ) : (
-            <div className="absolute inset-0 flex flex-col items-center justify-center text-white/50 gap-2">
-              <span className="text-sm">URL de video no válida</span>
-              <span className="text-xs break-all px-6 text-center">{videoUrl}</span>
-            </div>
-          )}
-        </div>
+          </div>
+        ) : (
+          <div className="relative w-full bg-black" style={{ aspectRatio: '16/9' }}>
+            {embedUrl ? (
+              <iframe
+                src={embedUrl}
+                className="absolute inset-0 w-full h-full"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                title={exerciseName}
+              />
+            ) : (
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-white/50 gap-2">
+                <span className="text-sm">URL de video no válida</span>
+                <span className="text-xs break-all px-6 text-center">{videoUrl}</span>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

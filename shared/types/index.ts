@@ -112,3 +112,84 @@ export interface DashboardStats {
   monthlyIncome: number;
   pendingStudents: Student[];
 }
+
+export interface GymSettings {
+  gym_id: string;
+  shifts_enabled: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface Shift {
+  id: string;
+  gym_id: string;
+  name: string;
+  day_of_week: number; // 0=Domingo, 1=Lunes, ..., 6=Sábado
+  start_time: string;  // "HH:MM"
+  end_time: string;    // "HH:MM"
+  capacity: number;
+  created_at?: string;
+}
+
+export interface ShiftStudent {
+  id: string;
+  shift_id: string;
+  student_id: string;
+  created_at?: string;
+}
+
+export interface ShiftWithStudents extends Shift {
+  enrolledStudents: Array<{
+    id: string;
+    displayName: string;
+    phone: string;
+    status: string;
+    cobra_cuota: boolean;
+    nextDueDate: string | null;
+  }>;
+}
+
+export interface CheckIn {
+  id: string;
+  gym_id: string;
+  student_id: string;
+  checked_in_at: string;
+}
+
+// ─── Gym Subscription ────────────────────────────────────────────────────────
+
+export type GymSubscriptionStatus = 'trial' | 'active' | 'past_due' | 'suspended' | 'cancelled';
+export type GymPlanTier = 'basic' | 'pro' | 'enterprise';
+
+export interface GymSubscription {
+  id: string;
+  gym_id: string;
+  gym_name: string;
+  owner_email: string;
+  plan_tier: GymPlanTier;
+  status: GymSubscriptionStatus;
+  trial_ends_at: string | null;
+  current_period_start: string | null;
+  current_period_end: string | null;
+  grace_period_days: number;
+  grace_period_ends_at: string | null;
+  access_enabled: boolean;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GymBillingPayment {
+  id: string;
+  gym_id: string;
+  gym_name?: string;
+  amount: number;
+  currency: string;
+  period_start: string;
+  period_end: string;
+  payment_method: 'transfer' | 'cash' | 'mercadopago' | 'other';
+  reference: string | null;
+  notes: string | null;
+  recorded_by: string | null;
+  created_at: string;
+}

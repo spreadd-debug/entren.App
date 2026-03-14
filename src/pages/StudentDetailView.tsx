@@ -158,10 +158,20 @@ export const StudentDetailView: React.FC<StudentDetailViewProps> = ({
   };
 
   const handleSave = () => {
+    if (!editData.nombre.trim() || !editData.apellido.trim()) {
+      alert('El nombre y apellido son obligatorios');
+      return;
+    }
+    const precioNum = editData.precio_personalizado === '' ? null : Number(editData.precio_personalizado);
+    if (precioNum !== null && precioNum < 0) {
+      alert('El precio no puede ser negativo');
+      return;
+    }
     onUpdateStudent(student.id, {
       ...editData,
-      precio_personalizado:
-        editData.precio_personalizado === '' ? null : Number(editData.precio_personalizado),
+      nombre: editData.nombre.trim(),
+      apellido: editData.apellido.trim(),
+      precio_personalizado: precioNum,
     });
     setIsEditing(false);
   };

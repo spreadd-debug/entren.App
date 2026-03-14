@@ -15,19 +15,25 @@ import { ExerciseVideoModal } from "../components/ExerciseVideoModal";
 
 const gymId = "11111111-1111-1111-1111-111111111111";
 
+// Ordered top-to-bottom following body anatomy
 const MUSCLE_GROUPS = [
+  "Cuello",
+  "Trapecios",
+  "Hombros",
   "Pecho",
   "Espalda",
-  "Hombros",
+  "Espalda Media",
+  "Espalda Baja",
   "Bíceps",
   "Tríceps",
   "Antebrazos",
   "Abdomen",
-  "Piernas",
   "Glúteos",
+  "Cuádriceps",
+  "Isquiotibiales",
+  "Aductores",
+  "Abductores",
   "Pantorrillas",
-  "Cardio",
-  "Full body",
 ];
 
 type Tab = "plans" | "library";
@@ -48,6 +54,7 @@ export default function WorkoutPlansView() {
   const [editPlanDescription, setEditPlanDescription] = useState("");
 
   // Add exercise form
+  const [filterMuscleGroup, setFilterMuscleGroup] = useState("");
   const [selectedLibraryId, setSelectedLibraryId] = useState("");
   const [exerciseName, setExerciseName] = useState("");
   const [sets, setSets] = useState("");
@@ -56,6 +63,7 @@ export default function WorkoutPlansView() {
   const [videoUrl, setVideoUrl] = useState("");
 
   // Edit exercise inline
+  const [editFilterMuscleGroup, setEditFilterMuscleGroup] = useState("");
   const [editingExerciseId, setEditingExerciseId] = useState<string | null>(null);
   const [editExerciseName, setEditExerciseName] = useState("");
   const [editSets, setEditSets] = useState("");
@@ -163,6 +171,7 @@ export default function WorkoutPlansView() {
       videoUrl: videoUrl.trim() || null,
       exerciseLibraryId: selectedLibraryId || null,
     });
+    setFilterMuscleGroup("");
     setSelectedLibraryId("");
     setExerciseName("");
     setSets("");
@@ -179,6 +188,7 @@ export default function WorkoutPlansView() {
   };
 
   const startEditExercise = (exercise: any) => {
+    setEditFilterMuscleGroup("");
     setEditingExerciseId(exercise.id);
     setEditExerciseName(exercise.exercise_name || "");
     setEditSets(exercise.sets != null ? String(exercise.sets) : "");
@@ -189,6 +199,7 @@ export default function WorkoutPlansView() {
   };
 
   const cancelEditExercise = () => {
+    setEditFilterMuscleGroup("");
     setEditingExerciseId(null);
     setEditExerciseName("");
     setEditSets("");
@@ -477,26 +488,58 @@ export default function WorkoutPlansView() {
                       Agregar ejercicio
                     </p>
 
-                    {/* Library picker */}
+                    {/* Library picker — step 1: muscle group */}
                     {libraryExercises.length > 0 && (
-                      <div className="relative">
-                        <ChevronDown
-                          size={16}
-                          className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
-                        />
-                        <select
-                          className="w-full px-4 h-12 rounded-2xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white appearance-none pr-10 font-medium"
-                          value={selectedLibraryId}
-                          onChange={(e) => handleLibrarySelect(e.target.value)}
-                        >
-                          <option value="">Desde biblioteca (opcional)</option>
-                          {libraryExercises.map((ex) => (
-                            <option key={ex.id} value={ex.id}>
-                              {ex.muscle_group ? `[${ex.muscle_group}] ` : ""}
-                              {ex.name}
-                            </option>
-                          ))}
-                        </select>
+                      <div className="space-y-2">
+                        <div className="relative">
+                          <ChevronDown
+                            size={16}
+                            className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+                          />
+                          <select
+                            className="w-full px-4 h-12 rounded-2xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white appearance-none pr-10 font-medium"
+                            value={filterMuscleGroup}
+                            onChange={(e) => {
+                              setFilterMuscleGroup(e.target.value);
+                              setSelectedLibraryId("");
+                              setExerciseName("");
+                              setVideoUrl("");
+                            }}
+                          >
+                            <option value="">1. Elegir grupo muscular</option>
+                            {MUSCLE_GROUPS.filter((g) =>
+                              libraryExercises.some((ex) => ex.muscle_group === g)
+                            ).map((g) => (
+                              <option key={g} value={g}>
+                                {g}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Step 2: exercise filtered by group */}
+                        {filterMuscleGroup && (
+                          <div className="relative">
+                            <ChevronDown
+                              size={16}
+                              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+                            />
+                            <select
+                              className="w-full px-4 h-12 rounded-2xl border border-indigo-200 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/20 text-slate-900 dark:text-white appearance-none pr-10 font-medium"
+                              value={selectedLibraryId}
+                              onChange={(e) => handleLibrarySelect(e.target.value)}
+                            >
+                              <option value="">2. Elegir ejercicio</option>
+                              {libraryExercises
+                                .filter((ex) => ex.muscle_group === filterMuscleGroup)
+                                .map((ex) => (
+                                  <option key={ex.id} value={ex.id}>
+                                    {ex.name}
+                                  </option>
+                                ))}
+                            </select>
+                          </div>
+                        )}
                       </div>
                     )}
 
@@ -545,26 +588,57 @@ export default function WorkoutPlansView() {
                         >
                           {editingExerciseId === exercise.id ? (
                             <div className="space-y-3">
-                              {/* Edit library picker */}
+                              {/* Edit library picker — step 1: muscle group */}
                               {libraryExercises.length > 0 && (
-                                <div className="relative">
-                                  <ChevronDown
-                                    size={16}
-                                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
-                                  />
-                                  <select
-                                    className="w-full px-4 h-12 rounded-2xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white appearance-none pr-10 font-medium"
-                                    value={editLibraryId}
-                                    onChange={(e) => handleEditLibrarySelect(e.target.value)}
-                                  >
-                                    <option value="">Desde biblioteca (opcional)</option>
-                                    {libraryExercises.map((ex) => (
-                                      <option key={ex.id} value={ex.id}>
-                                        {ex.muscle_group ? `[${ex.muscle_group}] ` : ""}
-                                        {ex.name}
-                                      </option>
-                                    ))}
-                                  </select>
+                                <div className="space-y-2">
+                                  <div className="relative">
+                                    <ChevronDown
+                                      size={16}
+                                      className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+                                    />
+                                    <select
+                                      className="w-full px-4 h-12 rounded-2xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white appearance-none pr-10 font-medium"
+                                      value={editFilterMuscleGroup}
+                                      onChange={(e) => {
+                                        setEditFilterMuscleGroup(e.target.value);
+                                        setEditLibraryId("");
+                                        setEditExerciseName("");
+                                        setEditVideoUrl("");
+                                      }}
+                                    >
+                                      <option value="">1. Elegir grupo muscular</option>
+                                      {MUSCLE_GROUPS.filter((g) =>
+                                        libraryExercises.some((ex) => ex.muscle_group === g)
+                                      ).map((g) => (
+                                        <option key={g} value={g}>
+                                          {g}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+
+                                  {editFilterMuscleGroup && (
+                                    <div className="relative">
+                                      <ChevronDown
+                                        size={16}
+                                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+                                      />
+                                      <select
+                                        className="w-full px-4 h-12 rounded-2xl border border-indigo-200 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/20 text-slate-900 dark:text-white appearance-none pr-10 font-medium"
+                                        value={editLibraryId}
+                                        onChange={(e) => handleEditLibrarySelect(e.target.value)}
+                                      >
+                                        <option value="">2. Elegir ejercicio</option>
+                                        {libraryExercises
+                                          .filter((ex) => ex.muscle_group === editFilterMuscleGroup)
+                                          .map((ex) => (
+                                            <option key={ex.id} value={ex.id}>
+                                              {ex.name}
+                                            </option>
+                                          ))}
+                                      </select>
+                                    </div>
+                                  )}
                                 </div>
                               )}
 
@@ -635,7 +709,7 @@ export default function WorkoutPlansView() {
                                     className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-400 dark:hover:bg-emerald-900/50 transition-colors text-sm font-bold"
                                   >
                                     <PlayCircle size={16} />
-                                    Ver video
+                                    {/\.(jpe?g|png|gif|webp)/i.test(exercise.video_url) ? "Ver imagen" : "Ver video"}
                                   </button>
                                 )}
 
@@ -772,7 +846,22 @@ export default function WorkoutPlansView() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {libraryExercises.map((ex) => (
                   <Card key={ex.id} className="p-4 space-y-3">
-                    <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3">
+                      {/* Thumbnail */}
+                      {ex.video_url && /\.(jpe?g|png|gif|webp)/i.test(ex.video_url) && (
+                        <button
+                          onClick={() =>
+                            setVideoModal({ isOpen: true, exerciseName: ex.name, videoUrl: ex.video_url! })
+                          }
+                          className="shrink-0 w-16 h-16 rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-700 hover:opacity-80 transition-opacity"
+                        >
+                          <img
+                            src={ex.video_url}
+                            alt={ex.name}
+                            className="w-full h-full object-cover"
+                          />
+                        </button>
+                      )}
                       <div className="flex-1 min-w-0">
                         <p className="font-bold text-slate-900 dark:text-white truncate">
                           {ex.name}
@@ -803,7 +892,7 @@ export default function WorkoutPlansView() {
                           className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-400 dark:hover:bg-emerald-900/50 transition-colors text-sm font-bold"
                         >
                           <PlayCircle size={15} />
-                          Ver video
+                          Ver imagen
                         </button>
                       )}
                       <button

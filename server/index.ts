@@ -7,6 +7,7 @@ import planRoutes from './routes/plans';
 import paymentRoutes from './routes/payments';
 import dashboardRoutes from './routes/dashboard';
 import automationRoutes from './routes/automation';
+import subscriptionRoutes from './routes/subscriptions';
 import { StudentService } from "./services/StudentService";
 import { PlanService } from "./services/PlanService";
 import { PaymentService } from "./services/PaymentService";
@@ -25,6 +26,7 @@ async function startServer() {
   app.use('/api/payments', paymentRoutes);
   app.use('/api/dashboard', dashboardRoutes);
   app.use('/api/automation', automationRoutes);
+  app.use('/api/subscriptions', subscriptionRoutes);
 
   // Legacy/Combined data endpoint for initial load if needed
   app.get("/api/data", async (req, res) => {

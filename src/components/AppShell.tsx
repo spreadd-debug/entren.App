@@ -5,9 +5,10 @@ import {
   CreditCard,
   AlertCircle,
   Settings,
-  Bell,
   Plus,
   Dumbbell,
+  Calendar,
+  Zap,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -16,6 +17,7 @@ interface AppShellProps {
   currentView: string;
   onNavigate: (view: string) => void;
   title: string;
+  shiftsEnabled?: boolean;
 }
 
 export const AppShell: React.FC<AppShellProps> = ({
@@ -23,123 +25,145 @@ export const AppShell: React.FC<AppShellProps> = ({
   currentView,
   onNavigate,
   title,
+  shiftsEnabled = false,
 }) => {
-  const mobileNavItems = [
-    { id: 'dashboard', label: 'Inicio', icon: LayoutDashboard },
-    { id: 'students', label: 'Alumnos', icon: Users },
-    { id: 'payments', label: 'Pagos', icon: CreditCard },
-    { id: 'defaulters', label: 'Deudores', icon: AlertCircle },
-    { id: 'workouts', label: 'Rutinas', icon: Dumbbell },
+  const baseMobileItems = [
+    { id: 'dashboard', label: 'Inicio',   icon: LayoutDashboard },
+    { id: 'students',  label: 'Alumnos',  icon: Users },
+    { id: 'payments',  label: 'Pagos',    icon: CreditCard },
+    { id: 'defaulters',label: 'Deudores', icon: AlertCircle },
+    { id: 'workouts',  label: 'Rutinas',  icon: Dumbbell },
   ];
 
-  const desktopNavItems = [
-    ...mobileNavItems,
-    { id: 'settings', label: 'Ajustes', icon: Settings },
-  ];
+  const shiftsItem = { id: 'shifts', label: 'Turnos', icon: Calendar };
+
+  const mobileNavItems = shiftsEnabled
+    ? [...baseMobileItems.slice(0, 4), shiftsItem]
+    : baseMobileItems;
+
+  const desktopNavItems = shiftsEnabled
+    ? [...baseMobileItems, shiftsItem, { id: 'settings', label: 'Ajustes', icon: Settings }]
+    : [...baseMobileItems, { id: 'settings', label: 'Ajustes', icon: Settings }];
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col md:flex-row">
-      <aside className="hidden md:flex w-64 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex-col sticky top-0 h-screen">
-        <div className="p-6">
-          <h1 className="text-xl font-black tracking-tighter text-slate-900 dark:text-white flex items-center gap-2">
-            <div className="w-8 h-8 bg-slate-900 dark:bg-white rounded-lg flex items-center justify-center text-white dark:text-slate-900 italic">
-              G
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col md:flex-row">
+
+      {/* ── Desktop Sidebar ──────────────────────────────────────── */}
+      <aside className="hidden md:flex w-60 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex-col sticky top-0 h-screen shrink-0">
+
+        {/* Logo */}
+        <div className="px-5 pt-6 pb-5">
+          <button
+            onClick={() => onNavigate('dashboard')}
+            className="flex items-center gap-3 group w-full"
+          >
+            <div className="w-8 h-8 bg-cyan-500 rounded-xl flex items-center justify-center shadow-lg shadow-cyan-500/30 shrink-0 group-hover:shadow-cyan-500/50 transition-shadow">
+              <Zap size={15} className="text-slate-950" strokeWidth={2.5} />
             </div>
-            entrenApp
-          </h1>
+            <span className="text-[15px] font-black tracking-tight text-slate-900 dark:text-white">
+              entrenApp
+            </span>
+          </button>
         </div>
 
-        <nav className="flex-1 px-4 space-y-1">
-          {desktopNavItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => onNavigate(item.id)}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${
-                currentView === item.id
-                  ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-lg shadow-slate-200 dark:shadow-slate-900'
-                  : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              <item.icon size={20} />
-              {item.label}
-            </button>
-          ))}
+        {/* Divider */}
+        <div className="mx-5 border-t border-slate-100 dark:border-slate-800 mb-3" />
+
+        {/* Nav */}
+        <nav className="flex-1 px-3 space-y-0.5 overflow-y-auto">
+          {desktopNavItems.map((item) => {
+            const isActive = currentView === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => onNavigate(item.id)}
+                className={`
+                  w-full flex items-center gap-3 py-2.5 rounded-xl text-sm transition-all relative
+                  ${isActive
+                    ? 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 font-semibold pl-3 pr-3'
+                    : 'text-slate-500 dark:text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium pl-3 pr-3'
+                  }
+                `}
+              >
+                {isActive && (
+                  <span className="absolute left-0 top-2 bottom-2 w-[3px] bg-cyan-500 rounded-full" />
+                )}
+                <item.icon
+                  size={17}
+                  strokeWidth={isActive ? 2.5 : 2}
+                  className={isActive ? 'text-cyan-500' : ''}
+                />
+                <span className="truncate">{item.label}</span>
+              </button>
+            );
+          })}
         </nav>
 
-        <div className="p-6 border-t border-slate-100 dark:border-slate-700">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
-              <img
-                src="https://picsum.photos/seed/gym-admin/100/100"
-                alt="Admin"
-                referrerPolicy="no-referrer"
-              />
-            </div>
-            <div>
-              <p className="text-sm font-bold text-slate-900 dark:text-white">Admin Gym</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Plan Premium</p>
-            </div>
-          </div>
+        {/* CTA Nuevo Alumno */}
+        <div className="p-4 border-t border-slate-100 dark:border-slate-800">
+          <button
+            onClick={() => onNavigate('new-student')}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-cyan-500 hover:bg-cyan-400 active:bg-cyan-600 text-slate-950 rounded-xl text-sm font-bold transition-all shadow-md shadow-cyan-500/25 hover:shadow-lg hover:shadow-cyan-500/30 active:scale-[0.97]"
+          >
+            <Plus size={15} strokeWidth={2.5} />
+            Nuevo Alumno
+          </button>
         </div>
       </aside>
 
-      <header className="md:hidden bg-white dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700 px-4 py-4 flex items-center justify-between sticky top-0 z-20">
-        <h1 className="text-lg font-black tracking-tighter text-slate-900 dark:text-white italic">
-          entrenApp
-        </h1>
+      {/* ── Mobile Header ────────────────────────────────────────── */}
+      <header className="md:hidden bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 py-3 flex items-center justify-between sticky top-0 z-20">
+        <button
+          onClick={() => onNavigate('dashboard')}
+          className="flex items-center gap-2.5"
+        >
+          <div className="w-7 h-7 bg-cyan-500 rounded-lg flex items-center justify-center shadow-sm shadow-cyan-500/40">
+            <Zap size={13} className="text-slate-950" strokeWidth={2.5} />
+          </div>
+          <span className="text-[15px] font-black tracking-tight text-slate-900 dark:text-white">
+            entrenApp
+          </span>
+        </button>
 
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            className="p-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors relative"
-          >
-            <Bell size={20} />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-white dark:border-slate-800"></span>
-          </button>
-
-          <button
-            type="button"
-            aria-label="Ajustes"
-            onClick={() => onNavigate('settings')}
-            className={`p-2 rounded-lg transition-colors ${
-              currentView === 'settings'
-                ? 'bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white'
-                : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-700'
-            }`}
-          >
-            <Settings size={20} />
-          </button>
-        </div>
+        <button
+          type="button"
+          aria-label="Ajustes"
+          onClick={() => onNavigate('settings')}
+          className={`p-2 rounded-xl transition-all ${
+            currentView === 'settings'
+              ? 'bg-cyan-500/10 text-cyan-500'
+              : 'text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-300'
+          }`}
+        >
+          <Settings size={18} />
+        </button>
       </header>
 
-      <main className="flex-1 flex flex-col pb-24 md:pb-0">
-        <div className="px-4 md:px-8 py-6 flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-white">
-              {title}
-            </h2>
-            <p className="text-slate-500 dark:text-slate-400 text-sm md:text-base">
-              Gestioná tu gimnasio con eficiencia.
-            </p>
-          </div>
-
+      {/* ── Main ─────────────────────────────────────────────────── */}
+      <main className="flex-1 flex flex-col pb-24 md:pb-0 min-w-0">
+        {/* Page header */}
+        <div className="px-4 md:px-8 pt-6 pb-5 flex items-center justify-between border-b border-slate-100 dark:border-slate-800/60">
+          <h2 className="text-lg md:text-xl font-black text-slate-900 dark:text-white tracking-tight">
+            {title}
+          </h2>
           <button
             onClick={() => onNavigate('new-student')}
-            className="hidden md:flex items-center gap-2 bg-emerald-500 text-white px-4 py-2 rounded-xl font-bold hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-100"
+            className="hidden md:flex items-center gap-2 bg-cyan-500 hover:bg-cyan-400 active:bg-cyan-600 text-slate-950 px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-md shadow-cyan-500/20 hover:shadow-lg hover:shadow-cyan-500/30 active:scale-[0.97]"
           >
-            <Plus size={20} />
+            <Plus size={15} strokeWidth={2.5} />
             Nuevo Alumno
           </button>
         </div>
 
-        <div className="px-4 md:px-8 flex-1">
+        {/* Content */}
+        <div className="px-4 md:px-8 pt-6 flex-1">
           <AnimatePresence mode="wait">
             <motion.div
               key={currentView}
-              initial={{ opacity: 0, y: 10 }}
+              initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.2 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.16, ease: 'easeOut' }}
             >
               {children}
             </motion.div>
@@ -147,34 +171,42 @@ export const AppShell: React.FC<AppShellProps> = ({
         </div>
       </main>
 
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-800 border-t border-slate-100 dark:border-slate-700 px-2 py-3 flex justify-around items-center z-30 shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
-        {mobileNavItems.map((item) => (
-          <button
-            key={item.id}
-            onClick={() => onNavigate(item.id)}
-            className={`flex flex-col items-center gap-1 px-2 py-1 rounded-xl transition-all min-w-0 flex-1 ${
-              currentView === item.id ? 'text-slate-900 dark:text-white' : 'text-slate-400 dark:text-slate-500'
-            }`}
-          >
-            <div
-              className={`p-1.5 rounded-lg transition-all ${
-                currentView === item.id ? 'bg-slate-100 dark:bg-slate-700' : ''
-              }`}
+      {/* ── Mobile Bottom Nav ────────────────────────────────────── */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-t border-slate-100 dark:border-slate-800 px-1 py-2 flex items-center">
+        {mobileNavItems.map((item) => {
+          const isActive = currentView === item.id;
+          return (
+            <button
+              key={item.id}
+              onClick={() => onNavigate(item.id)}
+              className="flex flex-col items-center gap-1 flex-1 py-1 transition-all"
             >
-              <item.icon
-                size={20}
-                strokeWidth={currentView === item.id ? 2.5 : 2}
-              />
-            </div>
-            <span
-              className={`text-[9px] font-bold uppercase tracking-wider truncate ${
-                currentView === item.id ? 'opacity-100' : 'opacity-60'
-              }`}
-            >
-              {item.label === 'Inicio' ? 'Home' : item.label}
-            </span>
-          </button>
-        ))}
+              <div
+                className={`
+                  relative flex items-center justify-center w-9 h-9 rounded-xl transition-all
+                  ${isActive
+                    ? 'bg-cyan-500/15 text-cyan-500 dark:text-cyan-400'
+                    : 'text-slate-400 dark:text-slate-600'
+                  }
+                `}
+              >
+                <item.icon size={20} strokeWidth={isActive ? 2.5 : 1.75} />
+                {isActive && (
+                  <span className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-cyan-500" />
+                )}
+              </div>
+              <span
+                className={`text-[8px] font-bold uppercase tracking-widest ${
+                  isActive
+                    ? 'text-cyan-500 dark:text-cyan-400'
+                    : 'text-slate-400 dark:text-slate-600'
+                }`}
+              >
+                {item.label === 'Inicio' ? 'Home' : item.label}
+              </span>
+            </button>
+          );
+        })}
       </nav>
     </div>
   );

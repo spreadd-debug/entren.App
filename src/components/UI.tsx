@@ -1,20 +1,25 @@
-
 import React from 'react';
 import { StudentStatus, ScholarshipType } from '../types';
+
+// ─── Status Badge ─────────────────────────────────────────────────────────────
 
 interface BadgeProps {
   status: StudentStatus;
 }
 
 export const StatusBadge: React.FC<BadgeProps> = ({ status }) => {
-  const styles = {
-    active: 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-400 dark:border-emerald-800',
-    expiring: 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/40 dark:text-amber-400 dark:border-amber-800',
-    expired: 'bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-900/40 dark:text-rose-400 dark:border-rose-800',
-    inactive: 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600',
+  const styles: Record<StudentStatus, string> = {
+    active:
+      'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
+    expiring:
+      'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
+    expired:
+      'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20',
+    inactive:
+      'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700',
   };
 
-  const labels = {
+  const labels: Record<StudentStatus, string> = {
     active: 'Al día',
     expiring: 'Por vencer',
     expired: 'Vencido',
@@ -28,6 +33,8 @@ export const StatusBadge: React.FC<BadgeProps> = ({ status }) => {
   );
 };
 
+// ─── Billing Badge ────────────────────────────────────────────────────────────
+
 interface BillingBadgeProps {
   cobra_cuota: boolean;
   recordatorio_automatico: boolean;
@@ -39,19 +46,19 @@ export const BillingBadge: React.FC<BillingBadgeProps> = ({
   cobra_cuota,
   recordatorio_automatico,
   tipo_beca,
-  whatsapp_opt_in = false
+  whatsapp_opt_in = false,
 }) => {
-  const badges = [];
+  const badges: React.ReactNode[] = [];
 
   if (tipo_beca === 'complete') {
     badges.push(
-      <span key="beca" className="px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-purple-100 text-purple-700 border border-purple-200 dark:bg-purple-900/40 dark:text-purple-400 dark:border-purple-800">
+      <span key="beca" className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-violet-500/10 text-violet-500 dark:text-violet-400 border border-violet-500/20">
         Beca Completa
       </span>
     );
   } else if (tipo_beca === 'partial') {
     badges.push(
-      <span key="beca" className="px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-indigo-100 text-indigo-700 border border-indigo-200 dark:bg-indigo-900/40 dark:text-indigo-400 dark:border-indigo-800">
+      <span key="beca" className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 border border-indigo-500/20">
         Beca Parcial
       </span>
     );
@@ -59,13 +66,17 @@ export const BillingBadge: React.FC<BillingBadgeProps> = ({
 
   if (!cobra_cuota) {
     badges.push(
-      <span key="exento" className="px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600">
+      <span key="exento" className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
         Exento
       </span>
     );
   } else {
     badges.push(
-      <span key="remind" className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider border ${recordatorio_automatico ? 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-400 dark:border-emerald-800' : 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/40 dark:text-amber-400 dark:border-amber-800'}`}>
+      <span key="remind" className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider border ${
+        recordatorio_automatico
+          ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+          : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+      }`}>
         {recordatorio_automatico ? 'Auto' : 'Manual'}
       </span>
     );
@@ -73,18 +84,16 @@ export const BillingBadge: React.FC<BillingBadgeProps> = ({
 
   if (whatsapp_opt_in) {
     badges.push(
-      <span key="wa" className="px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-emerald-500 text-white border border-emerald-600">
-        WA ✅
+      <span key="wa" className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-emerald-500 text-white border border-emerald-600">
+        WA ✓
       </span>
     );
   }
 
-  return (
-    <div className="flex flex-wrap gap-1">
-      {badges}
-    </div>
-  );
+  return <div className="flex flex-wrap gap-1">{badges}</div>;
 };
+
+// ─── Card ─────────────────────────────────────────────────────────────────────
 
 interface CardProps {
   children: React.ReactNode;
@@ -95,11 +104,23 @@ interface CardProps {
 export const Card: React.FC<CardProps> = ({ children, className = '', onClick }) => (
   <div
     onClick={onClick}
-    className={`bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden ${onClick ? 'cursor-pointer active:scale-[0.98] transition-transform' : ''} ${className}`}
+    className={`
+      bg-white dark:bg-slate-900
+      rounded-2xl border border-slate-200 dark:border-slate-800
+      shadow-sm dark:shadow-none
+      overflow-hidden
+      ${onClick
+        ? 'cursor-pointer hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-md dark:hover:shadow-slate-950/50 transition-all duration-150 active:scale-[0.985]'
+        : ''
+      }
+      ${className}
+    `}
   >
     {children}
   </div>
 );
+
+// ─── Button ───────────────────────────────────────────────────────────────────
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
@@ -115,26 +136,32 @@ export const Button: React.FC<ButtonProps> = ({
   className = '',
   ...props
 }) => {
-  const baseStyles = 'inline-flex items-center justify-center font-semibold transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none';
+  const base =
+    'inline-flex items-center justify-center font-semibold transition-all duration-150 active:scale-[0.96] disabled:opacity-40 disabled:pointer-events-none';
 
   const variants = {
-    primary: 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-white shadow-sm',
-    secondary: 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-sm',
-    outline: 'bg-transparent border-2 border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700',
-    ghost: 'bg-transparent text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700',
-    danger: 'bg-rose-500 text-white hover:bg-rose-600 shadow-sm',
+    primary:
+      'bg-cyan-500 text-slate-950 hover:bg-cyan-400 shadow-md shadow-cyan-500/20 hover:shadow-lg hover:shadow-cyan-500/25',
+    secondary:
+      'bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100 shadow-sm',
+    outline:
+      'bg-transparent border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/80',
+    ghost:
+      'bg-transparent text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800',
+    danger:
+      'bg-rose-500 text-white hover:bg-rose-400 shadow-sm shadow-rose-500/20',
   };
 
   const sizes = {
-    sm: 'px-3 py-1.5 text-sm rounded-lg',
-    md: 'px-5 py-2.5 text-base rounded-xl',
-    lg: 'px-8 py-4 text-lg rounded-2xl',
+    sm: 'px-3 py-1.5 text-xs rounded-lg gap-1.5',
+    md: 'px-5 py-2.5 text-sm rounded-xl gap-2',
+    lg: 'px-7 py-3.5 text-sm rounded-xl gap-2',
     icon: 'p-2 rounded-xl',
   };
 
   return (
     <button
-      className={`${baseStyles} ${variants[variant]} ${sizes[size]} ${fullWidth ? 'w-full' : ''} ${className}`}
+      className={`${base} ${variants[variant]} ${sizes[size]} ${fullWidth ? 'w-full' : ''} ${className}`}
       {...props}
     >
       {children}
@@ -142,21 +169,107 @@ export const Button: React.FC<ButtonProps> = ({
   );
 };
 
-export const Input: React.FC<React.InputHTMLAttributes<HTMLInputElement>> = ({ className = '', ...props }) => (
+// ─── Input ────────────────────────────────────────────────────────────────────
+
+export const Input: React.FC<React.InputHTMLAttributes<HTMLInputElement>> = ({
+  className = '',
+  ...props
+}) => (
   <input
-    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 dark:focus:ring-white/10 focus:border-slate-400 dark:focus:border-slate-500 transition-all ${className}`}
+    className={`
+      w-full px-4 py-3 rounded-xl text-sm
+      bg-slate-50 dark:bg-slate-900/80
+      border border-slate-200 dark:border-slate-800
+      text-slate-900 dark:text-white
+      placeholder:text-slate-400 dark:placeholder:text-slate-600
+      focus:outline-none focus:ring-2 focus:ring-cyan-500/25 focus:border-cyan-500/60
+      dark:focus:border-cyan-500/40 dark:focus:ring-cyan-500/15
+      transition-all duration-150
+      ${className}
+    `}
     {...props}
   />
 );
 
-export const KPICard: React.FC<{ label: string; value: string | number; icon: React.ReactNode; color: string }> = ({ label, value, icon, color }) => (
-  <Card className="p-4 flex items-center gap-4">
-    <div className={`p-3 rounded-2xl ${color}`}>
-      {icon}
+// ─── Select ───────────────────────────────────────────────────────────────────
+
+export const Select: React.FC<React.SelectHTMLAttributes<HTMLSelectElement>> = ({
+  className = '',
+  ...props
+}) => (
+  <select
+    className={`
+      w-full px-4 py-3 rounded-xl text-sm
+      bg-slate-50 dark:bg-slate-900/80
+      border border-slate-200 dark:border-slate-800
+      text-slate-900 dark:text-white
+      focus:outline-none focus:ring-2 focus:ring-cyan-500/25 focus:border-cyan-500/60
+      dark:focus:border-cyan-500/40 dark:focus:ring-cyan-500/15
+      transition-all duration-150
+      ${className}
+    `}
+    {...props}
+  />
+);
+
+// ─── KPI Card ─────────────────────────────────────────────────────────────────
+// Generic KPI used outside of Dashboard
+
+export const KPICard: React.FC<{
+  label: string;
+  value: string | number;
+  icon: React.ReactNode;
+  color: string;
+  trend?: string;
+}> = ({ label, value, icon, color, trend }) => (
+  <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 flex flex-col gap-3 shadow-sm dark:shadow-none">
+    <div className="flex items-center justify-between">
+      <p className="text-[10px] font-bold text-slate-400 dark:text-slate-600 uppercase tracking-[0.12em]">
+        {label}
+      </p>
+      <div className={`p-2 rounded-xl ${color}`}>{icon}</div>
     </div>
-    <div>
-      <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{label}</p>
-      <p className="text-2xl font-bold text-slate-900 dark:text-white">{value}</p>
-    </div>
-  </Card>
+    <p className="text-4xl font-black text-slate-900 dark:text-white tracking-tight leading-none">
+      {value}
+    </p>
+    {trend && (
+      <p className="text-xs text-slate-400 dark:text-slate-600">{trend}</p>
+    )}
+  </div>
+);
+
+// ─── Toggle ───────────────────────────────────────────────────────────────────
+
+interface ToggleProps {
+  enabled: boolean;
+  onToggle: () => void;
+  colorOn?: string;
+}
+
+export const Toggle: React.FC<ToggleProps> = ({
+  enabled,
+  onToggle,
+  colorOn = 'bg-cyan-500',
+}) => (
+  <button
+    type="button"
+    onClick={onToggle}
+    className={`relative w-11 h-6 rounded-full transition-all duration-200 ${
+      enabled ? colorOn : 'bg-slate-200 dark:bg-slate-700'
+    }`}
+  >
+    <div
+      className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow-sm transition-all duration-200 ${
+        enabled ? 'right-1' : 'left-1'
+      }`}
+    />
+  </button>
+);
+
+// ─── Section Label ────────────────────────────────────────────────────────────
+
+export const SectionLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <h4 className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-400 dark:text-slate-600 px-1">
+    {children}
+  </h4>
 );

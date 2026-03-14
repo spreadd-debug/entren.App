@@ -5,6 +5,9 @@ import {
   ReminderLog,
   AutomationStatus,
   DashboardStats,
+  GymSubscription,
+  GymBillingPayment,
+  GymPlanTier,
 } from '../../shared/types';
 
 const API_BASE = '/api';
@@ -280,6 +283,112 @@ export const api = {
         console.error('automation.run failed:', error);
         return { ok: false, error: String(error) };
       }
+    },
+  },
+
+  subscriptions: {
+    async getAll(): Promise<GymSubscription[]> {
+      try {
+        const raw = await fetchJson(`${API_BASE}/subscriptions`);
+        return ensureArray<GymSubscription>(raw);
+      } catch (error) {
+        console.error('subscriptions.getAll failed:', error);
+        return [];
+      }
+    },
+
+    async getByGymId(gymId: string): Promise<GymSubscription | null> {
+      try {
+        return await fetchJson(`${API_BASE}/subscriptions/${gymId}`);
+      } catch {
+        return null;
+      }
+    },
+
+    async update(gymId: string, updates: Partial<GymSubscription>): Promise<GymSubscription> {
+      return fetchJson(`${API_BASE}/subscriptions/${gymId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+    },
+
+    async activate(gymId: string, periodEnd: string, planTier?: GymPlanTier): Promise<GymSubscription> {
+      return fetchJson(`${API_BASE}/subscriptions/${gymId}/activate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ period_end: periodEnd, plan_tier: planTier }),
+      });
+    },
+
+    async suspend(gymId: string): Promise<GymSubscription> {
+      return fetchJson(`${API_BASE}/subscriptions/${gymId}/suspend`, { method: 'POST' });
+    },
+
+    async cancel(gymId: string): Promise<GymSubscription> {
+      return fetchJson(`${API_BASE}/subscriptions/${gymId}/cancel`, { method: 'POST' });
+    },
+
+    async startTrial(gymId: string, trialDays: number = 30): Promise<GymSubscription> {
+      return fetchJson(`${API_BASE}/subscriptions/${gymId}/trial`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ trial_days: trialDays }),
+      });
+    },
+
+    async extend(gymId: string, periodEnd: string): Promise<GymSubscription> {
+      return fetchJson(`${API_BASE}/subscriptions/${gymId}/extend`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ period_end: periodEnd }),
+      });
+    },
+
+    async markPastDue(gymId: string): Promise<GymSubscription> {
+      return fetchJson(`${API_BASE}/subscriptions/${gymId}/past-due`, { method: 'POST' });
+    },
+
+    async getBillingPayments(gymId?: string): Promise<GymBillingPayment[]> {
+      try {
+        const qs = gymId ? `?gymId=${gymId}` : '';
+        const raw = await fetchJson(`${API_BASE}/subscriptions/billing${qs}`);
+        return ensureArray<GymBillingPayment>(raw);
+      } catch (error) {
+        console.error('subscriptions.getBillingPayments failed:', error);
+        return [];
+      }
+    },
+
+    async recordBillingPayment(payment: {
+      gym_id: string;
+      amount: number;
+      currency?: string;
+      period_start: string;
+      period_end: string;
+      payment_method: string;
+      reference?: string;
+      notes?: string;
+      recorded_by?: string;
+    }): Promise<GymBillingPayment> {
+      return fetchJson(`${API_BASE}/subscriptions/billing`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payment),
+      });
+    },
+
+    async createGym(data: {
+      name: string;
+      owner_email: string;
+      plan_tier?: GymPlanTier;
+      trial_days?: number;
+    }): Promise<GymSubscription> {
+      return fetchJson(`${API_BASE}/subscriptions/gyms`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
     },
   },
 };
