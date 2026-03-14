@@ -105,10 +105,7 @@ export default function App() {
       <ThemeProvider>
         <RegisterGymView
           onBack={() => setIsRegistering(false)}
-          onSuccess={() => {
-            setIsRegistering(false);
-            alert('¡Gimnasio registrado con éxito! Ahora podés iniciar sesión.');
-          }}
+          onSuccess={() => setIsRegistering(false)}
         />
       </ThemeProvider>
     );

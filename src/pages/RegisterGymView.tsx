@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Dumbbell, Mail, Lock, ArrowRight, ArrowLeft, Building2, Phone, MapPin } from 'lucide-react';
+import { CheckCircle, Mail, Lock, ArrowRight, ArrowLeft, Building2, Phone, MapPin } from 'lucide-react';
 import { Card, Input, Button } from '../components/UI';
+import { api } from '../services/api';
 
 interface RegisterGymViewProps {
   onBack: () => void;
@@ -10,19 +11,52 @@ interface RegisterGymViewProps {
 export const RegisterGymView: React.FC<RegisterGymViewProps> = ({ onBack, onSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [gymName, setGymName] = useState('');
+  const [address, setAddress] = useState('');
+  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+
     if (step < 2) {
-      setStep(step + 1);
+      setStep(2);
       return;
     }
+
     setLoading(true);
-    setTimeout(() => {
+    try {
+      await api.subscriptions.createGym({ name: gymName, owner_email: email });
+      setSuccess(true);
+    } catch (err: any) {
+      setError(err?.message ?? 'Error al registrar el gimnasio. Intentá de nuevo.');
+    } finally {
       setLoading(false);
-      onSuccess();
-    }, 1500);
+    }
   };
+
+  if (success) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6">
+        <div className="w-full max-w-md text-center space-y-6">
+          <CheckCircle className="mx-auto text-emerald-500" size={64} />
+          <h1 className="text-3xl font-black tracking-tighter text-slate-900 italic">¡GIMNASIO REGISTRADO!</h1>
+          <p className="text-slate-500 font-medium">
+            Tu gimnasio <strong>{gymName}</strong> fue creado exitosamente con 30 días de prueba gratuita.<br />
+            Pronto podrás iniciar sesión con tu cuenta.
+          </p>
+          <Button fullWidth size="lg" onClick={onSuccess}>
+            Ir al inicio de sesión
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6">
@@ -43,6 +77,12 @@ export const RegisterGymView: React.FC<RegisterGymViewProps> = ({ onBack, onSucc
             ))}
           </div>
 
+          {error && (
+            <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm font-medium">
+              {error}
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-6">
             {step === 1 ? (
               <>
@@ -50,21 +90,39 @@ export const RegisterGymView: React.FC<RegisterGymViewProps> = ({ onBack, onSucc
                   <label className="text-sm font-bold text-slate-700 ml-1">Nombre del Gimnasio</label>
                   <div className="relative">
                     <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                    <Input placeholder="Ej: Black Box Boxing" className="pl-12" required />
+                    <Input
+                      placeholder="Ej: Black Box Boxing"
+                      className="pl-12"
+                      required
+                      value={gymName}
+                      onChange={(e) => setGymName(e.target.value)}
+                    />
                   </div>
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-bold text-slate-700 ml-1">Dirección</label>
                   <div className="relative">
                     <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                    <Input placeholder="Ej: Av. Santa Fe 1234, CABA" className="pl-12" required />
+                    <Input
+                      placeholder="Ej: Av. Santa Fe 1234, CABA"
+                      className="pl-12"
+                      required
+                      value={address}
+                      onChange={(e) => setAddress(e.target.value)}
+                    />
                   </div>
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-bold text-slate-700 ml-1">Teléfono de Contacto</label>
                   <div className="relative">
                     <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                    <Input placeholder="Ej: 11 2233-4455" className="pl-12" required />
+                    <Input
+                      placeholder="Ej: 11 2233-4455"
+                      className="pl-12"
+                      required
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                    />
                   </div>
                 </div>
               </>
@@ -74,29 +132,54 @@ export const RegisterGymView: React.FC<RegisterGymViewProps> = ({ onBack, onSucc
                   <label className="text-sm font-bold text-slate-700 ml-1">Email del Administrador</label>
                   <div className="relative">
                     <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                    <Input type="email" placeholder="admin@gym.com" className="pl-12" required />
+                    <Input
+                      type="email"
+                      placeholder="admin@gym.com"
+                      className="pl-12"
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                    />
                   </div>
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-bold text-slate-700 ml-1">Contraseña</label>
                   <div className="relative">
                     <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                    <Input type="password" placeholder="••••••••" className="pl-12" required />
+                    <Input
+                      type="password"
+                      placeholder="••••••••"
+                      className="pl-12"
+                      required
+                      minLength={6}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                    />
                   </div>
                 </div>
               </>
             )}
 
-            <Button 
-              type="submit" 
-              fullWidth 
-              size="lg" 
+            <Button
+              type="submit"
+              fullWidth
+              size="lg"
               disabled={loading}
               className="gap-2 shadow-xl shadow-emerald-100"
             >
               {loading ? 'Procesando...' : step === 1 ? 'Siguiente' : 'Finalizar Registro'}
               {!loading && <ArrowRight size={20} />}
             </Button>
+
+            {step === 2 && (
+              <button
+                type="button"
+                onClick={() => { setStep(1); setError(''); }}
+                className="w-full text-sm text-slate-500 hover:text-slate-800 font-medium text-center"
+              >
+                ← Volver al paso anterior
+              </button>
+            )}
           </form>
         </Card>
       </div>
