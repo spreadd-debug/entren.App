@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
+    "build:api": "esbuild api/_handler.ts --bundle --platform=node --target=node18 --format=esm --outfile=api/index.js --external:express --external:cors --external:dotenv --external:@supabase/supabase-js",
     "lint": "tsc --noEmit"
   },
   "dependencies": {
