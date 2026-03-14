@@ -24,6 +24,27 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/automation', automationRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
 
+app.get("/api/health", async (_req, res) => {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_ANON_KEY;
+  const status = {
+    env: {
+      SUPABASE_URL: supabaseUrl ? `OK (${supabaseUrl.slice(0, 30)}...)` : 'MISSING',
+      SUPABASE_KEY: supabaseKey ? `OK (length: ${supabaseKey.length})` : 'MISSING',
+    },
+    db: null as any,
+  };
+  try {
+    const { createClient } = await import('@supabase/supabase-js');
+    const client = createClient(supabaseUrl!, supabaseKey!);
+    const { data, error } = await client.from('gym_subscriptions').select('gym_id').limit(1);
+    status.db = error ? { error: error.message } : { ok: true, rows: data?.length ?? 0 };
+  } catch (e: any) {
+    status.db = { error: e.message };
+  }
+  res.json(status);
+});
+
 app.get("/api/data", async (req, res) => {
   try {
     const gymId = '11111111-1111-1111-1111-111111111111';
