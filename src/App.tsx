@@ -528,6 +528,7 @@ function GymApp({ gymId, userRole, onLogout, isDemo = false, onRegister }: {
             templates={messageTemplates}
             logs={reminderLogs}
             status={automationStatus}
+            subscription={gymSubscription}
             onBack={() => setCurrentView('settings')}
             onRunAutomation={handleRunAutomation}
             onUpdateRule={() => {}}

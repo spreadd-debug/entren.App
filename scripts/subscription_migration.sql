@@ -7,8 +7,8 @@
 CREATE TABLE IF NOT EXISTS gym_subscriptions (
   id                   UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   gym_id               UUID        NOT NULL UNIQUE,
-  plan_tier            TEXT        NOT NULL DEFAULT 'basic'
-                                   CHECK (plan_tier IN ('basic', 'pro', 'enterprise')),
+  plan_tier            TEXT        NOT NULL DEFAULT 'starter'
+                                   CHECK (plan_tier IN ('starter', 'pro', 'business')),
   status               TEXT        NOT NULL DEFAULT 'trial'
                                    CHECK (status IN ('trial', 'active', 'past_due', 'suspended', 'cancelled')),
   trial_ends_at        TIMESTAMPTZ,
@@ -57,7 +57,7 @@ CREATE TRIGGER gym_subscriptions_updated_at
 INSERT INTO gym_subscriptions (gym_id, plan_tier, status, trial_ends_at)
 VALUES (
   '11111111-1111-1111-1111-111111111111',
-  'basic',
+  'starter',
   'trial',
   NOW() + INTERVAL '30 days'
 )

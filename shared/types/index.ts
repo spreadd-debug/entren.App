@@ -7,6 +7,7 @@ export interface Gym {
   id: string;
   name: string;
   owner_email: string;
+  owner_phone?: string;
   created_at: string;
 }
 
@@ -159,13 +160,14 @@ export interface CheckIn {
 // ─── Gym Subscription ────────────────────────────────────────────────────────
 
 export type GymSubscriptionStatus = 'trial' | 'active' | 'past_due' | 'suspended' | 'cancelled';
-export type GymPlanTier = 'basic' | 'pro' | 'enterprise';
+export type GymPlanTier = 'starter' | 'pro' | 'business';
 
 export interface GymSubscription {
   id: string;
   gym_id: string;
   gym_name: string;
   owner_email: string;
+  owner_phone?: string;
   plan_tier: GymPlanTier;
   status: GymSubscriptionStatus;
   trial_ends_at: string | null;

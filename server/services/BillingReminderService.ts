@@ -3,6 +3,7 @@ import { supabase } from '../db/supabase';
 import { Student, ReminderRule, MessageTemplate, ReminderLog, Plan } from '../../shared/types';
 import { StudentService } from './StudentService';
 import { PlanService } from './PlanService';
+import { WhatsAppProvider } from './WhatsAppProvider';
 
 export const BillingReminderService = {
   async getRules(gymId: string): Promise<ReminderRule[]> {
@@ -107,8 +108,19 @@ export const BillingReminderService = {
                 .single();
 
               if (!logError && savedLog) {
-                newLogs.push(savedLog);
-                totalGenerated++;
+                // Send the actual WhatsApp message and update log status
+                const sent = await WhatsAppProvider.sendMessage(student.phone, message);
+                await supabase
+                  .from('reminder_logs')
+                  .update({
+                    status: sent ? 'sent' : 'failed',
+                    sentAt: new Date().toISOString(),
+                    ...(sent ? {} : { error: 'WhatsApp API call failed' }),
+                  })
+                  .eq('id', savedLog.id);
+
+                newLogs.push({ ...savedLog, status: sent ? 'sent' : 'failed' });
+                if (sent) totalGenerated++;
               }
             }
           }

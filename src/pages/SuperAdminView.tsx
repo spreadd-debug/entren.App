@@ -27,9 +27,9 @@ const STATUS_CONFIG: Record<GymSubscriptionStatus, { label: string; color: strin
 };
 
 const PLAN_LABELS: Record<GymPlanTier, string> = {
-  basic:      'Basic',
-  pro:        'Pro',
-  enterprise: 'Enterprise',
+  starter:  'Starter',
+  pro:      'Pro',
+  business: 'Business',
 };
 
 function fmtDate(iso: string | null): string {

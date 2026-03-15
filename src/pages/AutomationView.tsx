@@ -1,15 +1,17 @@
 
 import React, { useState } from 'react';
-import { ArrowLeft, Clock, MessageSquare, History, CheckCircle, XCircle, AlertCircle, ChevronRight, Play, Settings } from 'lucide-react';
+import { ArrowLeft, Clock, MessageSquare, History, CheckCircle, XCircle, AlertCircle, ChevronRight, Play, Settings, Lock } from 'lucide-react';
 import { Card, Button, Input } from '../components/UI';
-import { ReminderRule, MessageTemplate, ReminderLog, AutomationStatus } from '../../shared/types';
+import { ReminderRule, MessageTemplate, ReminderLog, AutomationStatus, GymSubscription } from '../../shared/types';
 import { formatDate } from '../utils/dateUtils';
+import { hasPlanFeature } from '../utils/subscriptionAccess';
 
 interface AutomationViewProps {
   rules: ReminderRule[];
   templates: MessageTemplate[];
   logs: ReminderLog[];
   status: AutomationStatus | null;
+  subscription: GymSubscription | null;
   onBack: () => void;
   onRunAutomation: () => Promise<any>;
   onUpdateRule: (rule: ReminderRule) => void;
@@ -21,12 +23,41 @@ export const AutomationView: React.FC<AutomationViewProps> = ({
   templates,
   logs,
   status,
+  subscription,
   onBack,
   onRunAutomation,
   onUpdateRule,
   onUpdateTemplate
 }) => {
   const [activeTab, setActiveTab] = useState<'rules' | 'templates' | 'logs'>('rules');
+
+  if (!hasPlanFeature(subscription, 'whatsapp_reminders')) {
+    return (
+      <div className="space-y-6 pb-10">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={onBack}>
+            <ArrowLeft size={20} />
+          </Button>
+          <h2 className="text-xl font-bold text-slate-900">Automatización WA</h2>
+        </div>
+        <Card className="p-8 flex flex-col items-center text-center gap-4">
+          <div className="w-14 h-14 bg-indigo-50 rounded-2xl flex items-center justify-center">
+            <Lock size={26} className="text-indigo-500" />
+          </div>
+          <div className="space-y-1.5">
+            <p className="font-black text-slate-900 text-base">Requiere Plan Pro o Business</p>
+            <p className="text-sm text-slate-500 leading-relaxed max-w-xs">
+              Los recordatorios automáticos por WhatsApp están disponibles a partir del plan Pro.
+              Actualizá tu plan para activar esta funcionalidad.
+            </p>
+          </div>
+          <span className="px-3 py-1 bg-indigo-100 text-indigo-700 text-xs font-black rounded-full uppercase tracking-wide">
+            Pro · Business
+          </span>
+        </Card>
+      </div>
+    );
+  }
   const [editingTemplate, setEditingTemplate] = useState<MessageTemplate | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [lastResult, setLastResult] = useState<any>(null);

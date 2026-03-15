@@ -1,4 +1,22 @@
-import { GymSubscription } from '../../shared/types';
+import { GymSubscription, GymPlanTier } from '../../shared/types';
+
+type PlanFeature = 'whatsapp_reminders';
+
+const FEATURE_PLANS: Record<PlanFeature, GymPlanTier[]> = {
+  whatsapp_reminders: ['pro', 'business'],
+};
+
+/**
+ * Returns true if the gym's current plan includes the requested feature.
+ * Trial and Starter plans return false for Pro/Business-only features.
+ */
+export function hasPlanFeature(
+  subscription: GymSubscription | null,
+  feature: PlanFeature
+): boolean {
+  if (!subscription) return false;
+  return FEATURE_PLANS[feature]?.includes(subscription.plan_tier) ?? false;
+}
 
 export type AccessReason = 'active' | 'trial' | 'grace' | 'suspended' | 'cancelled' | 'expired';
 

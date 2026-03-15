@@ -6,10 +6,11 @@ function mapRow(row: any): GymSubscription {
     ...row,
     gym_name: row.gym?.name ?? 'Desconocido',
     owner_email: row.gym?.owner_email ?? '',
+    owner_phone: row.gym?.owner_phone ?? null,
   };
 }
 
-const GYM_SELECT = `*, gym:gyms (name, owner_email)`;
+const GYM_SELECT = `*, gym:gyms (name, owner_email, owner_phone)`;
 
 export const SubscriptionService = {
   async getAll(): Promise<GymSubscription[]> {
@@ -49,7 +50,17 @@ export const SubscriptionService = {
     return mapRow(data);
   },
 
-  async activate(gymId: string, periodEnd: string, planTier?: GymPlanTier): Promise<GymSubscription> {
+  async activate(gymId: string, periodEnd: string, planTier?: GymPlanTier, skipPaymentCheck = false): Promise<GymSubscription> {
+    if (!skipPaymentCheck) {
+      const { data: payments } = await supabase
+        .from('gym_billing_payments')
+        .select('id')
+        .eq('gym_id', gymId)
+        .limit(1);
+      if (!payments || payments.length === 0) {
+        throw new Error('No se puede activar: el gimnasio no tiene pagos registrados. Registrá un pago primero.');
+      }
+    }
     return this.upsert(gymId, {
       status: 'active',
       current_period_start: new Date().toISOString(),
@@ -100,12 +111,13 @@ export const SubscriptionService = {
   async createGym(
     name: string,
     ownerEmail: string,
-    planTier: GymPlanTier = 'basic',
+    planTier: GymPlanTier = 'starter',
     trialDays: number = 30,
+    ownerPhone?: string,
   ): Promise<GymSubscription> {
     const { data: gym, error: gymError } = await supabase
       .from('gyms')
-      .insert([{ name, owner_email: ownerEmail }])
+      .insert([{ name, owner_email: ownerEmail, ...(ownerPhone ? { owner_phone: ownerPhone } : {}) }])
       .select('id')
       .single();
 
@@ -200,8 +212,8 @@ export const SubscriptionService = {
       .eq('id', payment.gym_id)
       .maybeSingle();
 
-    // Activate the subscription for the paid period
-    await this.activate(payment.gym_id, payment.period_end);
+    // Activate the subscription for the paid period (skip payment check — we just recorded one)
+    await this.activate(payment.gym_id, payment.period_end, undefined, true);
 
     return { ...data, gym_name: gym?.name ?? 'Desconocido' };
   },

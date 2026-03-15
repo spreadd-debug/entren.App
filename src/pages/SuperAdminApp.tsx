@@ -19,6 +19,10 @@ import {
 import { GymSubscription, GymBillingPayment, GymSubscriptionStatus, GymPlanTier } from '../../shared/types';
 import { api } from '../services/api';
 import { SuperAdminShell, SAView } from '../components/SuperAdminShell';
+import {
+  BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+} from 'recharts';
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
@@ -31,9 +35,9 @@ const STATUS_CONFIG: Record<GymSubscriptionStatus, { label: string; color: strin
 };
 
 const PLAN_LABELS: Record<GymPlanTier, string> = {
-  basic:      'Basic',
-  pro:        'Pro',
-  enterprise: 'Enterprise',
+  starter:  'Starter',
+  pro:      'Pro',
+  business: 'Business',
 };
 
 function fmtDate(iso: string | null | undefined): string {
@@ -341,7 +345,8 @@ function NewGymModal({
   const [form, setForm] = useState({
     name: '',
     owner_email: '',
-    plan_tier: 'basic' as GymPlanTier,
+    owner_phone: '',
+    plan_tier: 'starter' as GymPlanTier,
     trial_days: '30',
   });
   const [saving, setSaving] = useState(false);
@@ -358,6 +363,7 @@ function NewGymModal({
       const sub = await api.subscriptions.createGym({
         name: form.name.trim(),
         owner_email: form.owner_email.trim(),
+        owner_phone: form.owner_phone.trim() || undefined,
         plan_tier: form.plan_tier,
         trial_days: Number(form.trial_days),
       });
@@ -402,6 +408,19 @@ function NewGymModal({
               placeholder="dueño@email.com"
               value={form.owner_email}
               onChange={e => setForm(f => ({ ...f, owner_email: e.target.value }))}
+              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-white"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
+              Teléfono del dueño
+            </label>
+            <input
+              type="tel"
+              placeholder="+54 9 11 1234-5678"
+              value={form.owner_phone}
+              onChange={e => setForm(f => ({ ...f, owner_phone: e.target.value }))}
               className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-white"
             />
           </div>
@@ -617,6 +636,22 @@ function _PaymentModalBody({
 
 // ── Overview ──────────────────────────────────────────────────────────────────
 
+const MONTH_NAMES_ES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+const PLAN_COLORS: Record<GymPlanTier, string> = {
+  starter:  '#94a3b8',
+  pro:      '#6366f1',
+  business: '#0891b2',
+};
+
+const STATUS_COLORS: Record<string, string> = {
+  active:    '#22c55e',
+  trial:     '#3b82f6',
+  past_due:  '#f59e0b',
+  suspended: '#ef4444',
+  cancelled: '#94a3b8',
+};
+
 function SAOverview({
   subscriptions,
   billingPayments,
@@ -626,6 +661,7 @@ function SAOverview({
 }) {
   const now = new Date();
 
+  // ── Base stats ───────────────────────────────────────────────────────────────
   const stats = {
     total:     subscriptions.length,
     active:    subscriptions.filter(s => s.status === 'active').length,
@@ -635,18 +671,76 @@ function SAOverview({
     cancelled: subscriptions.filter(s => s.status === 'cancelled').length,
   };
 
-  const problems = stats.past_due + stats.suspended + stats.cancelled;
-
-  const revenueThisMonth = billingPayments
-    .filter(p => {
-      const d = new Date(p.created_at);
-      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-    })
-    .reduce((sum, p) => sum + Number(p.amount), 0);
-
   const revenueTotal = billingPayments.reduce((sum, p) => sum + Number(p.amount), 0);
 
-  // Upcoming expirations: next 30 days
+  // ── Monthly revenue (last 12 months) ─────────────────────────────────────────
+  const monthlyRevenue: { month: string; revenue: number }[] = [];
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const revenue = billingPayments
+      .filter(p => {
+        const pd = new Date(p.created_at);
+        return pd.getMonth() === d.getMonth() && pd.getFullYear() === d.getFullYear();
+      })
+      .reduce((sum, p) => sum + Number(p.amount), 0);
+    monthlyRevenue.push({ month: MONTH_NAMES_ES[d.getMonth()], revenue });
+  }
+
+  // ── Cumulative revenue ────────────────────────────────────────────────────────
+  let cum = 0;
+  const cumulativeRevenue = monthlyRevenue.map(m => {
+    cum += m.revenue;
+    return { month: m.month, total: cum };
+  });
+
+  // ── Revenue this month & last 3 months avg ────────────────────────────────────
+  const revenueThisMonth = monthlyRevenue[11].revenue;
+  const last3Avg = monthlyRevenue.slice(9, 12).reduce((s, m) => s + m.revenue, 0) / 3;
+  const projectedNext = Math.round(last3Avg);
+
+  // ── MRR: sum of last payment per active gym ───────────────────────────────────
+  const activeGymIds = subscriptions.filter(s => s.status === 'active').map(s => s.gym_id);
+  const mrr = activeGymIds.reduce((sum, gymId) => {
+    const gymPayments = billingPayments.filter(p => p.gym_id === gymId);
+    if (gymPayments.length === 0) return sum;
+    const last = gymPayments.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+    return sum + Number(last.amount);
+  }, 0);
+
+  const arr = mrr * 12;
+  const avgTicket = billingPayments.length > 0 ? Math.round(revenueTotal / billingPayments.length) : 0;
+  const churnRate = stats.total > 0
+    ? Math.round(((stats.cancelled + stats.suspended) / stats.total) * 100)
+    : 0;
+
+  const atRisk = subscriptions.filter(s => {
+    if (s.status === 'past_due') return true;
+    if (s.status === 'trial' && s.trial_ends_at) {
+      const diff = new Date(s.trial_ends_at).getTime() - now.getTime();
+      return diff > 0 && diff <= 7 * 86_400_000;
+    }
+    return false;
+  }).length;
+
+  // ── Plan distribution ─────────────────────────────────────────────────────────
+  const planDistribution = (['starter', 'pro', 'business'] as GymPlanTier[])
+    .map(tier => ({
+      name: PLAN_LABELS[tier],
+      value: subscriptions.filter(s => s.plan_tier === tier).length,
+      color: PLAN_COLORS[tier],
+    }))
+    .filter(d => d.value > 0);
+
+  // ── Status distribution ───────────────────────────────────────────────────────
+  const statusDistribution = Object.entries(STATUS_COLORS)
+    .map(([key, color]) => ({
+      name: { active: 'Activos', trial: 'Trial', past_due: 'Vencidos', suspended: 'Suspendidos', cancelled: 'Cancelados' }[key] ?? key,
+      value: subscriptions.filter(s => s.status === key).length,
+      color,
+    }))
+    .filter(d => d.value > 0);
+
+  // ── Upcoming expirations & recent payments ────────────────────────────────────
   const upcoming = subscriptions
     .filter(s => {
       const d = getRelevantDate(s);
@@ -654,54 +748,146 @@ function SAOverview({
       const diff = new Date(d).getTime() - now.getTime();
       return diff > 0 && diff <= 30 * 86_400_000;
     })
-    .sort((a, b) => {
-      const da = getRelevantDate(a) ?? '';
-      const db = getRelevantDate(b) ?? '';
-      return da.localeCompare(db);
-    });
+    .sort((a, b) => (getRelevantDate(a) ?? '').localeCompare(getRelevantDate(b) ?? ''));
 
   const recentPayments = [...billingPayments].slice(0, 5);
 
-  return (
-    <div className="space-y-8 pb-10 max-w-5xl">
+  const kpis = [
+    { label: 'Gimnasios total', value: stats.total, color: 'text-slate-800 dark:text-slate-200', sub: `${stats.active} activos` },
+    { label: 'MRR estimado', value: `$${(mrr / 1000).toFixed(1)}k`, color: 'text-cyan-600 dark:text-cyan-400', sub: `ARR ~$${(arr / 1000).toFixed(0)}k` },
+    { label: 'Rev. este mes', value: `$${(revenueThisMonth / 1000).toFixed(1)}k`, color: 'text-green-600 dark:text-green-400', sub: `Acum. $${(revenueTotal / 1000).toFixed(0)}k` },
+    { label: 'Próx. mes (est.)', value: `$${(projectedNext / 1000).toFixed(1)}k`, color: 'text-indigo-600 dark:text-indigo-400', sub: 'Promedio 3m' },
+    { label: 'Ticket promedio', value: `$${(avgTicket / 1000).toFixed(1)}k`, color: 'text-violet-600 dark:text-violet-400', sub: `${billingPayments.length} cobros` },
+    { label: 'Churn / En riesgo', value: `${churnRate}%`, color: churnRate > 20 ? 'text-red-600 dark:text-red-400' : 'text-slate-600 dark:text-slate-400', sub: `${atRisk} gimnasio${atRisk !== 1 ? 's' : ''} en riesgo` },
+  ];
 
-      {/* KPI cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        {[
-          { label: 'Total',     value: stats.total,  color: 'text-slate-800 dark:text-slate-200' },
-          { label: 'Activos',   value: stats.active, color: 'text-green-600 dark:text-green-400' },
-          { label: 'Trial',     value: stats.trial,  color: 'text-blue-600 dark:text-blue-400' },
-          { label: 'Problemas', value: problems,     color: problems > 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-400' },
-          { label: 'Rev. mes',  value: `$${(revenueThisMonth / 1000).toFixed(0)}k`, color: 'text-cyan-600 dark:text-cyan-400', isText: true },
-        ].map(card => (
+  const tooltipStyle = {
+    backgroundColor: '#1e293b',
+    border: 'none',
+    borderRadius: '10px',
+    color: '#f1f5f9',
+    fontSize: '12px',
+  };
+
+  return (
+    <div className="space-y-6 pb-10 max-w-5xl">
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        {kpis.map(card => (
           <div key={card.label} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 px-5 py-4">
             <p className={`text-2xl font-black ${card.color}`}>{card.value}</p>
-            <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 mt-0.5 uppercase tracking-widest">
-              {card.label}
-            </p>
+            <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 mt-0.5 uppercase tracking-widest">{card.label}</p>
+            {card.sub && <p className="text-[10px] text-slate-400 dark:text-slate-600 mt-1">{card.sub}</p>}
           </div>
         ))}
       </div>
 
-      {/* Revenue summary */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 px-6 py-5">
-        <div className="flex items-center gap-2 mb-4">
-          <TrendingUp size={15} className="text-cyan-500" />
-          <h3 className="text-sm font-black text-slate-900 dark:text-white">Ingresos</h3>
+      {/* Charts row 1: Bar + Donut Plan */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Bar chart — revenue mensual */}
+        <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 px-6 py-5">
+          <div className="flex items-center gap-2 mb-4">
+            <TrendingUp size={14} className="text-indigo-500" />
+            <h3 className="text-sm font-black text-slate-900 dark:text-white">Revenue mensual</h3>
+            <span className="text-xs text-slate-400 ml-auto">últimos 12 meses</span>
+          </div>
+          <ResponsiveContainer width="100%" height={180}>
+            <BarChart data={monthlyRevenue} barSize={18} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+              <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false}
+                tickFormatter={v => v >= 1000 ? `$${(v/1000).toFixed(0)}k` : `$${v}`} />
+              <Tooltip contentStyle={tooltipStyle}
+                formatter={(v: any) => [`$${Number(v).toLocaleString('es-AR')}`, 'Revenue']} />
+              <Bar dataKey="revenue" fill="#6366f1" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
-        <div className="grid grid-cols-2 gap-6">
-          <div>
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-1">Este mes</p>
-            <p className="text-2xl font-black text-slate-900 dark:text-white">
-              {fmtCurrency(revenueThisMonth)}
-            </p>
+
+        {/* Donut — plan distribution */}
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 px-6 py-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Building2 size={14} className="text-cyan-500" />
+            <h3 className="text-sm font-black text-slate-900 dark:text-white">Planes</h3>
           </div>
-          <div>
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-1">Total acumulado</p>
-            <p className="text-2xl font-black text-slate-900 dark:text-white">
-              {fmtCurrency(revenueTotal)}
-            </p>
+          {planDistribution.length > 0 ? (
+            <>
+              <ResponsiveContainer width="100%" height={130}>
+                <PieChart>
+                  <Pie data={planDistribution} cx="50%" cy="50%" innerRadius={38} outerRadius={58}
+                    dataKey="value" paddingAngle={3}>
+                    {planDistribution.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                  </Pie>
+                  <Tooltip contentStyle={tooltipStyle} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="flex flex-wrap gap-x-3 gap-y-1 justify-center mt-1">
+                {planDistribution.map(d => (
+                  <div key={d.name} className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: d.color }} />
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">{d.name} ({d.value})</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <p className="text-xs text-slate-400 text-center py-10">Sin datos</p>
+          )}
+        </div>
+      </div>
+
+      {/* Charts row 2: Line + Donut Status */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Line chart — cumulative revenue */}
+        <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 px-6 py-5">
+          <div className="flex items-center gap-2 mb-4">
+            <TrendingUp size={14} className="text-green-500" />
+            <h3 className="text-sm font-black text-slate-900 dark:text-white">Revenue acumulado</h3>
           </div>
+          <ResponsiveContainer width="100%" height={180}>
+            <LineChart data={cumulativeRevenue} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+              <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false}
+                tickFormatter={v => v >= 1000 ? `$${(v/1000).toFixed(0)}k` : `$${v}`} />
+              <Tooltip contentStyle={tooltipStyle}
+                formatter={(v: any) => [`$${Number(v).toLocaleString('es-AR')}`, 'Acumulado']} />
+              <Line type="monotone" dataKey="total" stroke="#22c55e" strokeWidth={2.5}
+                dot={false} activeDot={{ r: 4, fill: '#22c55e' }} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Donut — status distribution */}
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 px-6 py-5">
+          <div className="flex items-center gap-2 mb-4">
+            <CheckCircle size={14} className="text-green-500" />
+            <h3 className="text-sm font-black text-slate-900 dark:text-white">Estados</h3>
+          </div>
+          {statusDistribution.length > 0 ? (
+            <>
+              <ResponsiveContainer width="100%" height={130}>
+                <PieChart>
+                  <Pie data={statusDistribution} cx="50%" cy="50%" innerRadius={38} outerRadius={58}
+                    dataKey="value" paddingAngle={3}>
+                    {statusDistribution.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                  </Pie>
+                  <Tooltip contentStyle={tooltipStyle} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="flex flex-wrap gap-x-3 gap-y-1 justify-center mt-1">
+                {statusDistribution.map(d => (
+                  <div key={d.name} className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: d.color }} />
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">{d.name} ({d.value})</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <p className="text-xs text-slate-400 text-center py-10">Sin datos</p>
+          )}
         </div>
       </div>
 
@@ -715,9 +901,7 @@ function SAOverview({
           </h3>
         </div>
         {upcoming.length === 0 ? (
-          <p className="px-6 py-8 text-sm text-slate-400 dark:text-slate-600 text-center">
-            No hay vencimientos próximos.
-          </p>
+          <p className="px-6 py-8 text-sm text-slate-400 dark:text-slate-600 text-center">No hay vencimientos próximos.</p>
         ) : (
           <div className="divide-y divide-slate-100 dark:divide-slate-800">
             {upcoming.map(sub => {
@@ -803,6 +987,9 @@ function GymRow({
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-black text-slate-900 dark:text-white truncate">{sub.gym_name}</span>
             <span className="text-xs text-slate-400 dark:text-slate-500 font-medium truncate">{sub.owner_email}</span>
+            {sub.owner_phone && (
+              <span className="text-xs text-slate-400 dark:text-slate-500 font-medium truncate">{sub.owner_phone}</span>
+            )}
           </div>
           <div className="flex items-center gap-3 mt-1.5 flex-wrap">
             <StatusBadge status={sub.status} />
@@ -905,9 +1092,11 @@ function SAGyms({
   const [paymentSub, setPaymentSub] = useState<GymSubscription | null>(null);
   const [loadingGymId, setLoadingGymId] = useState<string | null>(null);
   const [showNewGym, setShowNewGym] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const handleQuickAction = async (gymId: string, action: string) => {
     setLoadingGymId(gymId);
+    setActionError(null);
     try {
       let updated: GymSubscription;
       if (action === 'suspend') {
@@ -924,6 +1113,8 @@ function SAGyms({
         updated = await api.subscriptions.activate(gymId, nextMonth);
       }
       onUpdateSubscription(updated);
+    } catch (err: any) {
+      setActionError(err?.message ?? 'Ocurrió un error.');
     } finally {
       setLoadingGymId(null);
     }
@@ -931,6 +1122,17 @@ function SAGyms({
 
   return (
     <div className="space-y-3 pb-10 max-w-4xl">
+      {/* Action error banner */}
+      {actionError && (
+        <div className="flex items-start gap-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3">
+          <AlertTriangle size={15} className="text-red-500 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-red-700 dark:text-red-400">{actionError}</p>
+          </div>
+          <button onClick={() => setActionError(null)} className="text-red-400 hover:text-red-600 text-xs font-bold shrink-0">✕</button>
+        </div>
+      )}
+
       {/* Toolbar */}
       <div className="flex justify-end mb-1">
         <button

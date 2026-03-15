@@ -1,6 +1,7 @@
 
 import { Router } from 'express';
 import { BillingReminderService } from '../services/BillingReminderService';
+import { supabase } from '../db/supabase';
 
 const router = Router();
 
@@ -35,6 +36,45 @@ router.post('/run', async (req, res) => {
     const gymId = req.body.gymId || '11111111-1111-1111-1111-111111111111';
     const result = await BillingReminderService.runDailyCheck(gymId);
     res.json({ success: true, result });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Vercel Cron endpoint — called daily by vercel.json schedule
+// Protected by CRON_SECRET environment variable
+router.post('/cron', async (req, res) => {
+  const authHeader = req.headers['authorization'] as string | undefined;
+  const cronSecret = process.env.CRON_SECRET;
+
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  try {
+    // Fetch all gyms with Pro or Business plan that are actively paying
+    const { data: subs, error } = await supabase
+      .from('gym_subscriptions')
+      .select('gym_id')
+      .in('plan_tier', ['pro', 'business'])
+      .eq('status', 'active')
+      .eq('access_enabled', true);
+
+    if (error) throw error;
+
+    const gymIds = (subs || []).map((s: any) => s.gym_id);
+
+    const results = await Promise.allSettled(
+      gymIds.map((gymId: string) => BillingReminderService.runDailyCheck(gymId))
+    );
+
+    const summary = results.map((r, i) => ({
+      gymId: gymIds[i],
+      status: r.status,
+      ...(r.status === 'fulfilled' ? { result: r.value } : { error: (r as PromiseRejectedResult).reason?.message }),
+    }));
+
+    res.json({ ok: true, ran: gymIds.length, summary });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

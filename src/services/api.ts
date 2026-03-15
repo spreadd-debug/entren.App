@@ -381,6 +381,7 @@ export const api = {
     async createGym(data: {
       name: string;
       owner_email: string;
+      owner_phone?: string;
       plan_tier?: GymPlanTier;
       trial_days?: number;
     }): Promise<GymSubscription> {
