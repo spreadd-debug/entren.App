@@ -9,6 +9,7 @@ import {
   Dumbbell,
   Calendar,
   Zap,
+  LogOut,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -18,6 +19,7 @@ interface AppShellProps {
   onNavigate: (view: string) => void;
   title: string;
   shiftsEnabled?: boolean;
+  onLogout?: () => void;
 }
 
 export const AppShell: React.FC<AppShellProps> = ({
@@ -26,6 +28,7 @@ export const AppShell: React.FC<AppShellProps> = ({
   onNavigate,
   title,
   shiftsEnabled = false,
+  onLogout,
 }) => {
   const baseMobileItems = [
     { id: 'dashboard', label: 'Inicio',   icon: LayoutDashboard },
@@ -99,8 +102,8 @@ export const AppShell: React.FC<AppShellProps> = ({
           })}
         </nav>
 
-        {/* CTA Nuevo Alumno */}
-        <div className="p-4 border-t border-slate-100 dark:border-slate-800">
+        {/* CTA Nuevo Alumno + Logout */}
+        <div className="p-4 border-t border-slate-100 dark:border-slate-800 space-y-2">
           <button
             onClick={() => onNavigate('new-student')}
             className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-cyan-500 hover:bg-cyan-400 active:bg-cyan-600 text-slate-950 rounded-xl text-sm font-bold transition-all shadow-md shadow-cyan-500/25 hover:shadow-lg hover:shadow-cyan-500/30 active:scale-[0.97]"
@@ -108,6 +111,15 @@ export const AppShell: React.FC<AppShellProps> = ({
             <Plus size={15} strokeWidth={2.5} />
             Nuevo Alumno
           </button>
+          {onLogout && (
+            <button
+              onClick={onLogout}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2 text-slate-400 dark:text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl text-xs font-semibold transition-all"
+            >
+              <LogOut size={14} />
+              Cerrar sesión
+            </button>
+          )}
         </div>
       </aside>
 
@@ -125,18 +137,30 @@ export const AppShell: React.FC<AppShellProps> = ({
           </span>
         </button>
 
-        <button
-          type="button"
-          aria-label="Ajustes"
-          onClick={() => onNavigate('settings')}
-          className={`p-2 rounded-xl transition-all ${
-            currentView === 'settings'
-              ? 'bg-cyan-500/10 text-cyan-500'
-              : 'text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-300'
-          }`}
-        >
-          <Settings size={18} />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            aria-label="Ajustes"
+            onClick={() => onNavigate('settings')}
+            className={`p-2 rounded-xl transition-all ${
+              currentView === 'settings'
+                ? 'bg-cyan-500/10 text-cyan-500'
+                : 'text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-300'
+            }`}
+          >
+            <Settings size={18} />
+          </button>
+          {onLogout && (
+            <button
+              type="button"
+              aria-label="Cerrar sesión"
+              onClick={onLogout}
+              className="p-2 rounded-xl text-slate-400 dark:text-slate-500 hover:bg-rose-500/10 hover:text-rose-400 transition-all"
+            >
+              <LogOut size={18} />
+            </button>
+          )}
+        </div>
       </header>
 
       {/* ── Main ─────────────────────────────────────────────────── */}

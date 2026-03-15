@@ -160,16 +160,22 @@ export default function App() {
 
   // ── Gym app ──────────────────────────────────────────────────────────────────
 
+  const handleLogout = async () => {
+    sessionStorage.removeItem('userRole');
+    sessionStorage.removeItem('userId');
+    await supabase.auth.signOut();
+  };
+
   return (
     <ThemeProvider>
-      <GymApp gymId={gymId!} userRole={userRole} />
+      <GymApp gymId={gymId!} userRole={userRole} onLogout={handleLogout} />
     </ThemeProvider>
   );
 }
 
 // ── GymApp: all gym-specific state and rendering ──────────────────────────────
 
-function GymApp({ gymId, userRole }: { gymId: string; userRole: string }) {
+function GymApp({ gymId, userRole, onLogout }: { gymId: string; userRole: string; onLogout: () => void }) {
   const currentUserRole = userRole;
   const canViewFinancials = currentUserRole === 'admin';
   const canManageSettings = currentUserRole === 'admin';
@@ -547,6 +553,7 @@ function GymApp({ gymId, userRole }: { gymId: string; userRole: string }) {
       onNavigate={handleNavigate}
       title={getViewTitle()}
       shiftsEnabled={shiftsEnabled}
+      onLogout={onLogout}
     >
       <SubscriptionGuard subscription={gymSubscription}>
         {renderView()}
