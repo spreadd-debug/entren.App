@@ -1,4 +1,4 @@
-import { CURRENT_USER } from './config/currentUser';
+import { supabase } from './db/supabase';
 import React, { useState, useEffect } from 'react';
 import { AppShell } from './components/AppShell';
 import { DashboardView } from './pages/DashboardView';
@@ -51,11 +51,37 @@ type GymView =
 
 export default function App() {
 
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [supabaseUser, setSupabaseUser] = useState<any>(null);
+  const [sessionLoading, setSessionLoading] = useState(true);
   const [isRegistering, setIsRegistering] = useState(false);
   const isSuperAdmin = sessionStorage.getItem('userRole') === 'superadmin';
 
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSupabaseUser(session?.user ?? null);
+      setSessionLoading(false);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSupabaseUser(session?.user ?? null);
+      setSessionLoading(false);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const isAuthenticated = isSuperAdmin || supabaseUser !== null;
+  const gymId = supabaseUser?.user_metadata?.gym_id ?? null;
+  const userRole = (supabaseUser?.user_metadata?.role ?? 'admin') as string;
+
   const isStudentPortalMode = window.location.search.includes("student=1");
+
+  // While checking session, show nothing (avoids flash of login screen)
+  if (sessionLoading && !isSuperAdmin) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <span className="w-8 h-8 border-2 border-slate-700 border-t-cyan-500 rounded-full animate-spin" />
+      </div>
+    );
+  }
   const checkinGymId = new URLSearchParams(window.location.search).get('checkin');
 
   const [studentPortalId, setStudentPortalId] = useState<string | null>(
@@ -117,7 +143,7 @@ export default function App() {
     return (
       <ThemeProvider>
         <LoginView
-          onLogin={() => setIsAuthenticated(true)}
+          onLogin={() => {}}
           onRegisterClick={() => setIsRegistering(true)}
         />
       </ThemeProvider>
@@ -138,17 +164,15 @@ export default function App() {
 
   return (
     <ThemeProvider>
-      <GymApp />
+      <GymApp gymId={gymId!} userRole={userRole} />
     </ThemeProvider>
   );
 }
 
 // ── GymApp: all gym-specific state and rendering ──────────────────────────────
 
-function GymApp() {
-  const gymId = '11111111-1111-1111-1111-111111111111';
-
-  const currentUserRole = CURRENT_USER.role;
+function GymApp({ gymId, userRole }: { gymId: string; userRole: string }) {
+  const currentUserRole = userRole;
   const canViewFinancials = currentUserRole === 'admin';
   const canManageSettings = currentUserRole === 'admin';
 

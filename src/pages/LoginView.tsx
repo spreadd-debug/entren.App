@@ -1,37 +1,50 @@
 import React, { useState } from 'react';
-import { Dumbbell, Lock, ArrowRight, User, Zap, Users, BarChart3, Calendar } from 'lucide-react';
-import { Input } from '../components/UI';
+import { Dumbbell, Lock, ArrowRight, Mail, Zap, Users, BarChart3, Calendar } from 'lucide-react';
+import { supabase } from '../db/supabase';
 
 interface LoginViewProps {
   onLogin: () => void;
   onRegisterClick: () => void;
 }
 
+const SUPERADMIN_USERNAME = 'Dhitrent4';
+const SUPERADMIN_PASSWORD = '42338474asdasd';
+
 export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onRegisterClick }) => {
   const [loading, setLoading] = useState(false);
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
-    setTimeout(() => {
-      if (username === 'Dhitrent4' && password === '42338474asdasd') {
+    try {
+      // Superadmin: hardcoded bypass (no Supabase account needed)
+      if (email === SUPERADMIN_USERNAME && password === SUPERADMIN_PASSWORD) {
         sessionStorage.setItem('userRole', 'superadmin');
-        sessionStorage.setItem('userId', 'Dhitrent4');
+        sessionStorage.setItem('userId', SUPERADMIN_USERNAME);
         onLogin();
-      } else if (username === 'test' && password === '1234') {
-        sessionStorage.setItem('userRole', 'admin');
-        sessionStorage.setItem('userId', 'test');
-        onLogin();
-      } else {
-        setError('Credenciales incorrectas. Verificá tu usuario y contraseña.');
-        setLoading(false);
+        return;
       }
-    }, 1000);
+
+      // Gym users: Supabase Auth
+      const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
+
+      if (authError) {
+        setError('Credenciales incorrectas. Verificá tu email y contraseña.');
+        return;
+      }
+
+      // Auth state change in App.tsx will handle the redirect automatically
+      onLogin();
+    } catch {
+      setError('Error de conexión. Intentá de nuevo.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -75,15 +88,16 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onRegisterClick }
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">Usuario</label>
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">Email</label>
               <div className="relative">
-                <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600" size={18} />
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600" size={18} />
                 <input
                   type="text"
-                  placeholder="Tu usuario"
+                  placeholder="tu@email.com"
+                  autoComplete="email"
                   className="w-full pl-11 pr-4 py-3 rounded-xl text-sm bg-slate-800 border border-slate-700 text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500/60 transition-all duration-150"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   required
                 />
               </div>
@@ -101,6 +115,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onRegisterClick }
                 <input
                   type="password"
                   placeholder="••••••••"
+                  autoComplete="current-password"
                   className="w-full pl-11 pr-4 py-3 rounded-xl text-sm bg-slate-800 border border-slate-700 text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500/60 transition-all duration-150"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}

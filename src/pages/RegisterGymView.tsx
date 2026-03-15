@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { CheckCircle, Dumbbell, Mail, Lock, ArrowRight, ArrowLeft, Building2, Phone, MapPin } from 'lucide-react';
+import { supabase } from '../db/supabase';
 import { api } from '../services/api';
 
 interface RegisterGymViewProps {
@@ -30,7 +31,20 @@ export const RegisterGymView: React.FC<RegisterGymViewProps> = ({ onBack, onSucc
 
     setLoading(true);
     try {
-      await api.subscriptions.createGym({ name: gymName, owner_email: email });
+      // 1. Create Supabase Auth user
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({ email, password });
+      if (signUpError) throw new Error(signUpError.message);
+      if (!signUpData.user) throw new Error('No se pudo crear la cuenta.');
+
+      // 2. Create gym + subscription in DB
+      const gym = await api.subscriptions.createGym({ name: gymName, owner_email: email });
+
+      // 3. Link gym_id to the Supabase user metadata
+      const { error: updateError } = await supabase.auth.updateUser({
+        data: { gym_id: gym.gym_id, role: 'admin' },
+      });
+      if (updateError) throw new Error(updateError.message);
+
       setSuccess(true);
     } catch (err: any) {
       setError(err?.message ?? 'Error al registrar el gimnasio. Intentá de nuevo.');
@@ -60,7 +74,7 @@ export const RegisterGymView: React.FC<RegisterGymViewProps> = ({ onBack, onSucc
             onClick={onSuccess}
             className="w-full flex items-center justify-center gap-2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold py-3.5 rounded-xl transition-all duration-150 active:scale-[0.97] shadow-lg shadow-cyan-500/25 text-sm"
           >
-            Ir al inicio de sesión
+            Ir al panel
             <ArrowRight size={18} />
           </button>
         </div>
@@ -160,7 +174,7 @@ export const RegisterGymView: React.FC<RegisterGymViewProps> = ({ onBack, onSucc
                   <label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">Contraseña</label>
                   <div className="relative">
                     <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-600" size={16} />
-                    <input type="password" className={inputClass} placeholder="••••••••" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} />
+                    <input type="password" className={inputClass} placeholder="Mínimo 6 caracteres" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} />
                   </div>
                 </div>
               </>
@@ -174,7 +188,7 @@ export const RegisterGymView: React.FC<RegisterGymViewProps> = ({ onBack, onSucc
               {loading ? (
                 <>
                   <span className="w-4 h-4 border-2 border-slate-950/30 border-t-slate-950 rounded-full animate-spin" />
-                  Procesando...
+                  {step === 2 ? 'Creando tu cuenta...' : 'Procesando...'}
                 </>
               ) : (
                 <>
