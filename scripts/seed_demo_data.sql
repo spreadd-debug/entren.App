@@ -140,8 +140,9 @@ VALUES
    'https://upload.wikimedia.org/wikipedia/commons/thumb/0/02/Plank_exercise.jpg/480px-Plank_exercise.jpg', 5);
 
 -- Asignar la rutina al primer alumno activo (Juan García)
-INSERT INTO student_workout_assignments (student_id, workout_plan_id, active)
+INSERT INTO student_workout_assignments (gym_id, student_id, workout_plan_id, active)
 VALUES (
+  '11111111-1111-1111-1111-111111111111',
   'bbbb0001-0000-0000-0000-000000000001',
   'eeee0001-0000-0000-0000-000000000001',
   true
