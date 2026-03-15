@@ -366,6 +366,7 @@ export const DemoTour: React.FC<DemoTourProps> = ({ onNavigate, onExit, onRegist
   const isFinal = currentStep.isFinal;
   const isWelcome = step === 0;
   const isFullOverlay = !spotRect;
+  const mob = window.innerWidth < 768;
 
   if (!visible) return null;
 
@@ -420,11 +421,12 @@ export const DemoTour: React.FC<DemoTourProps> = ({ onNavigate, onExit, onRegist
       {!isFinal && (
         <button
           onClick={onExit}
-          style={{ position: 'fixed', top: 16, right: 16, zIndex: 10002 }}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold text-slate-400 hover:text-white bg-slate-900/80 hover:bg-slate-800 border border-slate-700/60 transition-all backdrop-blur-sm"
+          style={{ position: 'fixed', top: 12, right: 12, zIndex: 10002 }}
+          className="flex items-center gap-1 px-2.5 py-1.5 rounded-full font-semibold text-slate-400 hover:text-white bg-slate-900/80 hover:bg-slate-800 border border-slate-700/60 transition-all backdrop-blur-sm"
+          style={{ fontSize: 11 }}
         >
-          <X size={12} />
-          Saltar tour
+          <X size={11} />
+          Saltar
         </button>
       )}
 
@@ -435,6 +437,8 @@ export const DemoTour: React.FC<DemoTourProps> = ({ onNavigate, onExit, onRegist
             ...getCardStyle(),
             zIndex: 10001,
             animation: 'demotour-slidein 0.28s cubic-bezier(0.34,1.56,0.64,1) forwards',
+            // On mobile: cap height so it never overflows the viewport
+            ...(mob ? { maxHeight: 'calc(100vh - 110px)', overflowY: 'auto' } : {}),
           }}
         >
           <div
@@ -448,24 +452,27 @@ export const DemoTour: React.FC<DemoTourProps> = ({ onNavigate, onExit, onRegist
             {/* Top accent line */}
             <div style={{ height: 2, background: 'linear-gradient(90deg, transparent, rgb(34,211,238), transparent)' }} />
 
-            <div className="px-5 pt-4 pb-5">
+            <div style={{ padding: mob ? '10px 14px 14px' : '16px 20px 20px' }}>
               {/* Header row */}
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-5 h-5 bg-cyan-500 rounded-md flex items-center justify-center shrink-0">
-                    <Zap size={10} className="text-slate-950" strokeWidth={3} />
+              <div className="flex items-center justify-between" style={{ marginBottom: mob ? 8 : 12 }}>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-4 h-4 bg-cyan-500 rounded flex items-center justify-center shrink-0">
+                    <Zap size={9} className="text-slate-950" strokeWidth={3} />
                   </div>
-                  <span className="text-[9px] font-black text-cyan-400 uppercase tracking-[0.18em]">
+                  <span className="font-black text-cyan-400 uppercase" style={{ fontSize: 9, letterSpacing: '0.18em' }}>
                     entrenApp Demo
                   </span>
                 </div>
-                <span className="text-[10px] font-bold text-slate-600">
+                <span className="font-bold text-slate-600" style={{ fontSize: 10 }}>
                   {step + 1} / {TOUR_STEPS.length}
                 </span>
               </div>
 
               {/* Progress bar */}
-              <div className="h-[3px] bg-slate-800 rounded-full mb-4 overflow-hidden">
+              <div
+                className="bg-slate-800 rounded-full overflow-hidden"
+                style={{ height: 3, marginBottom: mob ? 10 : 16 }}
+              >
                 <div
                   className="h-full rounded-full transition-all duration-500"
                   style={{
@@ -479,8 +486,13 @@ export const DemoTour: React.FC<DemoTourProps> = ({ onNavigate, onExit, onRegist
               {/* Emoji */}
               {currentStep.emoji && (
                 <div
-                  className="text-center mb-3"
-                  style={{ fontSize: 42, lineHeight: 1, animation: 'demotour-bounce 2.5s ease-in-out infinite' }}
+                  className="text-center"
+                  style={{
+                    fontSize: mob ? 28 : 42,
+                    lineHeight: 1,
+                    marginBottom: mob ? 6 : 12,
+                    animation: 'demotour-bounce 2.5s ease-in-out infinite',
+                  }}
                 >
                   {currentStep.emoji}
                 </div>
@@ -489,38 +501,51 @@ export const DemoTour: React.FC<DemoTourProps> = ({ onNavigate, onExit, onRegist
               {/* Title */}
               <h3
                 className="font-black tracking-tight text-white leading-tight"
-                style={{ fontSize: isFinal || isWelcome ? 22 : 17, textAlign: isFinal || isWelcome ? 'center' : 'left' }}
+                style={{
+                  fontSize: mob
+                    ? (isFinal || isWelcome ? 15 : 14)
+                    : (isFinal || isWelcome ? 22 : 17),
+                  textAlign: isFinal || isWelcome ? 'center' : 'left',
+                }}
               >
                 {currentStep.title}
               </h3>
 
               {/* Description */}
               <p
-                className="text-slate-400 text-sm leading-relaxed mt-2"
-                style={{ textAlign: isFinal || isWelcome ? 'center' : 'left' }}
+                className="text-slate-400"
+                style={{
+                  fontSize: mob ? 12 : 14,
+                  lineHeight: mob ? 1.45 : 1.6,
+                  marginTop: mob ? 5 : 8,
+                  textAlign: isFinal || isWelcome ? 'center' : 'left',
+                }}
               >
                 {currentStep.description}
               </p>
 
               {/* Footer */}
-              <div className="mt-5">
+              <div style={{ marginTop: mob ? 12 : 20 }}>
                 {isFinal ? (
                   <div className="space-y-2">
                     <button
                       onClick={onRegister}
-                      className="w-full flex items-center justify-center gap-2 font-black py-3 rounded-xl transition-all active:scale-[0.97] text-sm"
+                      className="w-full flex items-center justify-center gap-2 font-black rounded-xl transition-all active:scale-[0.97]"
                       style={{
+                        fontSize: mob ? 13 : 14,
+                        padding: mob ? '9px 16px' : '12px 16px',
                         background: 'linear-gradient(135deg, rgb(6,182,212) 0%, rgb(34,211,238) 100%)',
                         color: '#020617',
                         boxShadow: '0 8px 24px rgba(34,211,238,0.35), 0 0 0 1px rgba(34,211,238,0.2)',
                       }}
                     >
                       Registrá tu gimnasio gratis
-                      <ArrowRight size={16} />
+                      <ArrowRight size={14} />
                     </button>
                     <button
                       onClick={onExit}
-                      className="w-full text-center text-xs text-slate-600 hover:text-slate-400 py-1.5 transition-colors"
+                      className="w-full text-center text-slate-600 hover:text-slate-400 transition-colors"
+                      style={{ fontSize: 11, padding: '6px 0' }}
                     >
                       Seguir explorando el demo
                     </button>
@@ -534,8 +559,8 @@ export const DemoTour: React.FC<DemoTourProps> = ({ onNavigate, onExit, onRegist
                           key={i}
                           className="rounded-full transition-all duration-300"
                           style={{
-                            width: i === step ? 14 : 5,
-                            height: 5,
+                            width: i === step ? (mob ? 10 : 14) : (mob ? 4 : 5),
+                            height: mob ? 4 : 5,
                             background: i === step
                               ? 'rgb(34,211,238)'
                               : i < step
@@ -549,15 +574,17 @@ export const DemoTour: React.FC<DemoTourProps> = ({ onNavigate, onExit, onRegist
                     {/* Next button */}
                     <button
                       onClick={goNext}
-                      className="flex items-center gap-2 font-black px-5 py-2.5 rounded-xl transition-all active:scale-[0.97] text-sm"
+                      className="flex items-center gap-1.5 font-black rounded-xl transition-all active:scale-[0.97]"
                       style={{
+                        fontSize: mob ? 12 : 14,
+                        padding: mob ? '8px 14px' : '10px 20px',
                         background: 'linear-gradient(135deg, rgb(6,182,212) 0%, rgb(34,211,238) 100%)',
                         color: '#020617',
                         boxShadow: '0 4px 16px rgba(34,211,238,0.3)',
                       }}
                     >
                       {step === TOUR_STEPS.length - 2 ? 'Finalizar' : 'Siguiente'}
-                      <ArrowRight size={14} />
+                      <ArrowRight size={mob ? 12 : 14} />
                     </button>
                   </div>
                 )}
