@@ -175,7 +175,16 @@ const TOUR_STEPS: TourStep[] = [
     dimOpacity: 0.45,
   },
 
-  // ── 7. Final ─────────────────────────────────────────────────────────────────
+  // ── 7. Ejemplo de ejercicio ───────────────────────────────────────────────────
+  {
+    view: 'student-portal',
+    targetSelector: '[data-tour="exercise-photo-btn"]',
+    title: '¿No conocen el ejercicio?',
+    description: 'Tocan "Ejemplo" y ven la foto al instante. Sin googlear, sin preguntar. El alumno sabe exactamente cómo hacerlo.',
+    sound: 'pop',
+  },
+
+  // ── 8. Final ─────────────────────────────────────────────────────────────────
   {
     view: null,
     targetSelector: null,

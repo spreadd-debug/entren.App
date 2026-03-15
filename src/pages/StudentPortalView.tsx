@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { StudentPortalService } from "../services/StudentPortalService";
 import {
   Dumbbell,
-  PlayCircle,
+  Image,
   Timer,
   CreditCard,
   LogOut,
@@ -250,9 +250,10 @@ export default function StudentPortalView({
                         })
                       }
                       className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 text-xs font-bold border border-cyan-500/20 hover:bg-cyan-500/20 transition-colors"
+                      {...(index === 0 ? { 'data-tour': 'exercise-photo-btn' } : {})}
                     >
-                      <PlayCircle size={13} />
-                      Video
+                      <Image size={13} />
+                      Ejemplo
                     </button>
                   ) : (
                     <ChevronRight
