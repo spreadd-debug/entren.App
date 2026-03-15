@@ -34,7 +34,8 @@ router.put('/:id', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   try {
-    await PlanService.delete(req.params.id);
+    const gymId = req.query.gymId as string | undefined;
+    await PlanService.delete(req.params.id, gymId);
     res.status(204).send();
   } catch (error: any) {
     res.status(500).json({ error: error.message });

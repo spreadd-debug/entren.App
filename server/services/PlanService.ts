@@ -1,4 +1,3 @@
-import { CURRENT_GYM_ID } from "../config/gym";
 import { supabase } from '../db/supabase';
 import { Plan } from '../../shared/types';
 
@@ -80,7 +79,7 @@ export const PlanService = {
       .from('plans')
       .update(payload)
       .eq('id', id)
-      .eq('gym_id', CURRENT_GYM_ID)
+      .eq('gym_id', updates.gym_id ?? DEFAULT_GYM_ID)
       .select(`
         id,
         gym_id,
@@ -97,13 +96,10 @@ export const PlanService = {
     return data as any;
   },
 
-  async delete(id: string): Promise<void> {
-    const { error } = await supabase
-      .from('plans')
-      .delete()
-      .eq('id', id)
-      .eq('gym_id', CURRENT_GYM_ID)
-
+  async delete(id: string, gymId?: string): Promise<void> {
+    let query = supabase.from('plans').delete().eq('id', id);
+    if (gymId) query = query.eq('gym_id', gymId);
+    const { error } = await query;
     if (error) throw error;
   }
 };

@@ -53,20 +53,22 @@ export const ShiftService = {
     return data;
   },
 
-  async updateShift(id: string, updates: Partial<Omit<Shift, 'id' | 'gym_id' | 'created_at'>>): Promise<void> {
+  async updateShift(id: string, gymId: string, updates: Partial<Omit<Shift, 'id' | 'gym_id' | 'created_at'>>): Promise<void> {
     const { error } = await supabase
       .from('shifts')
       .update(updates)
-      .eq('id', id);
+      .eq('id', id)
+      .eq('gym_id', gymId);
 
     if (error) throw error;
   },
 
-  async deleteShift(id: string): Promise<void> {
+  async deleteShift(id: string, gymId: string): Promise<void> {
     const { error } = await supabase
       .from('shifts')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .eq('gym_id', gymId);
 
     if (error) throw error;
   },

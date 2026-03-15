@@ -309,7 +309,7 @@ function GymApp() {
 
   const handleDeletePlan = async (id: string) => {
     try {
-      await api.plans.delete(id);
+      await api.plans.delete(id, gymId);
       setPlans(await api.plans.getAll(gymId));
     } catch (error) {
       console.error('Error deleting plan:', error);

@@ -62,7 +62,7 @@ const ShiftFormModal: React.FC<ShiftFormModalProps> = ({ initial, gymId, onSave,
     setSaving(true);
     try {
       if (initial?.id) {
-        await ShiftService.updateShift(initial.id, form);
+        await ShiftService.updateShift(initial.id, gymId, form);
       } else {
         await ShiftService.createShift({ ...form, gym_id: gymId });
       }
@@ -613,7 +613,7 @@ export const ShiftsView: React.FC<ShiftsViewProps> = ({ gymId, students }) => {
   const handleDelete = async (id: string) => {
     if (!confirm('¿Eliminar este turno? Se perderán todas las asignaciones.')) return;
     try {
-      await ShiftService.deleteShift(id);
+      await ShiftService.deleteShift(id, gymId);
       await loadShifts();
     } catch (err) {
       console.error('Error deleting shift:', err);

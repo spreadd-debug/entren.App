@@ -273,9 +273,6 @@ var students_default = router;
 // server/routes/plans.ts
 import { Router as Router2 } from "express";
 
-// server/config/gym.ts
-var CURRENT_GYM_ID = "11111111-1111-1111-1111-111111111111";
-
 // server/services/PlanService.ts
 var DEFAULT_GYM_ID2 = "11111111-1111-1111-1111-111111111111";
 var PlanService = {
@@ -334,7 +331,7 @@ var PlanService = {
     if (updates.activo !== void 0 || updates.active !== void 0) {
       payload.activo = updates.activo ?? updates.active;
     }
-    const { data, error } = await supabase.from("plans").update(payload).eq("id", id).eq("gym_id", CURRENT_GYM_ID).select(`
+    const { data, error } = await supabase.from("plans").update(payload).eq("id", id).eq("gym_id", updates.gym_id ?? DEFAULT_GYM_ID2).select(`
         id,
         gym_id,
         nombre,
@@ -347,8 +344,10 @@ var PlanService = {
     if (error) throw error;
     return data;
   },
-  async delete(id) {
-    const { error } = await supabase.from("plans").delete().eq("id", id).eq("gym_id", CURRENT_GYM_ID);
+  async delete(id, gymId) {
+    let query = supabase.from("plans").delete().eq("id", id);
+    if (gymId) query = query.eq("gym_id", gymId);
+    const { error } = await query;
     if (error) throw error;
   }
 };
@@ -382,7 +381,8 @@ router2.put("/:id", async (req, res) => {
 });
 router2.delete("/:id", async (req, res) => {
   try {
-    await PlanService.delete(req.params.id);
+    const gymId = req.query.gymId;
+    await PlanService.delete(req.params.id, gymId);
     res.status(204).send();
   } catch (error) {
     res.status(500).json({ error: error.message });
