@@ -150,7 +150,7 @@ const TOUR_STEPS: TourStep[] = [
   // ── 5. Dashboard ─────────────────────────────────────────────────────────────
   {
     view: 'dashboard',
-    targetSelector: '[data-tour="content-area"]',
+    targetSelector: '[data-tour="dashboard-kpis"]',
     title: '¿Cómo está tu gimnasio hoy?',
     description: 'Cuántos alumnos activos tenés, cuántos deben, cuánto cobraste este mes. Todo en una pantalla cuando arranca el día. Sin abrir planillas ni calcular nada.',
     sound: 'chime',
@@ -242,9 +242,14 @@ export const DemoTour: React.FC<DemoTourProps> = ({ onNavigate, onExit, onRegist
       setCardVisible(true);
       return;
     }
-    const r = el.getBoundingClientRect();
-    setSpotRect({ top: r.top - PAD, left: r.left - PAD, width: r.width + PAD * 2, height: r.height + PAD * 2 });
-    setCardVisible(true);
+    // Scroll the element into the visible area, then re-measure its final position
+    el.scrollIntoView({ block: 'center', behavior: 'instant' });
+    // Small delay to let the layout settle after scroll
+    setTimeout(() => {
+      const r = el.getBoundingClientRect();
+      setSpotRect({ top: r.top - PAD, left: r.left - PAD, width: r.width + PAD * 2, height: r.height + PAD * 2 });
+      setCardVisible(true);
+    }, 80);
   }, [step]);
 
   // when step changes: navigate → play sound → measure
@@ -317,9 +322,18 @@ export const DemoTour: React.FC<DemoTourProps> = ({ onNavigate, onExit, onRegist
     const cardW = Math.min(340, vw - 32);
     const centerLeft = Math.round((vw - cardW) / 2); // px — no transform needed
 
-    // Mobile: always anchor to bottom, centered horizontally in pixels.
+    // Mobile: anchor to bottom by default, but if the spotlight is in the
+    // lower half of the screen put the card at the top so it doesn't cover it.
     if (isMobile) {
       const inPortal = currentStep.view === 'student-portal';
+      if (spotRect) {
+        const spotCenterY = spotRect.top + spotRect.height / 2;
+        const isLow = spotCenterY > vh * 0.45;
+        if (isLow) {
+          // Card at top — clear skip button (top:12 + ~34px) + a bit of breathing room
+          return { position: 'fixed', top: 52, left: centerLeft, width: cardW };
+        }
+      }
       return {
         position: 'fixed',
         bottom: inPortal ? 24 : 88,

@@ -182,7 +182,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       </div>
 
       {/* ── KPI Metrics ─────────────────────────────────────────────── */}
-      <div className={`grid gap-3 ${canViewFinancials ? 'grid-cols-2 xl:grid-cols-4' : 'grid-cols-2'}`}>
+      <div data-tour="dashboard-kpis" className={`grid gap-3 ${canViewFinancials ? 'grid-cols-2 xl:grid-cols-4' : 'grid-cols-2'}`}>
 
         {/* Activos — featured metric */}
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 flex flex-col justify-between gap-4 shadow-sm dark:shadow-none">
