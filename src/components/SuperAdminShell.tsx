@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, Building2, DollarSign, Zap, ShieldCheck } from 'lucide-react';
+import { LayoutDashboard, Building2, DollarSign, Zap, ShieldCheck, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CURRENT_USER } from '../config/currentUser';
 
@@ -21,9 +21,10 @@ interface Props {
   currentView: SAView;
   onNavigate: (view: SAView) => void;
   children: React.ReactNode;
+  onLogout?: () => void;
 }
 
-export const SuperAdminShell: React.FC<Props> = ({ currentView, onNavigate, children }) => {
+export const SuperAdminShell: React.FC<Props> = ({ currentView, onNavigate, children, onLogout }) => {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col md:flex-row">
 
@@ -79,8 +80,8 @@ export const SuperAdminShell: React.FC<Props> = ({ currentView, onNavigate, chil
           })}
         </nav>
 
-        {/* User info */}
-        <div className="p-4 border-t border-slate-800">
+        {/* User info + Logout */}
+        <div className="p-4 border-t border-slate-800 space-y-2">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 bg-slate-800 rounded-full flex items-center justify-center shrink-0">
               <ShieldCheck size={14} className="text-cyan-400" />
@@ -92,6 +93,15 @@ export const SuperAdminShell: React.FC<Props> = ({ currentView, onNavigate, chil
               </p>
             </div>
           </div>
+          {onLogout && (
+            <button
+              onClick={onLogout}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl text-xs font-semibold transition-all"
+            >
+              <LogOut size={14} />
+              Cerrar sesión
+            </button>
+          )}
         </div>
       </aside>
 
@@ -108,6 +118,16 @@ export const SuperAdminShell: React.FC<Props> = ({ currentView, onNavigate, chil
             </span>
           </div>
         </div>
+        {onLogout && (
+          <button
+            type="button"
+            aria-label="Cerrar sesión"
+            onClick={onLogout}
+            className="p-2 rounded-xl text-slate-500 hover:bg-rose-500/10 hover:text-rose-400 transition-all"
+          >
+            <LogOut size={18} />
+          </button>
+        )}
       </header>
 
       {/* ── Main ─────────────────────────────────────────────────── */}

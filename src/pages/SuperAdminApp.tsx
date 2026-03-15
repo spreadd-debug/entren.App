@@ -1078,7 +1078,7 @@ function SABilling({
 
 // ── SuperAdminApp (main export) ───────────────────────────────────────────────
 
-export function SuperAdminApp() {
+export function SuperAdminApp({ onLogout }: { onLogout?: () => void } = {}) {
   const [currentView, setCurrentView] = useState<SAView>('overview');
   const [subscriptions, setSubscriptions] = useState<GymSubscription[]>([]);
   const [billingPayments, setBillingPayments] = useState<GymBillingPayment[]>([]);
@@ -1144,7 +1144,7 @@ export function SuperAdminApp() {
   };
 
   return (
-    <SuperAdminShell currentView={currentView} onNavigate={setCurrentView}>
+    <SuperAdminShell currentView={currentView} onNavigate={setCurrentView} onLogout={onLogout}>
       <div className="flex items-center justify-between mb-6">
         <div /> {/* spacer */}
         <button

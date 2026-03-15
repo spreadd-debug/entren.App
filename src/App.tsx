@@ -150,21 +150,21 @@ export default function App() {
 
   // ── Superadmin: completely separate experience ───────────────────────────────
 
-  if (isSuperAdmin) {
-    return (
-      <ThemeProvider>
-        <SuperAdminApp />
-      </ThemeProvider>
-    );
-  }
-
-  // ── Gym app ──────────────────────────────────────────────────────────────────
-
   const handleLogout = async () => {
     sessionStorage.removeItem('userRole');
     sessionStorage.removeItem('userId');
     await supabase.auth.signOut();
   };
+
+  if (isSuperAdmin) {
+    return (
+      <ThemeProvider>
+        <SuperAdminApp onLogout={handleLogout} />
+      </ThemeProvider>
+    );
+  }
+
+  // ── Gym app ──────────────────────────────────────────────────────────────────
 
   return (
     <ThemeProvider>
