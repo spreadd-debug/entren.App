@@ -306,61 +306,49 @@ export const DemoTour: React.FC<DemoTourProps> = ({ onNavigate, onExit, onRegist
   };
 
   // ── Tooltip position ─────────────────────────────────────────────────────────
+  // NOTE: Never use transform for horizontal centering here — the animation
+  // keyframes also set `transform`, which would override translateX(-50%) and
+  // break the position. Instead compute `left` in pixels for all cases.
 
   const getCardStyle = (): React.CSSProperties => {
     const vw = window.innerWidth;
     const vh = window.innerHeight;
     const isMobile = vw < 768;
     const cardW = Math.min(340, vw - 32);
+    const centerLeft = Math.round((vw - cardW) / 2); // px — no transform needed
 
-    // Mobile: always anchor to bottom so the app content is visible above the card.
-    // Student-portal has no bottom nav, so less clearance needed.
+    // Mobile: always anchor to bottom, centered horizontally in pixels.
     if (isMobile) {
       const inPortal = currentStep.view === 'student-portal';
       return {
         position: 'fixed',
         bottom: inPortal ? 24 : 88,
-        left: '50%',
-        transform: 'translateX(-50%)',
+        left: centerLeft,
         width: cardW,
       };
     }
 
     // Desktop ───────────────────────────────────────────────────────────────────
     if (!spotRect) {
-      return { position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: cardW };
+      // Vertically center with translateY only (X is handled by left in px).
+      return { position: 'fixed', top: '50%', transform: 'translateY(-50%)', left: centerLeft, width: cardW };
     }
 
     const { top, left, width, height } = spotRect;
     const bottom = top + height;
     const centerX = left + width / 2;
+    const clampedLeft = Math.max(16, Math.min(centerX - cardW / 2, vw - cardW - 16));
 
     // prefer below
     if (bottom + 240 < vh) {
-      return {
-        position: 'fixed',
-        top: bottom + 18,
-        left: Math.max(16, Math.min(centerX - cardW / 2, vw - cardW - 16)),
-        width: cardW,
-      };
+      return { position: 'fixed', top: bottom + 18, left: clampedLeft, width: cardW };
     }
     // prefer above
     if (top - 240 > 0) {
-      return {
-        position: 'fixed',
-        bottom: vh - top + 18,
-        left: Math.max(16, Math.min(centerX - cardW / 2, vw - cardW - 16)),
-        width: cardW,
-      };
+      return { position: 'fixed', bottom: vh - top + 18, left: clampedLeft, width: cardW };
     }
     // fallback: center
-    return {
-      position: 'fixed',
-      top: '50%',
-      left: '50%',
-      transform: 'translate(-50%, -50%)',
-      width: cardW,
-    };
+    return { position: 'fixed', top: '50%', transform: 'translateY(-50%)', left: centerLeft, width: cardW };
   };
 
   const isFinal = currentStep.isFinal;
@@ -430,17 +418,17 @@ export const DemoTour: React.FC<DemoTourProps> = ({ onNavigate, onExit, onRegist
         </button>
       )}
 
-      {/* Tour card */}
+      {/* Tour card — outer div handles POSITION only (no transform for X centering).
+           Inner div handles the slide-in ANIMATION. Separating them prevents the
+           animation's `transform` keyframes from overriding the position transform. */}
       {cardVisible && (
-        <div
-          style={{
-            ...getCardStyle(),
-            zIndex: 10001,
-            animation: 'demotour-slidein 0.28s cubic-bezier(0.34,1.56,0.64,1) forwards',
-            // On mobile: cap height so it never overflows the viewport
-            ...(mob ? { maxHeight: 'calc(100vh - 110px)', overflowY: 'auto' } : {}),
-          }}
-        >
+        <div style={{ ...getCardStyle(), zIndex: 10001 }}>
+          <div
+            style={{
+              animation: 'demotour-slidein 0.28s cubic-bezier(0.34,1.56,0.64,1) forwards',
+              ...(mob ? { maxHeight: 'calc(100vh - 110px)', overflowY: 'auto' } : {}),
+            }}
+          >
           <div
             className="rounded-2xl overflow-hidden"
             style={{
@@ -591,6 +579,7 @@ export const DemoTour: React.FC<DemoTourProps> = ({ onNavigate, onExit, onRegist
               </div>
             </div>
           </div>
+          </div>{/* end animation wrapper */}
         </div>
       )}
     </>
