@@ -770,13 +770,22 @@ var SubscriptionService = {
   },
   // ── Billing payments ───────────────────────────────────────────────────────
   async getBillingPayments(gymId) {
-    let query = supabase.from("gym_billing_payments").select(`*, gym:gyms (name)`).order("created_at", { ascending: false });
+    let query = supabase.from("gym_billing_payments").select("*").order("created_at", { ascending: false });
     if (gymId) query = query.eq("gym_id", gymId);
     const { data, error } = await query;
     if (error) throw error;
-    return (data || []).map((row) => ({
+    const rows = data || [];
+    const gymIds = [...new Set(rows.map((r) => r.gym_id).filter(Boolean))];
+    let gymNames = {};
+    if (gymIds.length > 0) {
+      const { data: gyms } = await supabase.from("gyms").select("id, name").in("id", gymIds);
+      (gyms || []).forEach((g) => {
+        gymNames[g.id] = g.name;
+      });
+    }
+    return rows.map((row) => ({
       ...row,
-      gym_name: row.gym?.name ?? "Desconocido"
+      gym_name: gymNames[row.gym_id] ?? "Desconocido"
     }));
   },
   async recordBillingPayment(payment) {
@@ -791,10 +800,11 @@ var SubscriptionService = {
       notes: payment.notes ?? null,
       recorded_by: payment.recorded_by ?? null
     };
-    const { data, error } = await supabase.from("gym_billing_payments").insert([payload]).select(`*, gym:gyms (name)`).single();
+    const { data, error } = await supabase.from("gym_billing_payments").insert([payload]).select("*").single();
     if (error) throw error;
+    const { data: gym } = await supabase.from("gyms").select("name").eq("id", payment.gym_id).maybeSingle();
     await this.activate(payment.gym_id, payment.period_end);
-    return { ...data, gym_name: data.gym?.name ?? "Desconocido" };
+    return { ...data, gym_name: gym?.name ?? "Desconocido" };
   }
 };
 

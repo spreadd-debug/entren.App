@@ -135,7 +135,7 @@ export const SubscriptionService = {
   async getBillingPayments(gymId?: string): Promise<GymBillingPayment[]> {
     let query = supabase
       .from('gym_billing_payments')
-      .select(`*, gym:gyms (name)`)
+      .select('*')
       .order('created_at', { ascending: false });
 
     if (gymId) query = query.eq('gym_id', gymId);
@@ -143,9 +143,22 @@ export const SubscriptionService = {
     const { data, error } = await query;
     if (error) throw error;
 
-    return (data || []).map((row: any) => ({
+    const rows = data || [];
+
+    // Fetch gym names in one query to avoid N+1
+    const gymIds = [...new Set(rows.map((r: any) => r.gym_id).filter(Boolean))];
+    let gymNames: Record<string, string> = {};
+    if (gymIds.length > 0) {
+      const { data: gyms } = await supabase
+        .from('gyms')
+        .select('id, name')
+        .in('id', gymIds);
+      (gyms || []).forEach((g: any) => { gymNames[g.id] = g.name; });
+    }
+
+    return rows.map((row: any) => ({
       ...row,
-      gym_name: row.gym?.name ?? 'Desconocido',
+      gym_name: gymNames[row.gym_id] ?? 'Desconocido',
     }));
   },
 
@@ -175,14 +188,21 @@ export const SubscriptionService = {
     const { data, error } = await supabase
       .from('gym_billing_payments')
       .insert([payload])
-      .select(`*, gym:gyms (name)`)
+      .select('*')
       .single();
 
     if (error) throw error;
 
-    // Activating the subscription for the paid period
+    // Fetch gym name separately (no FK declared in schema)
+    const { data: gym } = await supabase
+      .from('gyms')
+      .select('name')
+      .eq('id', payment.gym_id)
+      .maybeSingle();
+
+    // Activate the subscription for the paid period
     await this.activate(payment.gym_id, payment.period_end);
 
-    return { ...data, gym_name: data.gym?.name ?? 'Desconocido' };
+    return { ...data, gym_name: gym?.name ?? 'Desconocido' };
   },
 };
