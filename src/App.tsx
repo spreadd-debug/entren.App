@@ -54,7 +54,11 @@ export default function App() {
   const [supabaseUser, setSupabaseUser] = useState<any>(null);
   const [sessionLoading, setSessionLoading] = useState(true);
   const [isRegistering, setIsRegistering] = useState(false);
+  const [studentPortalId, setStudentPortalId] = useState<string | null>(
+    localStorage.getItem("studentPortalId")
+  );
   const isSuperAdmin = sessionStorage.getItem('userRole') === 'superadmin';
+  const checkinGymId = new URLSearchParams(window.location.search).get('checkin');
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -82,12 +86,6 @@ export default function App() {
       </div>
     );
   }
-  const checkinGymId = new URLSearchParams(window.location.search).get('checkin');
-
-  const [studentPortalId, setStudentPortalId] = useState<string | null>(
-    localStorage.getItem("studentPortalId")
-  );
-
   // ── Special URL modes (no auth needed) ──────────────────────────────────────
 
   if (checkinGymId) {
