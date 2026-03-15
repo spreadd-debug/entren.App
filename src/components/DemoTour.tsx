@@ -313,6 +313,20 @@ export const DemoTour: React.FC<DemoTourProps> = ({ onNavigate, onExit, onRegist
     const isMobile = vw < 768;
     const cardW = Math.min(340, vw - 32);
 
+    // Mobile: always anchor to bottom so the app content is visible above the card.
+    // Student-portal has no bottom nav, so less clearance needed.
+    if (isMobile) {
+      const inPortal = currentStep.view === 'student-portal';
+      return {
+        position: 'fixed',
+        bottom: inPortal ? 24 : 88,
+        left: '50%',
+        transform: 'translateX(-50%)',
+        width: cardW,
+      };
+    }
+
+    // Desktop ───────────────────────────────────────────────────────────────────
     if (!spotRect) {
       return { position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: cardW };
     }
@@ -320,10 +334,6 @@ export const DemoTour: React.FC<DemoTourProps> = ({ onNavigate, onExit, onRegist
     const { top, left, width, height } = spotRect;
     const bottom = top + height;
     const centerX = left + width / 2;
-
-    if (isMobile) {
-      return { position: 'fixed', bottom: 84, left: '50%', transform: 'translateX(-50%)', width: cardW };
-    }
 
     // prefer below
     if (bottom + 240 < vh) {
@@ -343,12 +353,12 @@ export const DemoTour: React.FC<DemoTourProps> = ({ onNavigate, onExit, onRegist
         width: cardW,
       };
     }
-    // fallback: right side
+    // fallback: center
     return {
       position: 'fixed',
       top: '50%',
-      right: 24,
-      transform: 'translateY(-50%)',
+      left: '50%',
+      transform: 'translate(-50%, -50%)',
       width: cardW,
     };
   };
