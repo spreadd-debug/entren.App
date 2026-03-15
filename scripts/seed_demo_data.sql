@@ -110,3 +110,39 @@ VALUES
   ('11111111-1111-1111-1111-111111111111', 'cccc0001-0000-0000-0000-000000000002', 14000, 'transferencia', '2026-01-10', NULL),
   ('11111111-1111-1111-1111-111111111111', 'cccc0001-0000-0000-0000-000000000004', 20000, 'mercado_pago',  '2025-12-20', NULL),
   ('11111111-1111-1111-1111-111111111111', 'cccc0001-0000-0000-0000-000000000007', 20000, 'efectivo',      '2025-12-01', NULL);
+
+-- ── 5. PLAN DE ENTRENAMIENTO DEMO ──────────────────────────────────
+-- Rutina asignada al primer alumno activo para mostrar en la vista del alumno
+
+INSERT INTO workout_plans (id, gym_id, name, description)
+VALUES (
+  'eeee0001-0000-0000-0000-000000000001',
+  '11111111-1111-1111-1111-111111111111',
+  'Fullbody Principiante',
+  'Rutina de cuerpo completo 3 veces por semana. Ideal para ganar base muscular.'
+);
+
+INSERT INTO workout_exercises (workout_plan_id, exercise_name, sets, reps, weight, video_url, exercise_order)
+VALUES
+  ('eeee0001-0000-0000-0000-000000000001', 'Sentadilla',          3, '12', '40 kg',
+   'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1e/Squats.jpg/480px-Squats.jpg', 1),
+
+  ('eeee0001-0000-0000-0000-000000000001', 'Press de banca',      3, '10', '50 kg',
+   'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3e/Bench_press_arching.jpg/480px-Bench_press_arching.jpg', 2),
+
+  ('eeee0001-0000-0000-0000-000000000001', 'Peso muerto',         3, '8',  '60 kg',
+   'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a4/Conventional_deadlift.jpg/480px-Conventional_deadlift.jpg', 3),
+
+  ('eeee0001-0000-0000-0000-000000000001', 'Remo con barra',      3, '10', '40 kg',
+   NULL, 4),
+
+  ('eeee0001-0000-0000-0000-000000000001', 'Plancha',             3, '30 seg', NULL,
+   'https://upload.wikimedia.org/wikipedia/commons/thumb/0/02/Plank_exercise.jpg/480px-Plank_exercise.jpg', 5);
+
+-- Asignar la rutina al primer alumno activo (Juan García)
+INSERT INTO student_workout_assignments (student_id, workout_plan_id, active)
+VALUES (
+  'bbbb0001-0000-0000-0000-000000000001',
+  'eeee0001-0000-0000-0000-000000000001',
+  true
+);

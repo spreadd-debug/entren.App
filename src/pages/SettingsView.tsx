@@ -168,7 +168,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       </div>
 
       {/* ── Check-in QR ──────────────────────────────────────────── */}
-      <div className="space-y-2">
+      <div className="space-y-2" data-tour="qr-section">
         <SectionLabel>Check-in QR</SectionLabel>
         <Card>
           <div className="p-5 space-y-4">

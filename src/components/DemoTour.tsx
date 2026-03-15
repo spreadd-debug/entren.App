@@ -138,7 +138,16 @@ const TOUR_STEPS: TourStep[] = [
     sound: 'pop',
   },
 
-  // ── 4. Dashboard ─────────────────────────────────────────────────────────────
+  // ── 4. QR Check-in ───────────────────────────────────────────────────────────
+  {
+    view: 'settings',
+    targetSelector: '[data-tour="qr-section"]',
+    title: '¿Sabés quién viene realmente?',
+    description: 'Imprimís este QR y lo pegás en el gimnasio. Cada alumno lo escanea al entrar y registra su asistencia en segundos. Fin de las listas en papel.',
+    sound: 'pop',
+  },
+
+  // ── 5. Dashboard ─────────────────────────────────────────────────────────────
   {
     view: 'dashboard',
     targetSelector: '[data-tour="content-area"]',
@@ -152,7 +161,7 @@ const TOUR_STEPS: TourStep[] = [
     view: 'workouts',
     targetSelector: '[data-tour="content-area"]',
     title: 'Armás la rutina una sola vez',
-    description: 'Creás el plan de entrenamiento con ejercicios, series, repeticiones y videos. Lo asignás al alumno — y listo. No lo tenés que explicar nunca más.',
+    description: 'Creás el plan de entrenamiento con ejercicios, series, repeticiones e imágenes. Lo asignás al alumno — y listo. No lo tenés que explicar nunca más.',
     sound: 'whoosh',
   },
 
