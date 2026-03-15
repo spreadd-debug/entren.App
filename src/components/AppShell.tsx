@@ -180,7 +180,7 @@ export const AppShell: React.FC<AppShellProps> = ({
         </div>
 
         {/* Content */}
-        <div className="px-4 md:px-8 pt-6 flex-1">
+        <div className="px-4 md:px-8 pt-6 flex-1" data-tour="content-area">
           <AnimatePresence mode="wait">
             <motion.div
               key={currentView}

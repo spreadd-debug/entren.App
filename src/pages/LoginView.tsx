@@ -9,12 +9,20 @@ interface LoginViewProps {
 
 const SUPERADMIN_USERNAME = 'Dhitrent4';
 const SUPERADMIN_PASSWORD = '42338474asdasd';
+const DEMO_GYM_ID = '11111111-1111-1111-1111-111111111111';
 
 export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onRegisterClick }) => {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const isDemoMode = window.location.search.includes('demo=1');
+
+  const enterDemo = () => {
+    sessionStorage.setItem('userRole', 'demo');
+    sessionStorage.setItem('gymId', DEMO_GYM_ID);
+    onLogin();
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,6 +30,12 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onRegisterClick }
     setLoading(true);
 
     try {
+      // Demo bypass
+      if (email === 'test' && password === 'test') {
+        enterDemo();
+        return;
+      }
+
       // Superadmin: hardcoded bypass (no Supabase account needed)
       if (email === SUPERADMIN_USERNAME && password === SUPERADMIN_PASSWORD) {
         sessionStorage.setItem('userRole', 'superadmin');
@@ -76,6 +90,33 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onRegisterClick }
             </p>
           </div>
         </div>
+
+        {/* Demo CTA — shown when ?demo=1 in URL */}
+        {isDemoMode && (
+          <button
+            onClick={enterDemo}
+            className="w-full flex items-center justify-center gap-2.5 py-4 rounded-2xl font-black text-slate-950 text-sm transition-all active:scale-[0.97]"
+            style={{
+              background: 'linear-gradient(135deg, rgb(6,182,212) 0%, rgb(34,211,238) 60%, rgb(99,240,255) 100%)',
+              boxShadow: '0 8px 32px rgba(34,211,238,0.45), 0 0 0 1px rgba(34,211,238,0.3)',
+            }}
+          >
+            <span style={{ fontSize: 18 }}>🏋️</span>
+            Ver demo interactivo
+            <span className="ml-1 px-2 py-0.5 bg-slate-950/20 rounded-full text-[10px] font-black uppercase tracking-wider">
+              Gratis
+            </span>
+          </button>
+        )}
+
+        {/* Divider */}
+        {isDemoMode && (
+          <div className="flex items-center gap-3">
+            <div className="flex-1 h-px bg-slate-800" />
+            <span className="text-xs font-semibold text-slate-600">o ingresá con tu cuenta</span>
+            <div className="flex-1 h-px bg-slate-800" />
+          </div>
+        )}
 
         {/* Form card */}
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-5 shadow-2xl shadow-black/60">

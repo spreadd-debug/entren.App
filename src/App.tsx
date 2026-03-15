@@ -19,6 +19,7 @@ import { ShiftsView } from './pages/ShiftsView';
 import CheckInView from './pages/CheckInView';
 import { SuperAdminApp } from './pages/SuperAdminApp';
 import { SubscriptionGuard } from './components/SubscriptionGuard';
+import { DemoTour } from './components/DemoTour';
 import { ThemeProvider } from './context/ThemeContext';
 import { ShiftService } from './services/ShiftService';
 
@@ -54,11 +55,14 @@ export default function App() {
   const [supabaseUser, setSupabaseUser] = useState<any>(null);
   const [sessionLoading, setSessionLoading] = useState(true);
   const [isRegistering, setIsRegistering] = useState(false);
+  const [authTick, setAuthTick] = useState(0); // forces re-render after sessionStorage-based logins
   const [studentPortalId, setStudentPortalId] = useState<string | null>(
     localStorage.getItem("studentPortalId")
   );
   const isSuperAdmin = sessionStorage.getItem('userRole') === 'superadmin';
+  const isDemo = sessionStorage.getItem('userRole') === 'demo';
   const checkinGymId = new URLSearchParams(window.location.search).get('checkin');
+  const DEMO_GYM_ID = '11111111-1111-1111-1111-111111111111';
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -72,14 +76,14 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  const isAuthenticated = isSuperAdmin || supabaseUser !== null;
-  const gymId = supabaseUser?.user_metadata?.gym_id ?? null;
+  const isAuthenticated = isSuperAdmin || isDemo || supabaseUser !== null;
+  const gymId = isDemo ? DEMO_GYM_ID : (supabaseUser?.user_metadata?.gym_id ?? null);
   const userRole = (supabaseUser?.user_metadata?.role ?? 'admin') as string;
 
   const isStudentPortalMode = window.location.search.includes("student=1");
 
   // While checking session, show nothing (avoids flash of login screen)
-  if (sessionLoading && !isSuperAdmin) {
+  if (sessionLoading && !isSuperAdmin && !isDemo) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center">
         <span className="w-8 h-8 border-2 border-slate-700 border-t-cyan-500 rounded-full animate-spin" />
@@ -141,7 +145,7 @@ export default function App() {
     return (
       <ThemeProvider>
         <LoginView
-          onLogin={() => {}}
+          onLogin={() => setAuthTick(t => t + 1)}
           onRegisterClick={() => setIsRegistering(true)}
         />
       </ThemeProvider>
@@ -153,6 +157,8 @@ export default function App() {
   const handleLogout = async () => {
     sessionStorage.removeItem('userRole');
     sessionStorage.removeItem('userId');
+    sessionStorage.removeItem('gymId');
+    setAuthTick(t => t + 1);
     await supabase.auth.signOut();
   };
 
@@ -168,14 +174,26 @@ export default function App() {
 
   return (
     <ThemeProvider>
-      <GymApp gymId={gymId!} userRole={userRole} onLogout={handleLogout} />
+      <GymApp
+        gymId={gymId!}
+        userRole={userRole}
+        onLogout={handleLogout}
+        isDemo={isDemo}
+        onRegister={() => setIsRegistering(true)}
+      />
     </ThemeProvider>
   );
 }
 
 // ── GymApp: all gym-specific state and rendering ──────────────────────────────
 
-function GymApp({ gymId, userRole, onLogout }: { gymId: string; userRole: string; onLogout: () => void }) {
+function GymApp({ gymId, userRole, onLogout, isDemo = false, onRegister }: {
+  gymId: string;
+  userRole: string;
+  onLogout: () => void;
+  isDemo?: boolean;
+  onRegister?: () => void;
+}) {
   const currentUserRole = userRole;
   const canViewFinancials = currentUserRole === 'admin';
   const canManageSettings = currentUserRole === 'admin';
@@ -548,16 +566,26 @@ function GymApp({ gymId, userRole, onLogout }: { gymId: string; userRole: string
   };
 
   return (
-    <AppShell
-      currentView={currentView === 'student-detail' ? 'students' : currentView}
-      onNavigate={handleNavigate}
-      title={getViewTitle()}
-      shiftsEnabled={shiftsEnabled}
-      onLogout={onLogout}
-    >
-      <SubscriptionGuard subscription={gymSubscription}>
-        {renderView()}
-      </SubscriptionGuard>
-    </AppShell>
+    <>
+      <AppShell
+        currentView={currentView === 'student-detail' ? 'students' : currentView}
+        onNavigate={handleNavigate}
+        title={getViewTitle()}
+        shiftsEnabled={shiftsEnabled}
+        onLogout={onLogout}
+      >
+        <SubscriptionGuard subscription={gymSubscription}>
+          {renderView()}
+        </SubscriptionGuard>
+      </AppShell>
+
+      {isDemo && (
+        <DemoTour
+          onNavigate={handleNavigate}
+          onExit={onLogout}
+          onRegister={onRegister ?? (() => {})}
+        />
+      )}
+    </>
   );
 }
