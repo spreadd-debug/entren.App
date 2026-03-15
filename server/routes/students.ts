@@ -16,7 +16,8 @@ router.get('/', async (req, res) => {
 
 router.get('/:id', async (req, res) => {
   try {
-    const student = await StudentService.getById(req.params.id);
+    const gymId = req.query.gymId as string || '11111111-1111-1111-1111-111111111111';
+    const student = await StudentService.getById(req.params.id, gymId);
     if (!student) return res.status(404).json({ error: 'Student not found' });
     res.json(student);
   } catch (error: any) {
@@ -44,7 +45,8 @@ router.put('/:id', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   try {
-    await StudentService.delete(req.params.id);
+    const gymId = req.query.gymId as string || '11111111-1111-1111-1111-111111111111';
+    await StudentService.delete(req.params.id, gymId);
     res.status(204).send();
   } catch (error: any) {
     res.status(500).json({ error: error.message });

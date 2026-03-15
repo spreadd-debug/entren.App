@@ -48,7 +48,8 @@ type GymView =
   | 'new-student'
   | 'automation'
   | 'workouts'
-  | 'shifts';
+  | 'shifts'
+  | 'student-portal';
 
 export default function App() {
 
@@ -186,6 +187,8 @@ export default function App() {
 }
 
 // ── GymApp: all gym-specific state and rendering ──────────────────────────────
+
+const DEMO_STUDENT_ID = 'bbbb0001-0000-0000-0000-000000000001';
 
 function GymApp({ gymId, userRole, onLogout, isDemo = false, onRegister }: {
   gymId: string;
@@ -433,7 +436,7 @@ function GymApp({ gymId, userRole, onLogout, isDemo = false, onRegister }: {
 
   const handleDeleteStudent = async (id: string) => {
     try {
-      await api.students.delete(id);
+      await api.students.delete(id, gymId);
       const updatedStudents = await api.students.getAll(gymId);
       setStudents(updatedStudents);
       setSelectedStudent(null);
@@ -564,6 +567,25 @@ function GymApp({ gymId, userRole, onLogout, isDemo = false, onRegister }: {
         );
     }
   };
+
+  // ── Demo student portal preview (full-screen, outside AppShell) ─────────────
+  if (currentView === 'student-portal') {
+    return (
+      <>
+        <StudentPortalView
+          studentId={DEMO_STUDENT_ID}
+          onLogout={() => handleNavigate('workouts')}
+        />
+        {isDemo && (
+          <DemoTour
+            onNavigate={handleNavigate}
+            onExit={onLogout}
+            onRegister={onRegister ?? (() => {})}
+          />
+        )}
+      </>
+    );
+  }
 
   return (
     <>

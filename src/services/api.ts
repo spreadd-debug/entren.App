@@ -157,8 +157,8 @@ export const api = {
       }
     },
 
-    async getById(id: string): Promise<Student> {
-      const student = await fetchJson(`${API_BASE}/students/${id}`);
+    async getById(id: string, gymId: string = DEFAULT_GYM_ID): Promise<Student> {
+      const student = await fetchJson(`${API_BASE}/students/${id}?gymId=${gymId}`);
       return normalizeStudent(student, []);
     },
 
@@ -182,8 +182,8 @@ export const api = {
       return normalizeStudent(updated, []);
     },
 
-    async delete(id: string): Promise<void> {
-      await fetchJson(`${API_BASE}/students/${id}`, { method: 'DELETE' });
+    async delete(id: string, gymId: string = DEFAULT_GYM_ID): Promise<void> {
+      await fetchJson(`${API_BASE}/students/${id}?gymId=${gymId}`, { method: 'DELETE' });
     },
   },
 

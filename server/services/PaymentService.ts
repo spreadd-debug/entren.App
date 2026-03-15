@@ -57,6 +57,18 @@ export const PaymentService = {
       throw new Error('studentId is required');
     }
 
+    // Verify student belongs to this gym
+    const { data: studentCheck } = await supabase
+      .from('students')
+      .select('id')
+      .eq('id', studentId)
+      .eq('gym_id', gymId)
+      .maybeSingle();
+
+    if (!studentCheck) {
+      throw new Error('Student not found for this gym');
+    }
+
     const { data: membership, error: membershipError } = await supabase
       .from('memberships')
       .select(`

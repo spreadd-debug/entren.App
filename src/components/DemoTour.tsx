@@ -97,64 +97,81 @@ interface TourStep {
   sound: 'chime' | 'pop' | 'whoosh' | 'success';
   emoji?: string;
   isFinal?: boolean;
+  dimOpacity?: number; // 0–1, default 0.84 — lower = more of the bg visible
 }
 
 const TOUR_STEPS: TourStep[] = [
+  // ── 0. Welcome ──────────────────────────────────────────────────────────────
   {
     view: null,
     targetSelector: null,
-    title: '¡Bienvenido a entrenApp!',
-    description: 'En los próximos minutos te mostramos todo lo que podés hacer para gestionar tu gimnasio como un profesional. Seguí los pasos del tour.',
+    title: '¿Cuántos alumnos te deben plata hoy?',
+    description: 'Si no tenés la respuesta en 5 segundos, este tour es para vos. Te mostramos cómo entrenApp te ordena el gimnasio — de verdad, no solo en papel.',
     sound: 'chime',
     emoji: '🏋️',
   },
-  {
-    view: 'dashboard',
-    targetSelector: '[data-tour="content-area"]',
-    title: 'Panel General',
-    description: 'De un vistazo: alumnos activos, morosos, ingresos del día y del mes. Todo lo importante, siempre a mano cuando entrás.',
-    sound: 'pop',
-  },
-  {
-    view: 'students',
-    targetSelector: '[data-tour="content-area"]',
-    title: 'Gestión de Alumnos',
-    description: 'Todos tus alumnos con estado de pago, plan y próximo vencimiento. Encontrá cualquier alumno en segundos con la búsqueda.',
-    sound: 'whoosh',
-  },
-  {
-    view: 'payments',
-    targetSelector: '[data-tour="content-area"]',
-    title: 'Registro de Pagos',
-    description: 'Registrá cobros en segundos — efectivo, transferencia o MercadoPago. El estado del alumno se actualiza automáticamente.',
-    sound: 'pop',
-  },
+
+  // ── 1. Deudores ──────────────────────────────────────────────────────────────
   {
     view: 'defaulters',
     targetSelector: '[data-tour="content-area"]',
-    title: 'Morosos y Deudas',
-    description: 'Sabé exactamente quién te debe y cuánto. Podés registrar el pago directamente desde acá sin perder tiempo buscando al alumno.',
+    title: '¿Se te pasan alumnos sin pagar?',
+    description: 'Acá ves quién debe y hace cuántos días. Seleccionás al alumno y con un click le mandás el recordatorio por WhatsApp — el mensaje ya está armado, vos solo apretás enviar.',
+    sound: 'pop',
+  },
+
+  // ── 2. Pagos ─────────────────────────────────────────────────────────────────
+  {
+    view: 'payments',
+    targetSelector: '[data-tour="content-area"]',
+    title: 'Registrás un cobro en 10 segundos',
+    description: 'Te pagan en efectivo, transferencia o MercadoPago — da igual. Registrás el cobro acá y el alumno queda al día automáticamente. Sin anotar nada a mano, sin olvidarte.',
     sound: 'whoosh',
   },
+
+  // ── 3. Alumnos ───────────────────────────────────────────────────────────────
+  {
+    view: 'students',
+    targetSelector: '[data-tour="content-area"]',
+    title: 'Sabés el estado de cada alumno al instante',
+    description: 'Al día, por vencer esta semana, ya vencido. Encontrás a cualquier alumno en segundos. Sin planillas, sin tener que acordarte de todo.',
+    sound: 'pop',
+  },
+
+  // ── 4. Dashboard ─────────────────────────────────────────────────────────────
+  {
+    view: 'dashboard',
+    targetSelector: '[data-tour="content-area"]',
+    title: '¿Cómo está tu gimnasio hoy?',
+    description: 'Cuántos alumnos activos tenés, cuántos deben, cuánto cobraste este mes. Todo en una pantalla cuando arranca el día. Sin abrir planillas ni calcular nada.',
+    sound: 'chime',
+  },
+
+  // ── 5. Rutinas ───────────────────────────────────────────────────────────────
   {
     view: 'workouts',
     targetSelector: '[data-tour="content-area"]',
-    title: 'Rutinas y Ejercicios',
-    description: 'Creá planes de entrenamiento personalizados con ejercicios, videos y descripciones. Asignáselos a tus alumnos con un clic.',
-    sound: 'pop',
-  },
-  {
-    view: 'settings',
-    targetSelector: '[data-tour="content-area"]',
-    title: 'Configuración Total',
-    description: 'Planes, precios, turnos, automatización de recordatorios por WhatsApp y mucho más. Todo configurable para tu gimnasio.',
+    title: 'Armás la rutina una sola vez',
+    description: 'Creás el plan de entrenamiento con ejercicios, series, repeticiones y videos. Lo asignás al alumno — y listo. No lo tenés que explicar nunca más.',
     sound: 'whoosh',
   },
+
+  // ── 6. Vista del alumno ───────────────────────────────────────────────────────
+  {
+    view: 'student-portal',
+    targetSelector: null,
+    title: 'Esto es lo que ve el alumno',
+    description: 'Desde su teléfono ve su rutina completa, el estado de su cuota y cuándo vence. Menos preguntas, menos mensajes, más tiempo para vos.',
+    sound: 'pop',
+    dimOpacity: 0.45,
+  },
+
+  // ── 7. Final ─────────────────────────────────────────────────────────────────
   {
     view: null,
     targetSelector: null,
-    title: '¡Todo esto es tuyo!',
-    description: 'Empezá gratis con 30 días de prueba completa. Sin tarjeta de crédito. Cancelás cuando quieras.',
+    title: 'Esto te ahorra tiempo y plata desde el día uno',
+    description: 'Menos alumnos sin cobrar. Menos tiempo explicando rutinas. Menos caos. Empezá gratis, sin tarjeta de crédito. Si no te sirve, cancelás cuando querés.',
     sound: 'success',
     emoji: '🚀',
     isFinal: true,
@@ -356,8 +373,8 @@ export const DemoTour: React.FC<DemoTourProps> = ({ onNavigate, onExit, onRegist
         <div
           style={{
             position: 'fixed', inset: 0, zIndex: 9998,
-            background: 'rgba(2,6,23,0.88)',
-            backdropFilter: 'blur(4px)',
+            background: `rgba(2,6,23,${currentStep.dimOpacity ?? 0.88})`,
+            backdropFilter: currentStep.dimOpacity !== undefined && currentStep.dimOpacity < 0.7 ? 'none' : 'blur(4px)',
             animation: 'demotour-fadeoverlay 0.3s ease',
             pointerEvents: 'auto',
           }}

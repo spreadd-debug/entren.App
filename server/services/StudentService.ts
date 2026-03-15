@@ -59,7 +59,9 @@ export const StudentService = {
     return (data || []).map((row) => mapStudentRowToStudent(row as any));
   },
 
-  async getById(id: string): Promise<Student | null> {
+  async getById(id: string, gymId: string): Promise<Student | null> {
+    const resolvedGymId = gymId || DEFAULT_GYM_ID;
+
     const { data, error } = await supabase
       .from('students')
       .select(`
@@ -83,6 +85,7 @@ export const StudentService = {
         updated_at
       `)
       .eq('id', id)
+      .eq('gym_id', resolvedGymId)
       .single();
 
     if (error) throw error;
@@ -218,10 +221,15 @@ export const StudentService = {
       payload.observaciones = updates.observaciones ?? updates.observations;
     }
 
+    const gymId = updates.gym_id ?? updates.gymId ?? DEFAULT_GYM_ID;
+    // Don't allow moving a student to a different gym
+    delete payload.gym_id;
+
     const { data, error } = await supabase
       .from('students')
       .update(payload)
       .eq('id', id)
+      .eq('gym_id', gymId)
       .select(`
         id,
         gym_id,
@@ -248,11 +256,14 @@ export const StudentService = {
     return (data as unknown) as Student;
   },
 
-  async delete(id: string): Promise<void> {
+  async delete(id: string, gymId: string): Promise<void> {
+    const resolvedGymId = gymId || DEFAULT_GYM_ID;
+
     const { error } = await supabase
       .from('students')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .eq('gym_id', resolvedGymId);
 
     if (error) throw error;
   }
