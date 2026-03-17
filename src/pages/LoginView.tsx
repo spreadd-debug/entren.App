@@ -42,9 +42,9 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onRegisterClick }
         return;
       }
 
-      // [TEST] vista dueño de gimnasio con datos demo
+      // [TEST] vista dueño de gimnasio con datos demo (sin demo tour)
       if (email === 'gymtest' && password === 'gymtest') {
-        sessionStorage.setItem('userRole', 'demo');
+        sessionStorage.setItem('userRole', 'gym_test');
         sessionStorage.setItem('gymId', DEMO_GYM_ID);
         onLogin();
         return;

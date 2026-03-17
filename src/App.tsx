@@ -62,6 +62,7 @@ export default function App() {
   );
   const isSuperAdmin = sessionStorage.getItem('userRole') === 'superadmin';
   const isDemo = sessionStorage.getItem('userRole') === 'demo';
+  const isGymTest = sessionStorage.getItem('userRole') === 'gym_test';
   const isStudentDemo = sessionStorage.getItem('userRole') === 'student_demo';
   const checkinGymId = new URLSearchParams(window.location.search).get('checkin');
   const DEMO_GYM_ID = '11111111-1111-1111-1111-111111111111';
@@ -78,14 +79,14 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  const isAuthenticated = isSuperAdmin || isDemo || isStudentDemo || supabaseUser !== null;
-  const gymId = isDemo ? DEMO_GYM_ID : (supabaseUser?.user_metadata?.gym_id ?? null);
+  const isAuthenticated = isSuperAdmin || isDemo || isGymTest || isStudentDemo || supabaseUser !== null;
+  const gymId = (isDemo || isGymTest) ? DEMO_GYM_ID : (supabaseUser?.user_metadata?.gym_id ?? null);
   const userRole = (supabaseUser?.user_metadata?.role ?? 'admin') as string;
 
   const isStudentPortalMode = window.location.search.includes("student=1");
 
   // While checking session, show nothing (avoids flash of login screen)
-  if (sessionLoading && !isSuperAdmin && !isDemo) {
+  if (sessionLoading && !isSuperAdmin && !isDemo && !isGymTest) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center">
         <span className="w-8 h-8 border-2 border-slate-700 border-t-cyan-500 rounded-full animate-spin" />
