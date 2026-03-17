@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
   Phone,
-  Mail,
   Calendar,
   CreditCard,
   History,
@@ -20,7 +19,7 @@ import {
   PlayCircle,
   HeartPulse,
   ChevronDown,
-  ChevronRight,
+  ChevronLeft,
   ClipboardList,
 } from 'lucide-react';
 import { Card, StatusBadge, Button, BillingBadge, Input } from '../components/UI';
@@ -74,8 +73,12 @@ export const StudentDetailView: React.FC<StudentDetailViewProps> = ({
 
   const [checkIns, setCheckIns] = useState<Array<{ id: string; checked_in_at: string }>>([]);
   const [isLoadingCheckIns, setIsLoadingCheckIns] = useState(true);
-  const [expandedCheckIn, setExpandedCheckIn] = useState<string | null>(null);
-  const [showAllCheckIns, setShowAllCheckIns] = useState(false);
+  const [showAttendance, setShowAttendance] = useState(false);
+  const [calendarMonth, setCalendarMonth] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
 
   const normalizedPlans = useMemo(() => {
     const safePlans = Array.isArray(plans) ? plans : [];
@@ -91,6 +94,35 @@ export const StudentDetailView: React.FC<StudentDetailViewProps> = ({
   const normalizedStudentName =
     (student as any).name ??
     `${(student as any).nombre ?? ''} ${(student as any).apellido ?? ''}`.trim();
+
+  // Set of attended date strings "YYYY-MM-DD"
+  const attendedDates = useMemo(() => {
+    const s = new Set<string>();
+    checkIns.forEach(ci => {
+      s.add(new Date(ci.checked_in_at).toLocaleDateString('sv-SE')); // "YYYY-MM-DD"
+    });
+    return s;
+  }, [checkIns]);
+
+  // Check-ins indexed by date for quick lookup
+  const checkInsByDate = useMemo(() => {
+    const map = new Map<string, Array<{ id: string; checked_in_at: string }>>();
+    checkIns.forEach(ci => {
+      const key = new Date(ci.checked_in_at).toLocaleDateString('sv-SE');
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(ci);
+    });
+    return map;
+  }, [checkIns]);
+
+  // Calendar grid helpers
+  const calendarGrid = useMemo(() => {
+    const year = calendarMonth.getFullYear();
+    const month = calendarMonth.getMonth();
+    const firstWeekday = (new Date(year, month, 1).getDay() + 6) % 7; // Mon=0
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    return { year, month, firstWeekday, daysInMonth };
+  }, [calendarMonth]);
 
   const [editData, setEditData] = useState({
     nombre: (student as any).nombre ?? '',
@@ -413,11 +445,160 @@ export const StudentDetailView: React.FC<StudentDetailViewProps> = ({
           <MessageSquare size={20} className="text-emerald-600" />
           <span className="text-xs font-bold">WhatsApp</span>
         </Button>
-        <Button variant="outline" className="flex-col gap-2 py-4 h-auto">
-          <Mail size={20} className="text-amber-600" />
-          <span className="text-xs font-bold">Email</span>
+        <Button
+          variant={showAttendance ? 'secondary' : 'outline'}
+          className="flex-col gap-2 py-4 h-auto"
+          onClick={() => { setShowAttendance(v => !v); setSelectedDay(null); }}
+        >
+          <ClipboardList size={20} className={showAttendance ? 'text-white' : 'text-violet-500'} />
+          <span className="text-xs font-bold">Asistencia</span>
         </Button>
       </div>
+
+      {/* ── Calendar de asistencia ────────────────────────────── */}
+      {showAttendance && (
+        <Card className="p-4">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-4">
+            <button
+              type="button"
+              onClick={() => {
+                setCalendarMonth(m => new Date(m.getFullYear(), m.getMonth() - 1, 1));
+                setSelectedDay(null);
+              }}
+              className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 transition-colors"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <div className="text-center">
+              <p className="text-sm font-black text-slate-900 dark:text-white capitalize">
+                {calendarMonth.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' })}
+              </p>
+              {!isLoadingCheckIns && (
+                <p className="text-[10px] text-violet-500 font-bold">
+                  {checkIns.length} visita{checkIns.length !== 1 ? 's' : ''} en total
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                const next = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1);
+                if (next <= new Date()) {
+                  setCalendarMonth(next);
+                  setSelectedDay(null);
+                }
+              }}
+              className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 transition-colors disabled:opacity-30"
+            >
+              <ChevronDown size={16} className="rotate-[-90deg]" />
+            </button>
+          </div>
+
+          {/* Day headers */}
+          <div className="grid grid-cols-7 mb-1">
+            {['L','M','X','J','V','S','D'].map(d => (
+              <div key={d} className="text-center text-[10px] font-black text-slate-400 py-1">{d}</div>
+            ))}
+          </div>
+
+          {/* Day grid */}
+          {isLoadingCheckIns ? (
+            <div className="flex items-center justify-center py-6">
+              <span className="w-5 h-5 border-2 border-slate-200 border-t-violet-500 rounded-full animate-spin" />
+            </div>
+          ) : (
+            <div className="grid grid-cols-7 gap-y-1">
+              {/* Empty cells before first day */}
+              {Array.from({ length: calendarGrid.firstWeekday }).map((_, i) => (
+                <div key={`empty-${i}`} />
+              ))}
+              {/* Day cells */}
+              {Array.from({ length: calendarGrid.daysInMonth }, (_, i) => i + 1).map(day => {
+                const dateStr = `${calendarGrid.year}-${String(calendarGrid.month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const attended = attendedDates.has(dateStr);
+                const isSelected = selectedDay === dateStr;
+                const isToday = dateStr === new Date().toLocaleDateString('sv-SE');
+                const cis = checkInsByDate.get(dateStr) ?? [];
+
+                return (
+                  <button
+                    key={day}
+                    type="button"
+                    disabled={!attended}
+                    onClick={() => setSelectedDay(isSelected ? null : dateStr)}
+                    className={`
+                      relative flex flex-col items-center justify-center aspect-square rounded-xl text-xs font-bold transition-all
+                      ${isSelected
+                        ? 'bg-violet-500 text-white shadow-lg shadow-violet-200 dark:shadow-violet-900/40'
+                        : attended
+                        ? 'bg-violet-500/10 text-violet-600 dark:text-violet-400 hover:bg-violet-500/20 cursor-pointer'
+                        : isToday
+                        ? 'text-slate-900 dark:text-white ring-1 ring-slate-300 dark:ring-slate-600'
+                        : 'text-slate-400 dark:text-slate-600 cursor-default'
+                      }
+                    `}
+                  >
+                    {day}
+                    {attended && cis.length > 1 && (
+                      <span className={`text-[8px] font-black leading-none ${isSelected ? 'text-violet-200' : 'text-violet-400'}`}>
+                        ×{cis.length}
+                      </span>
+                    )}
+                    {attended && !isSelected && (
+                      <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-violet-500" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Selected day exercises */}
+          {selectedDay && (
+            <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700">
+              <div className="flex items-center gap-2 mb-3">
+                <Dumbbell size={13} className="text-violet-400" />
+                <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">
+                  {new Date(selectedDay + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}
+                  {' · '}
+                  {(checkInsByDate.get(selectedDay) ?? []).map(ci =>
+                    new Date(ci.checked_in_at).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
+                  ).join(', ')}
+                </p>
+              </div>
+              {studentWorkoutExercises.length > 0 ? (
+                <div className="space-y-2">
+                  {studentWorkoutExercises.map((ex: any, i: number) => (
+                    <div key={ex.id} className="flex items-center gap-3 px-3 py-2 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
+                      <span className="text-[10px] font-black text-slate-300 dark:text-slate-600 w-4 shrink-0">{i + 1}.</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">{ex.exercise_name}</p>
+                        <p className="text-[10px] text-slate-400">
+                          {ex.sets || '-'} series · {ex.reps || '-'} reps{ex.weight ? ` · ${ex.weight}` : ''}
+                        </p>
+                      </div>
+                      {ex.video_url && (
+                        <button
+                          type="button"
+                          onClick={() => setVideoModal({ isOpen: true, exerciseName: ex.exercise_name, videoUrl: ex.video_url })}
+                          className="shrink-0 p-1.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors"
+                        >
+                          <PlayCircle size={13} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : isLoadingWorkout ? (
+                <p className="text-xs text-slate-400 text-center py-2">Cargando rutina...</p>
+              ) : (
+                <p className="text-xs text-slate-400 text-center py-2">Sin rutina asignada</p>
+              )}
+            </div>
+          )}
+        </Card>
+      )}
 
       <div className="grid gap-4">
         <Card className="p-4 space-y-4">
@@ -585,106 +766,6 @@ export const StudentDetailView: React.FC<StudentDetailViewProps> = ({
               )
             )}
           </div>
-        </Card>
-
-        {/* ── Historial de Asistencia ─────────────────────────── */}
-        <Card className="p-4">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <ClipboardList size={16} className="text-violet-400" />
-              Historial de Asistencia
-            </h3>
-            {!isLoadingCheckIns && checkIns.length > 0 && (
-              <span className="text-[11px] font-black uppercase tracking-widest px-2 py-1 rounded-lg bg-violet-500/10 text-violet-500">
-                {checkIns.length} visita{checkIns.length !== 1 ? 's' : ''}
-              </span>
-            )}
-          </div>
-
-          {isLoadingCheckIns ? (
-            <div className="flex items-center justify-center py-6">
-              <span className="w-5 h-5 border-2 border-slate-200 border-t-violet-500 rounded-full animate-spin" />
-            </div>
-          ) : checkIns.length === 0 ? (
-            <p className="text-sm text-slate-400 dark:text-slate-500 text-center py-4">
-              Sin asistencias registradas aún.
-            </p>
-          ) : (
-            <div className="space-y-1">
-              {(showAllCheckIns ? checkIns : checkIns.slice(0, 10)).map((ci) => {
-                const date = new Date(ci.checked_in_at);
-                const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-                const dayName = dayNames[date.getDay()];
-                const dateStr = date.toLocaleDateString('es-AR', {
-                  day: '2-digit',
-                  month: 'short',
-                  year: date.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined,
-                });
-                const timeStr = date.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
-                const isExpanded = expandedCheckIn === ci.id;
-
-                return (
-                  <div key={ci.id} className="rounded-xl overflow-hidden">
-                    <button
-                      type="button"
-                      className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors rounded-xl"
-                      onClick={() => setExpandedCheckIn(isExpanded ? null : ci.id)}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-violet-500/10 flex items-center justify-center shrink-0">
-                          <span className="text-[10px] font-black text-violet-500">{dayName}</span>
-                        </div>
-                        <div className="text-left">
-                          <p className="text-sm font-bold text-slate-900 dark:text-white">{dateStr}</p>
-                          <p className="text-[11px] text-slate-400">{timeStr}</p>
-                        </div>
-                      </div>
-                      {studentWorkoutExercises.length > 0 && (
-                        isExpanded
-                          ? <ChevronDown size={14} className="text-slate-400 shrink-0" />
-                          : <ChevronRight size={14} className="text-slate-400 shrink-0" />
-                      )}
-                    </button>
-
-                    {isExpanded && studentWorkoutExercises.length > 0 && (
-                      <div className="mx-3 mb-2 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl space-y-2">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
-                          Rutina asignada
-                        </p>
-                        {studentWorkoutExercises.map((ex: any, i: number) => (
-                          <div key={ex.id} className="flex items-center gap-2">
-                            <span className="text-[10px] font-black text-slate-300 dark:text-slate-600 w-4">{i + 1}.</span>
-                            <div className="flex-1">
-                              <p className="text-xs font-bold text-slate-700 dark:text-slate-200">{ex.exercise_name}</p>
-                              <p className="text-[10px] text-slate-400">
-                                {ex.sets || '-'} series · {ex.reps || '-'} reps{ex.weight ? ` · ${ex.weight}` : ''}
-                              </p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {isExpanded && studentWorkoutExercises.length === 0 && (
-                      <div className="mx-3 mb-2 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
-                        <p className="text-xs text-slate-400 text-center">Sin rutina asignada</p>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-
-              {checkIns.length > 10 && (
-                <button
-                  type="button"
-                  onClick={() => setShowAllCheckIns(!showAllCheckIns)}
-                  className="w-full text-center text-xs font-bold text-violet-500 hover:text-violet-400 pt-2 transition-colors"
-                >
-                  {showAllCheckIns ? 'Ver menos' : `Ver ${checkIns.length - 10} más`}
-                </button>
-              )}
-            </div>
-          )}
         </Card>
 
         <Card className="p-4 space-y-4">
