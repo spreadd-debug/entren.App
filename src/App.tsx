@@ -62,6 +62,7 @@ export default function App() {
   );
   const isSuperAdmin = sessionStorage.getItem('userRole') === 'superadmin';
   const isDemo = sessionStorage.getItem('userRole') === 'demo';
+  const isStudentDemo = sessionStorage.getItem('userRole') === 'student_demo';
   const checkinGymId = new URLSearchParams(window.location.search).get('checkin');
   const DEMO_GYM_ID = '11111111-1111-1111-1111-111111111111';
 
@@ -77,7 +78,7 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  const isAuthenticated = isSuperAdmin || isDemo || supabaseUser !== null;
+  const isAuthenticated = isSuperAdmin || isDemo || isStudentDemo || supabaseUser !== null;
   const gymId = isDemo ? DEMO_GYM_ID : (supabaseUser?.user_metadata?.gym_id ?? null);
   const userRole = (supabaseUser?.user_metadata?.role ?? 'admin') as string;
 
@@ -159,6 +160,7 @@ export default function App() {
     sessionStorage.removeItem('userRole');
     sessionStorage.removeItem('userId');
     sessionStorage.removeItem('gymId');
+    sessionStorage.removeItem('studentId');
     setAuthTick(t => t + 1);
     await supabase.auth.signOut();
   };
@@ -167,6 +169,18 @@ export default function App() {
     return (
       <ThemeProvider>
         <SuperAdminApp onLogout={handleLogout} />
+      </ThemeProvider>
+    );
+  }
+
+  if (isStudentDemo) {
+    const demoStudentId = sessionStorage.getItem('studentId') ?? DEMO_STUDENT_ID;
+    return (
+      <ThemeProvider>
+        <StudentPortalView
+          studentId={demoStudentId}
+          onLogout={handleLogout}
+        />
       </ThemeProvider>
     );
   }
@@ -358,7 +372,7 @@ function GymApp({ gymId, userRole, onLogout, isDemo = false, onRegister }: {
 
   const handleDeletePlan = async (id: string) => {
     try {
-      await api.plans.delete(id, gymId);
+      await api.plans.delete(id);
       setPlans(await api.plans.getAll(gymId));
     } catch (error) {
       console.error('Error deleting plan:', error);

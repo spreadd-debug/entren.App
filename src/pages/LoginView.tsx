@@ -10,6 +10,12 @@ interface LoginViewProps {
 const SUPERADMIN_USERNAME = 'Dhitrent4';
 const SUPERADMIN_PASSWORD = '42338474asdasd';
 const DEMO_GYM_ID = '11111111-1111-1111-1111-111111111111';
+const DEMO_STUDENT_ID = 'bbbb0001-0000-0000-0000-000000000001';
+
+// ── Test / demo credentials ───────────────────────────────────────────────────
+// [DEMO]   user: test        / pass: test        → demo interactivo (página marketing)
+// [TEST]   user: gymtest     / pass: gymtest      → vista dueño de gimnasio (datos demo)
+// [TEST]   user: alumnotest  / pass: alumnotest   → vista alumno (datos demo)
 
 export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onRegisterClick }) => {
   const [loading, setLoading] = useState(false);
@@ -30,9 +36,25 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onRegisterClick }
     setLoading(true);
 
     try {
-      // Demo bypass
+      // [DEMO] demo interactivo — usado en la página de marketing (?demo=1)
       if (email === 'test' && password === 'test') {
         enterDemo();
+        return;
+      }
+
+      // [TEST] vista dueño de gimnasio con datos demo
+      if (email === 'gymtest' && password === 'gymtest') {
+        sessionStorage.setItem('userRole', 'demo');
+        sessionStorage.setItem('gymId', DEMO_GYM_ID);
+        onLogin();
+        return;
+      }
+
+      // [TEST] vista alumno con datos demo
+      if (email === 'alumnotest' && password === 'alumnotest') {
+        sessionStorage.setItem('userRole', 'student_demo');
+        sessionStorage.setItem('studentId', DEMO_STUDENT_ID);
+        onLogin();
         return;
       }
 
