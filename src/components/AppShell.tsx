@@ -44,9 +44,7 @@ export const AppShell: React.FC<AppShellProps> = ({
 
   const shiftsItem = { id: 'shifts', label: 'Turnos', icon: Calendar };
 
-  const mobileNavItems = shiftsEnabled
-    ? [...baseMobileItems.slice(0, 4), shiftsItem]
-    : baseMobileItems;
+  const mobileNavItems = baseMobileItems;
 
   const desktopNavItems = shiftsEnabled
     ? [...baseMobileItems, shiftsItem, { id: 'settings', label: 'Ajustes', icon: Settings }]
@@ -142,6 +140,20 @@ export const AppShell: React.FC<AppShellProps> = ({
         </button>
 
         <div className="flex items-center gap-1">
+          {shiftsEnabled && (
+            <button
+              type="button"
+              aria-label="Turnos"
+              onClick={() => onNavigate('shifts')}
+              className={`p-2 rounded-xl transition-all ${
+                currentView === 'shifts'
+                  ? 'bg-violet-500/10 text-violet-500'
+                  : 'text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-300'
+              }`}
+            >
+              <Calendar size={18} />
+            </button>
+          )}
           <button
             type="button"
             aria-label="Ajustes"
