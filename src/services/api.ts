@@ -392,4 +392,28 @@ export const api = {
       });
     },
   },
+
+  staff: {
+    async getByGym(gymId: string): Promise<{ id: string; email: string; name: string }[]> {
+      try {
+        const raw = await fetchJson(`${API_BASE}/staff?gymId=${gymId}`);
+        return ensureArray(raw);
+      } catch (error) {
+        console.error('staff.getByGym failed:', error);
+        return [];
+      }
+    },
+
+    async create(data: { email: string; password: string; name: string; gym_id: string }): Promise<{ id: string; email: string; name: string }> {
+      return fetchJson(`${API_BASE}/staff`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+    },
+
+    async remove(userId: string): Promise<void> {
+      await fetchJson(`${API_BASE}/staff/${userId}`, { method: 'DELETE' });
+    },
+  },
 };

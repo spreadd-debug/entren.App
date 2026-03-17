@@ -7,6 +7,7 @@ import paymentRoutes from '../server/routes/payments';
 import dashboardRoutes from '../server/routes/dashboard';
 import automationRoutes from '../server/routes/automation';
 import subscriptionRoutes from '../server/routes/subscriptions';
+import staffRoutes from '../server/routes/staff';
 import { StudentService } from "../server/services/StudentService";
 import { PlanService } from "../server/services/PlanService";
 import { PaymentService } from "../server/services/PaymentService";
@@ -23,6 +24,7 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/automation', automationRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
+app.use('/api/staff', staffRoutes);
 
 app.get("/api/health", async (_req, res) => {
   const supabaseUrl = process.env.SUPABASE_URL;

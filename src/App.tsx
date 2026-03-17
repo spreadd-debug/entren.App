@@ -534,6 +534,7 @@ function GymApp({ gymId, userRole, onLogout, isDemo = false, onRegister }: {
             canManageSettings={canManageSettings}
             shiftsEnabled={shiftsEnabled}
             onToggleShifts={handleToggleShifts}
+            gymId={gymId}
           />
         );
       case 'automation':
@@ -610,6 +611,7 @@ function GymApp({ gymId, userRole, onLogout, isDemo = false, onRegister }: {
         onNavigate={handleNavigate}
         title={getViewTitle()}
         shiftsEnabled={shiftsEnabled}
+        canViewFinancials={canViewFinancials}
         onLogout={onLogout}
       >
         <SubscriptionGuard subscription={gymSubscription}>

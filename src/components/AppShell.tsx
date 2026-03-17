@@ -19,6 +19,7 @@ interface AppShellProps {
   onNavigate: (view: string) => void;
   title: string;
   shiftsEnabled?: boolean;
+  canViewFinancials?: boolean;
   onLogout?: () => void;
 }
 
@@ -28,15 +29,18 @@ export const AppShell: React.FC<AppShellProps> = ({
   onNavigate,
   title,
   shiftsEnabled = false,
+  canViewFinancials = true,
   onLogout,
 }) => {
-  const baseMobileItems = [
+  const allBaseItems = [
     { id: 'dashboard', label: 'Inicio',   icon: LayoutDashboard },
     { id: 'students',  label: 'Alumnos',  icon: Users },
-    { id: 'payments',  label: 'Pagos',    icon: CreditCard },
-    { id: 'defaulters',label: 'Deudores', icon: AlertCircle },
+    { id: 'payments',  label: 'Pagos',    icon: CreditCard,  financialOnly: true },
+    { id: 'defaulters',label: 'Deudores', icon: AlertCircle, financialOnly: true },
     { id: 'workouts',  label: 'Rutinas',  icon: Dumbbell },
   ];
+
+  const baseMobileItems = allBaseItems.filter(i => canViewFinancials || !i.financialOnly);
 
   const shiftsItem = { id: 'shifts', label: 'Turnos', icon: Calendar };
 
