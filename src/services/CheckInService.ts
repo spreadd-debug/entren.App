@@ -82,4 +82,21 @@ export const CheckInService = {
   clearDeviceStudent(gymId: string) {
     localStorage.removeItem(`${DEVICE_KEY_PREFIX}${gymId}`);
   },
+
+  async getStudentCheckIns(
+    gymId: string,
+    studentId: string,
+    limit = 50
+  ): Promise<Array<{ id: string; checked_in_at: string }>> {
+    const { data, error } = await supabase
+      .from('checkins')
+      .select('id, checked_in_at')
+      .eq('gym_id', gymId)
+      .eq('student_id', studentId)
+      .order('checked_in_at', { ascending: false })
+      .limit(limit);
+
+    if (error) throw error;
+    return data ?? [];
+  },
 };

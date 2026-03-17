@@ -19,6 +19,9 @@ import {
   Dumbbell,
   PlayCircle,
   HeartPulse,
+  ChevronDown,
+  ChevronRight,
+  ClipboardList,
 } from 'lucide-react';
 import { Card, StatusBadge, Button, BillingBadge, Input } from '../components/UI';
 import { Student, Payment, Plan } from '../../shared/types';
@@ -26,6 +29,7 @@ import { formatDate } from '../utils/dateUtils';
 import { RegisterPaymentModal } from '../components/RegisterPaymentModal';
 import { WorkoutPlanService } from '../services/WorkoutPlanService';
 import { ExerciseVideoModal } from '../components/ExerciseVideoModal';
+import { CheckInService } from '../services/CheckInService';
 
 interface StudentDetailViewProps {
   student: Student;
@@ -67,6 +71,11 @@ export const StudentDetailView: React.FC<StudentDetailViewProps> = ({
     exerciseName: string;
     videoUrl: string;
   }>({ isOpen: false, exerciseName: '', videoUrl: '' });
+
+  const [checkIns, setCheckIns] = useState<Array<{ id: string; checked_in_at: string }>>([]);
+  const [isLoadingCheckIns, setIsLoadingCheckIns] = useState(true);
+  const [expandedCheckIn, setExpandedCheckIn] = useState<string | null>(null);
+  const [showAllCheckIns, setShowAllCheckIns] = useState(false);
 
   const normalizedPlans = useMemo(() => {
     const safePlans = Array.isArray(plans) ? plans : [];
@@ -134,6 +143,14 @@ export const StudentDetailView: React.FC<StudentDetailViewProps> = ({
 
   useEffect(() => {
     loadWorkoutData();
+  }, [student.id]);
+
+  useEffect(() => {
+    setIsLoadingCheckIns(true);
+    CheckInService.getStudentCheckIns(gymId, student.id)
+      .then(setCheckIns)
+      .catch(() => setCheckIns([]))
+      .finally(() => setIsLoadingCheckIns(false));
   }, [student.id]);
 
   const handleAssignWorkout = async () => {
@@ -568,6 +585,106 @@ export const StudentDetailView: React.FC<StudentDetailViewProps> = ({
               )
             )}
           </div>
+        </Card>
+
+        {/* ── Historial de Asistencia ─────────────────────────── */}
+        <Card className="p-4">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <ClipboardList size={16} className="text-violet-400" />
+              Historial de Asistencia
+            </h3>
+            {!isLoadingCheckIns && checkIns.length > 0 && (
+              <span className="text-[11px] font-black uppercase tracking-widest px-2 py-1 rounded-lg bg-violet-500/10 text-violet-500">
+                {checkIns.length} visita{checkIns.length !== 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
+
+          {isLoadingCheckIns ? (
+            <div className="flex items-center justify-center py-6">
+              <span className="w-5 h-5 border-2 border-slate-200 border-t-violet-500 rounded-full animate-spin" />
+            </div>
+          ) : checkIns.length === 0 ? (
+            <p className="text-sm text-slate-400 dark:text-slate-500 text-center py-4">
+              Sin asistencias registradas aún.
+            </p>
+          ) : (
+            <div className="space-y-1">
+              {(showAllCheckIns ? checkIns : checkIns.slice(0, 10)).map((ci) => {
+                const date = new Date(ci.checked_in_at);
+                const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+                const dayName = dayNames[date.getDay()];
+                const dateStr = date.toLocaleDateString('es-AR', {
+                  day: '2-digit',
+                  month: 'short',
+                  year: date.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined,
+                });
+                const timeStr = date.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+                const isExpanded = expandedCheckIn === ci.id;
+
+                return (
+                  <div key={ci.id} className="rounded-xl overflow-hidden">
+                    <button
+                      type="button"
+                      className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors rounded-xl"
+                      onClick={() => setExpandedCheckIn(isExpanded ? null : ci.id)}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-violet-500/10 flex items-center justify-center shrink-0">
+                          <span className="text-[10px] font-black text-violet-500">{dayName}</span>
+                        </div>
+                        <div className="text-left">
+                          <p className="text-sm font-bold text-slate-900 dark:text-white">{dateStr}</p>
+                          <p className="text-[11px] text-slate-400">{timeStr}</p>
+                        </div>
+                      </div>
+                      {studentWorkoutExercises.length > 0 && (
+                        isExpanded
+                          ? <ChevronDown size={14} className="text-slate-400 shrink-0" />
+                          : <ChevronRight size={14} className="text-slate-400 shrink-0" />
+                      )}
+                    </button>
+
+                    {isExpanded && studentWorkoutExercises.length > 0 && (
+                      <div className="mx-3 mb-2 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl space-y-2">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
+                          Rutina asignada
+                        </p>
+                        {studentWorkoutExercises.map((ex: any, i: number) => (
+                          <div key={ex.id} className="flex items-center gap-2">
+                            <span className="text-[10px] font-black text-slate-300 dark:text-slate-600 w-4">{i + 1}.</span>
+                            <div className="flex-1">
+                              <p className="text-xs font-bold text-slate-700 dark:text-slate-200">{ex.exercise_name}</p>
+                              <p className="text-[10px] text-slate-400">
+                                {ex.sets || '-'} series · {ex.reps || '-'} reps{ex.weight ? ` · ${ex.weight}` : ''}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {isExpanded && studentWorkoutExercises.length === 0 && (
+                      <div className="mx-3 mb-2 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
+                        <p className="text-xs text-slate-400 text-center">Sin rutina asignada</p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              {checkIns.length > 10 && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllCheckIns(!showAllCheckIns)}
+                  className="w-full text-center text-xs font-bold text-violet-500 hover:text-violet-400 pt-2 transition-colors"
+                >
+                  {showAllCheckIns ? 'Ver menos' : `Ver ${checkIns.length - 10} más`}
+                </button>
+              )}
+            </div>
+          )}
         </Card>
 
         <Card className="p-4 space-y-4">
