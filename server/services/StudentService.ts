@@ -21,6 +21,8 @@ type StudentDbRow = {
   last_payment_date?: string | null;
   next_due_date?: string | null;
   observaciones?: string | null;
+  emergency_contact_name?: string | null;
+  emergency_contact_phone?: string | null;
   created_at?: string;
   updated_at?: string;
 };
@@ -48,6 +50,8 @@ export const StudentService = {
         last_payment_date,
         next_due_date,
         observaciones,
+        emergency_contact_name,
+        emergency_contact_phone,
         created_at,
         updated_at
       `)
@@ -81,6 +85,8 @@ export const StudentService = {
         last_payment_date,
         next_due_date,
         observaciones,
+        emergency_contact_name,
+        emergency_contact_phone,
         created_at,
         updated_at
       `)
@@ -111,6 +117,8 @@ export const StudentService = {
       last_payment_date: student.last_payment_date ?? student.lastPaymentDate ?? null,
       next_due_date: student.next_due_date ?? student.nextDueDate ?? null,
       observaciones: student.observaciones ?? student.observations ?? null,
+      emergency_contact_name: student.emergency_contact_name ?? null,
+      emergency_contact_phone: student.emergency_contact_phone ?? null,
     };
 
     const { data, error } = await supabase
@@ -133,6 +141,8 @@ export const StudentService = {
         last_payment_date,
         next_due_date,
         observaciones,
+        emergency_contact_name,
+        emergency_contact_phone,
         created_at,
         updated_at
       `)
@@ -221,6 +231,14 @@ export const StudentService = {
       payload.observaciones = updates.observaciones ?? updates.observations;
     }
 
+    if (updates.emergency_contact_name !== undefined) {
+      payload.emergency_contact_name = updates.emergency_contact_name;
+    }
+
+    if (updates.emergency_contact_phone !== undefined) {
+      payload.emergency_contact_phone = updates.emergency_contact_phone;
+    }
+
     const gymId = updates.gym_id ?? updates.gymId ?? DEFAULT_GYM_ID;
     // Don't allow moving a student to a different gym
     delete payload.gym_id;
@@ -247,6 +265,8 @@ export const StudentService = {
         last_payment_date,
         next_due_date,
         observaciones,
+        emergency_contact_name,
+        emergency_contact_phone,
         created_at,
         updated_at
       `)

@@ -10,6 +10,7 @@ import {
   Bell,
   ShieldCheck,
   MessageSquare,
+  HeartPulse,
 } from 'lucide-react';
 import { Card, Button, Input } from '../components/UI';
 import { Plan, Student } from '../../shared/types';
@@ -53,6 +54,8 @@ export const NewStudentView: React.FC<NewStudentViewProps> = ({
     startDate: new Date().toISOString().split('T')[0],
     status: 'activo' as StudentStatusUI,
     observaciones: '',
+    emergency_contact_name: '',
+    emergency_contact_phone: '',
     cobra_cuota: true,
     recordatorio_automatico: true,
     whatsapp_opt_in: true,
@@ -107,6 +110,8 @@ export const NewStudentView: React.FC<NewStudentViewProps> = ({
       last_payment_date: registerPayment ? formData.startDate : null,
       next_due_date: nextDueDate,
       observaciones: formData.observaciones,
+      emergency_contact_name: formData.emergency_contact_name || undefined,
+      emergency_contact_phone: formData.emergency_contact_phone || undefined,
       cobra_cuota: formData.cobra_cuota,
       recordatorio_automatico: formData.recordatorio_automatico,
       precio_personalizado:
@@ -193,6 +198,47 @@ export const NewStudentView: React.FC<NewStudentViewProps> = ({
                     setFormData({ ...formData, telefono: e.target.value })
                   }
                 />
+              </div>
+            </div>
+
+            {/* Contacto de emergencia */}
+            <div className="pt-1 border-t border-slate-100 dark:border-slate-700">
+              <div className="flex items-center gap-2 mb-3">
+                <HeartPulse size={14} className="text-rose-400" />
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                  Contacto de Emergencia
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 ml-1">
+                    Nombre
+                  </label>
+                  <Input
+                    placeholder="Ej: María Pérez"
+                    className="h-12"
+                    value={formData.emergency_contact_name}
+                    onChange={(e) =>
+                      setFormData({ ...formData, emergency_contact_name: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 ml-1">
+                    Teléfono
+                  </label>
+                  <div className="relative">
+                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-rose-300" size={14} />
+                    <Input
+                      placeholder="11 2233-4455"
+                      className="pl-9 h-12"
+                      value={formData.emergency_contact_phone}
+                      onChange={(e) =>
+                        setFormData({ ...formData, emergency_contact_phone: e.target.value })
+                      }
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           </Card>

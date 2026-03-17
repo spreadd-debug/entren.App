@@ -17,6 +17,8 @@ type StudentDbRow = {
   last_payment_date?: string | null;
   next_due_date?: string | null;
   observaciones?: string | null;
+  emergency_contact_name?: string | null;
+  emergency_contact_phone?: string | null;
   created_at?: string;
   updated_at?: string;
 };
@@ -42,6 +44,8 @@ export function mapStudentRowToStudent(row: StudentDbRow): Student {
     lastPaymentDate: row.last_payment_date ?? undefined,
     nextDueDate: row.next_due_date ?? undefined,
     observations: row.observaciones ?? undefined,
+    emergency_contact_name: row.emergency_contact_name ?? undefined,
+    emergency_contact_phone: row.emergency_contact_phone ?? undefined,
     createdAt: row.created_at ?? '',
     updatedAt: row.updated_at ?? '',
   } as unknown as Student;

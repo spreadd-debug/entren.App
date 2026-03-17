@@ -24,6 +24,8 @@ export interface Student {
   lastPaymentDate: string;
   nextDueDate: string;
   observations?: string;
+  emergency_contact_name?: string;
+  emergency_contact_phone?: string;
   debt: number;
   // Billing
   cobra_cuota: boolean;

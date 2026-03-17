@@ -18,6 +18,7 @@ import {
   X,
   Dumbbell,
   PlayCircle,
+  HeartPulse,
 } from 'lucide-react';
 import { Card, StatusBadge, Button, BillingBadge, Input } from '../components/UI';
 import { Student, Payment, Plan } from '../../shared/types';
@@ -107,6 +108,8 @@ export const StudentDetailView: React.FC<StudentDetailViewProps> = ({
         : (student as any).tipo_beca ?? 'ninguna',
     precio_personalizado: (student as any).precio_personalizado ?? '',
     observaciones_cobranza: (student as any).observaciones_cobranza ?? '',
+    emergency_contact_name: (student as any).emergency_contact_name ?? '',
+    emergency_contact_phone: (student as any).emergency_contact_phone ?? '',
   });
 
   const loadWorkoutData = async () => {
@@ -273,6 +276,27 @@ export const StudentDetailView: React.FC<StudentDetailViewProps> = ({
             }
           />
 
+          <div className="pt-1 border-t border-slate-100 dark:border-slate-700">
+            <div className="flex items-center gap-2 mb-3">
+              <HeartPulse size={14} className="text-rose-400" />
+              <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Contacto de Emergencia
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Input
+                placeholder="Nombre del contacto"
+                value={editData.emergency_contact_name}
+                onChange={(e) => setEditData({ ...editData, emergency_contact_name: e.target.value })}
+              />
+              <Input
+                placeholder="Teléfono"
+                value={editData.emergency_contact_phone}
+                onChange={(e) => setEditData({ ...editData, emergency_contact_phone: e.target.value })}
+              />
+            </div>
+          </div>
+
           <div className="space-y-3">
             <label className="flex items-center justify-between">
               <span className="text-sm font-medium dark:text-white">Cobra cuota</span>
@@ -420,6 +444,44 @@ export const StudentDetailView: React.FC<StudentDetailViewProps> = ({
             </span>
           </div>
         </Card>
+
+        {((student as any).emergency_contact_name || (student as any).emergency_contact_phone) && (
+          <Card className="p-4 space-y-3">
+            <h3 className="font-bold text-slate-900 dark:text-white border-b border-slate-50 dark:border-slate-700 pb-2 flex items-center gap-2">
+              <HeartPulse size={16} className="text-rose-400" />
+              Contacto de Emergencia
+            </h3>
+            {(student as any).emergency_contact_name && (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-rose-50 dark:bg-rose-500/10 rounded-lg">
+                    <HeartPulse size={16} className="text-rose-400" />
+                  </div>
+                  <span className="text-sm font-medium text-slate-500 dark:text-slate-400">Nombre</span>
+                </div>
+                <span className="text-sm font-bold text-slate-900 dark:text-white">
+                  {(student as any).emergency_contact_name}
+                </span>
+              </div>
+            )}
+            {(student as any).emergency_contact_phone && (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-rose-50 dark:bg-rose-500/10 rounded-lg">
+                    <Phone size={16} className="text-rose-400" />
+                  </div>
+                  <span className="text-sm font-medium text-slate-500 dark:text-slate-400">Teléfono</span>
+                </div>
+                <a
+                  href={`tel:${(student as any).emergency_contact_phone}`}
+                  className="text-sm font-bold text-rose-500 hover:text-rose-600 transition-colors"
+                >
+                  {(student as any).emergency_contact_phone}
+                </a>
+              </div>
+            )}
+          </Card>
+        )}
 
         <Card className="p-4 space-y-4">
           <h3 className="font-bold text-slate-900 dark:text-white border-b border-slate-50 dark:border-slate-700 pb-2">Rutina</h3>
