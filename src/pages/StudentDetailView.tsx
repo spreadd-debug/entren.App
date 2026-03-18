@@ -390,17 +390,20 @@ export const StudentDetailView: React.FC<StudentDetailViewProps> = ({
             </label>
           </div>
 
-          <div className="flex gap-2">
-            {(['ninguna', 'parcial', 'completa'] as const).map((tipo) => (
-              <Button
-                key={tipo}
-                variant={editData.tipo_beca === tipo ? 'primary' : 'outline'}
-                fullWidth
-                onClick={() => setEditData({ ...editData, tipo_beca: tipo })}
-              >
-                {tipo}
-              </Button>
-            ))}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-500 dark:text-slate-400 ml-1">Tipo de Beca</label>
+            <div className="flex gap-2">
+              {(['ninguna', 'parcial', 'completa'] as const).map((tipo) => (
+                <Button
+                  key={tipo}
+                  variant={editData.tipo_beca === tipo ? 'primary' : 'outline'}
+                  fullWidth
+                  onClick={() => setEditData({ ...editData, tipo_beca: tipo })}
+                >
+                  {tipo === 'ninguna' ? 'Ninguna' : tipo === 'parcial' ? 'Parcial' : 'Completa'}
+                </Button>
+              ))}
+            </div>
           </div>
 
           <Button variant="secondary" fullWidth onClick={handleSave}>
