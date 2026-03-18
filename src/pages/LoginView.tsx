@@ -7,8 +7,8 @@ interface LoginViewProps {
   onRegisterClick: () => void;
 }
 
-const SUPERADMIN_USERNAME = 'Dhitrent4';
-const SUPERADMIN_PASSWORD = '42338474asdasd';
+const SUPERADMIN_USERNAME = import.meta.env.VITE_SUPERADMIN_USER ?? '';
+const SUPERADMIN_PASSWORD = import.meta.env.VITE_SUPERADMIN_PASS ?? '';
 const DEMO_GYM_ID = '11111111-1111-1111-1111-111111111111';
 const DEMO_STUDENT_ID = 'bbbb0001-0000-0000-0000-000000000001';
 

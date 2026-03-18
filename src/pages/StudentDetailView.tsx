@@ -29,6 +29,7 @@ import { RegisterPaymentModal } from '../components/RegisterPaymentModal';
 import { WorkoutPlanService } from '../services/WorkoutPlanService';
 import { ExerciseVideoModal } from '../components/ExerciseVideoModal';
 import { CheckInService } from '../services/CheckInService';
+import { useToast } from '../context/ToastContext';
 
 interface StudentDetailViewProps {
   student: Student;
@@ -57,8 +58,10 @@ export const StudentDetailView: React.FC<StudentDetailViewProps> = ({
   onUpdateStudent,
   onDeleteStudent,
 }) => {
+  const toast = useToast();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState(false);
 
   const [workoutPlans, setWorkoutPlans] = useState<any[]>([]);
   const [studentWorkoutExercises, setStudentWorkoutExercises] = useState<any[]>([]);
@@ -192,10 +195,10 @@ export const StudentDetailView: React.FC<StudentDetailViewProps> = ({
       setIsAssigningWorkout(true);
       await WorkoutPlanService.assignPlanToStudent(gymId, student.id, selectedWorkoutPlanId);
       await loadWorkoutData();
-      alert('Rutina asignada correctamente');
+      toast.success('Rutina asignada correctamente');
     } catch (error) {
       console.error('Error assigning workout:', error);
-      alert('No se pudo asignar la rutina');
+      toast.error('No se pudo asignar la rutina');
     } finally {
       setIsAssigningWorkout(false);
     }
@@ -211,12 +214,12 @@ export const StudentDetailView: React.FC<StudentDetailViewProps> = ({
 
   const handleSave = () => {
     if (!editData.nombre.trim() || !editData.apellido.trim()) {
-      alert('El nombre y apellido son obligatorios');
+      toast.error('El nombre y apellido son obligatorios');
       return;
     }
     const precioNum = editData.precio_personalizado === '' ? null : Number(editData.precio_personalizado);
     if (precioNum !== null && precioNum < 0) {
-      alert('El precio no puede ser negativo');
+      toast.error('El precio no puede ser negativo');
       return;
     }
     onUpdateStudent(student.id, {
@@ -229,8 +232,11 @@ export const StudentDetailView: React.FC<StudentDetailViewProps> = ({
   };
 
   const handleDelete = () => {
-    const confirmed = window.confirm('¿Seguro que querés eliminar este alumno?');
-    if (!confirmed) return;
+    if (!pendingDelete) {
+      setPendingDelete(true);
+      setTimeout(() => setPendingDelete(false), 3000);
+      return;
+    }
     onDeleteStudent(student.id);
   };
 
@@ -417,11 +423,11 @@ export const StudentDetailView: React.FC<StudentDetailViewProps> = ({
           </Button>
           <Button
             variant="outline"
-            size="icon"
-            className="text-rose-500 border-rose-100 hover:bg-rose-50"
+            size={pendingDelete ? 'sm' : 'icon'}
+            className={pendingDelete ? 'text-white bg-rose-500 border-rose-500 px-3 text-xs font-black' : 'text-rose-500 border-rose-100 hover:bg-rose-50'}
             onClick={handleDelete}
           >
-            <Trash2 size={18} />
+            {pendingDelete ? '¿Eliminar?' : <Trash2 size={18} />}
           </Button>
         </div>
       </div>

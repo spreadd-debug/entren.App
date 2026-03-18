@@ -22,8 +22,8 @@ import {
 } from 'lucide-react';
 import { Card, SectionLabel, Toggle } from '../components/UI';
 import { useTheme } from '../context/ThemeContext';
-import { CURRENT_GYM_ID } from '../config/gym';
 import { api } from '../services/api';
+import { useToast } from '../context/ToastContext';
 
 interface StaffMember { id: string; email: string; name: string; }
 
@@ -33,6 +33,7 @@ interface SettingsViewProps {
   shiftsEnabled: boolean;
   onToggleShifts: (enabled: boolean) => void;
   gymId?: string;
+  gymName?: string;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
@@ -41,9 +42,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   shiftsEnabled,
   onToggleShifts,
   gymId,
+  gymName,
 }) => {
   const { theme, toggleTheme } = useTheme();
+  const toast = useToast();
   const [copied, setCopied] = useState(false);
+  const [pendingDeleteStaffId, setPendingDeleteStaffId] = useState<string | null>(null);
 
   // ── Staff management state ─────────────────────────────────────────────────
   const [staff, setStaff] = useState<StaffMember[]>([]);
@@ -53,7 +57,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [staffFormError, setStaffFormError] = useState('');
   const [staffFormLoading, setStaffFormLoading] = useState(false);
 
-  const resolvedGymId = gymId ?? CURRENT_GYM_ID;
+  const resolvedGymId = gymId ?? '';
 
   useEffect(() => {
     if (!canManageSettings) return;
@@ -80,16 +84,21 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   };
 
   const handleDeleteStaff = async (id: string) => {
-    if (!confirm('¿Eliminar este entrenador? Perderá acceso inmediatamente.')) return;
+    if (pendingDeleteStaffId !== id) {
+      setPendingDeleteStaffId(id);
+      setTimeout(() => setPendingDeleteStaffId(null), 3000);
+      return;
+    }
+    setPendingDeleteStaffId(null);
     try {
       await api.staff.remove(id);
       setStaff(prev => prev.filter(s => s.id !== id));
     } catch (err: any) {
-      alert(err.message ?? 'Error al eliminar');
+      toast.error(err.message ?? 'Error al eliminar');
     }
   };
 
-  const checkinUrl = `${window.location.origin}${window.location.pathname}?checkin=${CURRENT_GYM_ID}`;
+  const checkinUrl = `${window.location.origin}${window.location.pathname}?checkin=${resolvedGymId}`;
   const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=10&data=${encodeURIComponent(checkinUrl)}`;
 
   const handleCopyUrl = () => {
@@ -163,7 +172,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const handleItemClick = (id: string) => {
     if (id === 'plans') { onNavigate('plans'); return; }
     if (id === 'automation') { onNavigate('automation'); return; }
-    alert('Esta sección estará disponible próximamente.');
+    toast.warning('Esta sección estará disponible próximamente.');
   };
 
   return (
@@ -181,9 +190,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
           <div>
             <h3 className="text-lg font-black text-white tracking-tight">
-              entrenApp
+              {gymName ?? 'Mi Gimnasio'}
             </h3>
-            <p className="text-sm text-slate-400">Buenos Aires, Argentina</p>
             <span className="mt-1.5 inline-block px-2.5 py-0.5 bg-cyan-500/20 border border-cyan-500/30 text-cyan-400 rounded-full text-[10px] font-black uppercase tracking-wider">
               Plan Activo
             </span>
@@ -435,10 +443,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     </div>
                     <button
                       onClick={() => handleDeleteStaff(member.id)}
-                      className="p-2 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                      className={`px-2 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                        pendingDeleteStaffId === member.id
+                          ? 'bg-rose-500 text-white'
+                          : 'text-slate-400 hover:text-rose-400 hover:bg-rose-500/10'
+                      }`}
                       title="Eliminar"
                     >
-                      <Trash2 size={15} />
+                      {pendingDeleteStaffId === member.id ? '¿Eliminar?' : <Trash2 size={15} />}
                     </button>
                   </div>
                 ))}

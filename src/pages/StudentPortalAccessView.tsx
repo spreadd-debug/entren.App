@@ -13,17 +13,18 @@ export default function StudentPortalAccessView({
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const handleLogin = async () => {
     if (!phone.trim() || !code.trim()) return;
-
+    setError("");
     try {
       setIsLoading(true);
       const student = await StudentPortalService.login(phone.trim(), code.trim());
       onSuccess(student.id);
-    } catch (error) {
-      console.error(error);
-      alert("Teléfono o código incorrecto");
+    } catch (err) {
+      console.error(err);
+      setError("Teléfono o código incorrecto");
     } finally {
       setIsLoading(false);
     }
@@ -59,6 +60,12 @@ export default function StudentPortalAccessView({
             className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400"
           />
         </div>
+
+        {error && (
+          <p className="text-sm text-rose-500 font-semibold text-center bg-rose-50 border border-rose-100 rounded-xl px-3 py-2">
+            {error}
+          </p>
+        )}
 
         <Button variant="secondary" fullWidth onClick={handleLogin} disabled={isLoading}>
           {isLoading ? "Ingresando..." : "Entrar"}

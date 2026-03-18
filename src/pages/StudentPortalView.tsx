@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { formatDate } from "../utils/dateUtils";
 import { ExerciseVideoModal } from "../components/ExerciseVideoModal";
+import { useToast } from "../context/ToastContext";
 
 interface StudentPortalViewProps {
   studentId: string;
@@ -21,6 +22,7 @@ export default function StudentPortalView({
   studentId,
   onLogout,
 }: StudentPortalViewProps) {
+  const toast = useToast();
   const [data, setData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [timer, setTimer] = useState<number | null>(null);
@@ -38,7 +40,7 @@ export default function StudentPortalView({
         setData(portalData);
       } catch (error) {
         console.error(error);
-        alert("No se pudo cargar el portal del alumno");
+        toast.error("No se pudo cargar el portal del alumno");
       } finally {
         setIsLoading(false);
       }

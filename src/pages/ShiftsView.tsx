@@ -278,6 +278,7 @@ const ShiftCardManage: React.FC<ShiftCardManageProps> = ({ shift, allStudents, o
   const [expanded, setExpanded] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState(false);
 
   const dayLabel = DAYS.find(d => d.value === shift.day_of_week)?.label ?? '';
   const enrolled = shift.enrolledStudents.length;
@@ -332,10 +333,22 @@ const ShiftCardManage: React.FC<ShiftCardManageProps> = ({ shift, allStudents, o
                 <Edit2 size={16} />
               </button>
               <button
-                onClick={() => onDelete(shift.id)}
-                className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/30 transition-colors"
+                onClick={() => {
+                  if (!pendingDelete) {
+                    setPendingDelete(true);
+                    setTimeout(() => setPendingDelete(false), 3000);
+                  } else {
+                    setPendingDelete(false);
+                    onDelete(shift.id);
+                  }
+                }}
+                className={`px-2 py-1.5 rounded-xl text-xs font-bold transition-colors ${
+                  pendingDelete
+                    ? 'bg-rose-500 text-white'
+                    : 'text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/30'
+                }`}
               >
-                <Trash2 size={16} />
+                {pendingDelete ? '¿Eliminar?' : <Trash2 size={16} />}
               </button>
               <button
                 onClick={() => setExpanded(v => !v)}
@@ -611,7 +624,6 @@ export const ShiftsView: React.FC<ShiftsViewProps> = ({ gymId, students }) => {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('¿Eliminar este turno? Se perderán todas las asignaciones.')) return;
     try {
       await ShiftService.deleteShift(id, gymId);
       await loadShifts();

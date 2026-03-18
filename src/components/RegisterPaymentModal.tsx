@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { X, CreditCard, Calendar, DollarSign, Smartphone } from 'lucide-react';
 import { Button, Input } from './UI';
 import { Student, Plan } from '../../shared/types';
+import { useToast } from '../context/ToastContext';
 import { calculateNextDueDate, formatDate } from '../utils/dateUtils';
 
 interface RegisterPaymentModalProps {
@@ -24,6 +25,7 @@ export const RegisterPaymentModal: React.FC<RegisterPaymentModalProps> = ({
   onClose,
   onConfirm,
 }) => {
+  const toast = useToast();
   const safePlans = Array.isArray(plans) ? plans : [];
 
   const normalizedPlans = useMemo(() => {
@@ -184,11 +186,11 @@ export const RegisterPaymentModal: React.FC<RegisterPaymentModalProps> = ({
             size="lg"
             onClick={() => {
               if (!amount || amount <= 0) {
-                alert('El monto debe ser mayor a $0');
+                toast.error('El monto debe ser mayor a $0');
                 return;
               }
               if (!date) {
-                alert('Seleccioná una fecha de pago');
+                toast.error('Seleccioná una fecha de pago');
                 return;
               }
               onConfirm({ amount, method, date, nextDueDate });

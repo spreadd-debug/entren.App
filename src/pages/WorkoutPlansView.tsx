@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Dumbbell,
   Plus,
@@ -12,6 +12,7 @@ import {
 import { Card, Button, Input } from "../components/UI";
 import { WorkoutPlanService, LibraryExercise } from "../services/WorkoutPlanService";
 import { ExerciseVideoModal } from "../components/ExerciseVideoModal";
+import { useToast } from "../context/ToastContext";
 
 // Ordered top-to-bottom following body anatomy
 const MUSCLE_GROUPS = [
@@ -37,7 +38,12 @@ const MUSCLE_GROUPS = [
 type Tab = "plans" | "library";
 
 export default function WorkoutPlansView({ gymId }: { gymId: string }) {
+  const toast = useToast();
   const [activeTab, setActiveTab] = useState<Tab>("plans");
+  const [pendingDeletePlanId, setPendingDeletePlanId] = useState<string | null>(null);
+  const [pendingDeleteExerciseId, setPendingDeleteExerciseId] = useState<string | null>(null);
+  const [pendingDeleteLibId, setPendingDeleteLibId] = useState<string | null>(null);
+  const pendingTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   // ─── Plans ────────────────────────────────────────────────────────────────
   const [plans, setPlans] = useState<any[]>([]);
@@ -124,7 +130,13 @@ export default function WorkoutPlansView({ gymId }: { gymId: string }) {
   };
 
   const deletePlan = async (planId: string) => {
-    if (!window.confirm("¿Querés eliminar esta rutina?")) return;
+    if (pendingDeletePlanId !== planId) {
+      setPendingDeletePlanId(planId);
+      clearTimeout(pendingTimers.current['plan']);
+      pendingTimers.current['plan'] = setTimeout(() => setPendingDeletePlanId(null), 3000);
+      return;
+    }
+    setPendingDeletePlanId(null);
     await WorkoutPlanService.deletePlan(planId);
     if (selectedPlan?.id === planId) {
       setSelectedPlan(null);
@@ -180,7 +192,14 @@ export default function WorkoutPlansView({ gymId }: { gymId: string }) {
   };
 
   const deleteExercise = async (exerciseId: string) => {
-    if (!selectedPlan || !window.confirm("¿Querés eliminar este ejercicio?")) return;
+    if (!selectedPlan) return;
+    if (pendingDeleteExerciseId !== exerciseId) {
+      setPendingDeleteExerciseId(exerciseId);
+      clearTimeout(pendingTimers.current['exercise']);
+      pendingTimers.current['exercise'] = setTimeout(() => setPendingDeleteExerciseId(null), 3000);
+      return;
+    }
+    setPendingDeleteExerciseId(null);
     await WorkoutPlanService.deleteExercise(exerciseId);
     await loadExercises(selectedPlan.id);
   };
@@ -253,7 +272,13 @@ export default function WorkoutPlansView({ gymId }: { gymId: string }) {
   };
 
   const deleteLibraryExercise = async (id: string) => {
-    if (!window.confirm("¿Querés eliminar este ejercicio de la biblioteca?")) return;
+    if (pendingDeleteLibId !== id) {
+      setPendingDeleteLibId(id);
+      clearTimeout(pendingTimers.current['lib']);
+      pendingTimers.current['lib'] = setTimeout(() => setPendingDeleteLibId(null), 3000);
+      return;
+    }
+    setPendingDeleteLibId(null);
     await WorkoutPlanService.deleteLibraryExercise(id);
     await loadLibrary();
   };
@@ -396,13 +421,15 @@ export default function WorkoutPlansView({ gymId }: { gymId: string }) {
                           <button
                             onClick={() => deletePlan(plan.id)}
                             className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-bold transition-colors ${
-                              isSelected
+                              pendingDeletePlanId === plan.id
+                                ? "bg-rose-500 text-white"
+                                : isSelected
                                 ? "bg-white/10 text-white hover:bg-white/20"
                                 : "bg-rose-50 text-rose-600 hover:bg-rose-100"
                             }`}
                           >
                             <Trash2 size={15} />
-                            Eliminar
+                            {pendingDeletePlanId === plan.id ? "¿Confirmar?" : "Eliminar"}
                           </button>
                         </div>
                       </div>
@@ -721,10 +748,14 @@ export default function WorkoutPlansView({ gymId }: { gymId: string }) {
 
                                 <button
                                   onClick={() => deleteExercise(exercise.id)}
-                                  className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 transition-colors text-sm font-bold"
+                                  className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl transition-colors text-sm font-bold ${
+                                    pendingDeleteExerciseId === exercise.id
+                                      ? "bg-rose-500 text-white"
+                                      : "bg-rose-50 text-rose-600 hover:bg-rose-100"
+                                  }`}
                                 >
                                   <Trash2 size={16} />
-                                  Eliminar
+                                  {pendingDeleteExerciseId === exercise.id ? "¿Confirmar?" : "Eliminar"}
                                 </button>
                               </div>
                             </div>
@@ -895,10 +926,14 @@ export default function WorkoutPlansView({ gymId }: { gymId: string }) {
                       )}
                       <button
                         onClick={() => deleteLibraryExercise(ex.id)}
-                        className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 transition-colors text-sm font-bold ml-auto"
+                        className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl transition-colors text-sm font-bold ml-auto ${
+                          pendingDeleteLibId === ex.id
+                            ? "bg-rose-500 text-white"
+                            : "bg-rose-50 text-rose-600 hover:bg-rose-100"
+                        }`}
                       >
                         <Trash2 size={15} />
-                        Eliminar
+                        {pendingDeleteLibId === ex.id ? "¿Confirmar?" : "Eliminar"}
                       </button>
                     </div>
                   </Card>

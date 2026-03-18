@@ -13,6 +13,7 @@ import {
   HeartPulse,
 } from 'lucide-react';
 import { Card, Button, Input } from '../components/UI';
+import { useToast } from '../context/ToastContext';
 import { Plan, Student } from '../../shared/types';
 import { calculateNextDueDate } from '../utils/dateUtils';
 
@@ -30,6 +31,7 @@ export const NewStudentView: React.FC<NewStudentViewProps> = ({
   onBack,
   onCreateStudent,
 }) => {
+  const toast = useToast();
   const safePlans = Array.isArray(plans) ? plans : [];
 
   const normalizedPlans = useMemo(() => {
@@ -86,13 +88,13 @@ export const NewStudentView: React.FC<NewStudentViewProps> = ({
 
   const handleSubmit = (registerPayment: boolean) => {
     if (!formData.nombre.trim() || !formData.apellido.trim()) {
-      alert('Por favor completá nombre y apellido');
+      toast.error('Por favor completá nombre y apellido');
       return;
     }
 
     const selectedPlan = activePlans.find((p: any) => p.id === formData.planId);
     if (!selectedPlan) {
-      alert('Seleccioná un plan');
+      toast.error('Seleccioná un plan');
       return;
     }
 

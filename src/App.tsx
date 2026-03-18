@@ -22,6 +22,7 @@ import { SubscriptionGuard } from './components/SubscriptionGuard';
 import { DemoTour } from './components/DemoTour';
 import { ThemeProvider } from './context/ThemeContext';
 import { ShiftService } from './services/ShiftService';
+import { useToast } from './context/ToastContext';
 
 import {
   Student,
@@ -212,6 +213,7 @@ function GymApp({ gymId, userRole, onLogout, isDemo = false, onRegister }: {
   isDemo?: boolean;
   onRegister?: () => void;
 }) {
+  const toast = useToast();
   const currentUserRole = userRole;
   const canViewFinancials = currentUserRole === 'admin';
   const canManageSettings = currentUserRole === 'admin';
@@ -354,7 +356,7 @@ function GymApp({ gymId, userRole, onLogout, isDemo = false, onRegister }: {
       }
     } catch (error: any) {
       console.error('Error registering payment:', error);
-      alert(`No se pudo registrar el pago: ${error?.message ?? 'Error desconocido'}`);
+      toast.error(`No se pudo registrar el pago: ${error?.message ?? 'Error desconocido'}`);
     }
   };
 
@@ -398,7 +400,7 @@ function GymApp({ gymId, userRole, onLogout, isDemo = false, onRegister }: {
       const dup = findDuplicatePhone(phone);
       if (dup) {
         const dupName = `${(dup as any).nombre ?? ''} ${(dup as any).apellido ?? ''}`.trim();
-        alert(`Ya existe un alumno con ese teléfono: ${dupName}`);
+        toast.error(`Ya existe un alumno con ese teléfono: ${dupName}`);
         return;
       }
     }
@@ -424,7 +426,7 @@ function GymApp({ gymId, userRole, onLogout, isDemo = false, onRegister }: {
       setCurrentView('students');
     } catch (error: any) {
       console.error('Error creating student:', error);
-      alert(`No se pudo crear el alumno: ${error?.message ?? 'Error desconocido'}`);
+      toast.error(`No se pudo crear el alumno: ${error?.message ?? 'Error desconocido'}`);
     }
   };
 
@@ -434,7 +436,7 @@ function GymApp({ gymId, userRole, onLogout, isDemo = false, onRegister }: {
       const dup = findDuplicatePhone(phone, id);
       if (dup) {
         const dupName = `${(dup as any).nombre ?? ''} ${(dup as any).apellido ?? ''}`.trim();
-        alert(`Ya existe un alumno con ese teléfono: ${dupName}`);
+        toast.error(`Ya existe un alumno con ese teléfono: ${dupName}`);
         return;
       }
     }
@@ -445,7 +447,7 @@ function GymApp({ gymId, userRole, onLogout, isDemo = false, onRegister }: {
       setSelectedStudent(updatedStudents.find((s: any) => s.id === id) ?? null);
     } catch (error: any) {
       console.error('Error updating student:', error);
-      alert(`No se pudo guardar los cambios: ${error?.message ?? 'Error desconocido'}`);
+      toast.error(`No se pudo guardar los cambios: ${error?.message ?? 'Error desconocido'}`);
     }
   };
 
@@ -458,7 +460,7 @@ function GymApp({ gymId, userRole, onLogout, isDemo = false, onRegister }: {
       setCurrentView('students');
     } catch (error: any) {
       console.error('Error deleting student:', error);
-      alert(`No se pudo eliminar el alumno: ${error?.message ?? 'Error desconocido'}`);
+      toast.error(`No se pudo eliminar el alumno: ${error?.message ?? 'Error desconocido'}`);
     }
   };
 
@@ -536,6 +538,7 @@ function GymApp({ gymId, userRole, onLogout, isDemo = false, onRegister }: {
             shiftsEnabled={shiftsEnabled}
             onToggleShifts={handleToggleShifts}
             gymId={gymId}
+            gymName={gymSubscription?.gym_name}
           />
         );
       case 'automation':
