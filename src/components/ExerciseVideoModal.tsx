@@ -1,4 +1,5 @@
-import { X } from 'lucide-react';
+import { useState } from 'react';
+import { X, ImageOff } from 'lucide-react';
 import { getYouTubeEmbedUrl } from '../lib/youtube';
 
 interface ExerciseVideoModalProps {
@@ -18,6 +19,8 @@ export function ExerciseVideoModal({
   exerciseName,
   videoUrl,
 }: ExerciseVideoModalProps) {
+  const [imgError, setImgError] = useState(false);
+
   if (!isOpen) return null;
 
   const isImage = isImageUrl(videoUrl);
@@ -48,12 +51,29 @@ export function ExerciseVideoModal({
 
         {/* Media */}
         {isImage ? (
-          <div className="flex items-center justify-center bg-slate-50 dark:bg-slate-900 p-4">
-            <img
-              src={videoUrl}
-              alt={exerciseName}
-              className="max-h-96 object-contain rounded-2xl"
-            />
+          <div className="flex items-center justify-center bg-slate-50 dark:bg-slate-900 p-4 min-h-40">
+            {imgError ? (
+              <div className="flex flex-col items-center gap-3 text-slate-400 py-8">
+                <ImageOff size={40} />
+                <p className="text-sm text-center">No se pudo cargar la imagen.</p>
+                <a
+                  href={videoUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-blue-500 underline break-all text-center max-w-xs"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  Abrir URL directamente
+                </a>
+              </div>
+            ) : (
+              <img
+                src={videoUrl}
+                alt={exerciseName}
+                className="max-h-96 object-contain rounded-2xl"
+                onError={() => setImgError(true)}
+              />
+            )}
           </div>
         ) : (
           <div className="relative w-full bg-black" style={{ aspectRatio: '16/9' }}>
