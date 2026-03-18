@@ -37,7 +37,7 @@ export const RegisterGymView: React.FC<RegisterGymViewProps> = ({ onBack, onSucc
       if (!signUpData.user) throw new Error('No se pudo crear la cuenta.');
 
       // 2. Create gym + subscription in DB
-      const gym = await api.subscriptions.createGym({ name: gymName, owner_email: email });
+      const gym = await api.subscriptions.createGym({ name: gymName, owner_email: email, owner_phone: phone });
 
       // 3. Link gym_id to the Supabase user metadata
       const { error: updateError } = await supabase.auth.updateUser({

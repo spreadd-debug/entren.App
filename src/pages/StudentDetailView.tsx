@@ -34,6 +34,7 @@ interface StudentDetailViewProps {
   student: Student;
   payments: Payment[];
   plans: Plan[];
+  gymId: string;
   onBack: () => void;
   onRegisterPayment: (data: {
     studentId: string;
@@ -46,12 +47,11 @@ interface StudentDetailViewProps {
   onDeleteStudent: (id: string) => void;
 }
 
-const gymId = '11111111-1111-1111-1111-111111111111';
-
 export const StudentDetailView: React.FC<StudentDetailViewProps> = ({
   student,
   payments,
   plans,
+  gymId,
   onBack,
   onRegisterPayment,
   onUpdateStudent,
@@ -437,14 +437,22 @@ export const StudentDetailView: React.FC<StudentDetailViewProps> = ({
       </div>
 
       <div className="grid grid-cols-3 gap-3">
-        <Button variant="outline" className="flex-col gap-2 py-4 h-auto">
+        <a
+          href={`tel:${(student as any).telefono ?? ''}`}
+          className="flex flex-col items-center gap-2 py-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+        >
           <Phone size={20} className="text-indigo-600" />
-          <span className="text-xs font-bold">Llamar</span>
-        </Button>
-        <Button variant="outline" className="flex-col gap-2 py-4 h-auto">
+          <span className="text-xs font-bold text-slate-700 dark:text-slate-200">Llamar</span>
+        </a>
+        <a
+          href={`https://wa.me/${((student as any).telefono ?? '').replace(/\D/g, '')}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex flex-col items-center gap-2 py-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+        >
           <MessageSquare size={20} className="text-emerald-600" />
-          <span className="text-xs font-bold">WhatsApp</span>
-        </Button>
+          <span className="text-xs font-bold text-slate-700 dark:text-slate-200">WhatsApp</span>
+        </a>
         <Button
           variant={showAttendance ? 'secondary' : 'outline'}
           className="flex-col gap-2 py-4 h-auto"

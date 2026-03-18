@@ -505,6 +505,7 @@ function GymApp({ gymId, userRole, onLogout, isDemo = false, onRegister }: {
             student={selectedStudent}
             payments={payments.filter((p: any) => (p.studentId ?? p.student_id) === selectedStudent.id)}
             plans={plans}
+            gymId={gymId}
             onBack={() => setCurrentView('students')}
             onRegisterPayment={handleRegisterPayment}
             onUpdateStudent={handleUpdateStudent}
@@ -561,7 +562,7 @@ function GymApp({ gymId, userRole, onLogout, isDemo = false, onRegister }: {
           />
         );
       case 'workouts':
-        return <WorkoutPlansView />;
+        return <WorkoutPlansView gymId={gymId} />;
       case 'new-student':
         return (
           <NewStudentView

@@ -13,8 +13,6 @@ import { Card, Button, Input } from "../components/UI";
 import { WorkoutPlanService, LibraryExercise } from "../services/WorkoutPlanService";
 import { ExerciseVideoModal } from "../components/ExerciseVideoModal";
 
-const gymId = "11111111-1111-1111-1111-111111111111";
-
 // Ordered top-to-bottom following body anatomy
 const MUSCLE_GROUPS = [
   "Cuello",
@@ -38,7 +36,7 @@ const MUSCLE_GROUPS = [
 
 type Tab = "plans" | "library";
 
-export default function WorkoutPlansView() {
+export default function WorkoutPlansView({ gymId }: { gymId: string }) {
   const [activeTab, setActiveTab] = useState<Tab>("plans");
 
   // ─── Plans ────────────────────────────────────────────────────────────────
