@@ -8,11 +8,18 @@ import {
   Pencil,
   BookOpen,
   ChevronDown,
+  Users,
+  Bell,
+  AlertTriangle,
+  CheckCircle2,
 } from "lucide-react";
 import { Card, Button, Input } from "../components/UI";
 import { WorkoutPlanService, LibraryExercise } from "../services/WorkoutPlanService";
+import { WorkoutRequestService } from "../services/WorkoutRequestService";
 import { ExerciseVideoModal } from "../components/ExerciseVideoModal";
 import { useToast } from "../context/ToastContext";
+import { getWorkoutFreshness } from "../config/workoutConfig";
+import { supabase } from "../db/supabase";
 
 // Ordered top-to-bottom following body anatomy
 const MUSCLE_GROUPS = [
@@ -35,11 +42,16 @@ const MUSCLE_GROUPS = [
   "Pantorrillas",
 ];
 
-type Tab = "plans" | "library";
+type Tab = "plans" | "library" | "students";
 
 export default function WorkoutPlansView({ gymId }: { gymId: string }) {
   const toast = useToast();
   const [activeTab, setActiveTab] = useState<Tab>("plans");
+
+  // ─── Students tab state ───────────────────────────────────────────────────
+  const [studentsWorkoutData, setStudentsWorkoutData] = useState<any[]>([]);
+  const [isLoadingStudents, setIsLoadingStudents] = useState(false);
+  const [studentsLoaded, setStudentsLoaded] = useState(false);
   const [pendingDeletePlanId, setPendingDeletePlanId] = useState<string | null>(null);
   const [pendingDeleteExerciseId, setPendingDeleteExerciseId] = useState<string | null>(null);
   const [pendingDeleteLibId, setPendingDeleteLibId] = useState<string | null>(null);
@@ -283,6 +295,92 @@ export default function WorkoutPlansView({ gymId }: { gymId: string }) {
     await loadLibrary();
   };
 
+  // ─── Students tab: carga lazy cuando se abre por primera vez ────────────────
+
+  const loadStudentsWorkoutData = async () => {
+    try {
+      setIsLoadingStudents(true);
+
+      // 1. Alumnos activos del gym
+      const { data: students } = await supabase
+        .from("students")
+        .select("id, nombre, apellido")
+        .eq("gym_id", gymId)
+        .eq("status", "activo");
+
+      // 2. Asignaciones activas con nombre del plan
+      const { data: assignments } = await supabase
+        .from("student_workout_assignments")
+        .select("student_id, workout_plan_id, updated_at, workout_plans(name)")
+        .eq("gym_id", gymId)
+        .eq("active", true);
+
+      // 3. Solicitudes pendientes
+      const pendingRequests = await WorkoutRequestService.getPendingRequests(gymId);
+      const requestsByStudent = new Map(
+        pendingRequests.map((r: any) => [r.student_id, r]),
+      );
+
+      // 4. Merge: una fila por alumno con su asignación más reciente
+      const assignmentsByStudent = new Map<string, any>();
+      (assignments ?? []).forEach((a: any) => {
+        const existing = assignmentsByStudent.get(a.student_id);
+        if (!existing || new Date(a.updated_at) > new Date(existing.updated_at)) {
+          assignmentsByStudent.set(a.student_id, a);
+        }
+      });
+
+      const rows = (students ?? []).map((s: any) => {
+        const assignment = assignmentsByStudent.get(s.id) ?? null;
+        const request = requestsByStudent.get(s.id) ?? null;
+        return {
+          id: s.id,
+          name: `${s.nombre ?? ""} ${s.apellido ?? ""}`.trim(),
+          plan_name: assignment?.workout_plans?.name ?? null,
+          updated_at: assignment?.updated_at ?? null,
+          hasPendingRequest: !!request,
+          request,
+        };
+      });
+
+      // Ordenar: pendientes primero, luego por antigüedad desc (más viejos primero)
+      rows.sort((a, b) => {
+        if (a.hasPendingRequest !== b.hasPendingRequest) return a.hasPendingRequest ? -1 : 1;
+        if (!a.updated_at && !b.updated_at) return 0;
+        if (!a.updated_at) return -1;
+        if (!b.updated_at) return 1;
+        return new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime();
+      });
+
+      setStudentsWorkoutData(rows);
+      setStudentsLoaded(true);
+    } catch (error) {
+      console.error("Error loading students workout data:", error);
+    } finally {
+      setIsLoadingStudents(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "students" && !studentsLoaded) {
+      loadStudentsWorkoutData();
+    }
+  }, [activeTab]);
+
+  const handleResolveRequest = async (requestId: string, studentId: string) => {
+    try {
+      await WorkoutRequestService.resolveRequest(requestId);
+      setStudentsWorkoutData((prev) =>
+        prev.map((s) =>
+          s.id === studentId ? { ...s, hasPendingRequest: false, request: null } : s,
+        ),
+      );
+      toast.success("Solicitud marcada como atendida");
+    } catch (error) {
+      toast.error("No se pudo actualizar la solicitud");
+    }
+  };
+
   // ─── Render ───────────────────────────────────────────────────────────────
   return (
     <div className="space-y-6 pb-10">
@@ -320,6 +418,17 @@ export default function WorkoutPlansView({ gymId }: { gymId: string }) {
               {libraryExercises.length}
             </span>
           )}
+        </button>
+        <button
+          onClick={() => setActiveTab("students")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all ${
+            activeTab === "students"
+              ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-lg"
+              : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700"
+          }`}
+        >
+          <Users size={16} />
+          Alumnos
         </button>
       </div>
 
@@ -941,6 +1050,91 @@ export default function WorkoutPlansView({ gymId }: { gymId: string }) {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* ── STUDENTS TAB ──────────────────────────────────────────────────────── */}
+      {activeTab === "students" && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-base font-black text-slate-900 dark:text-white">Estado de rutinas</h2>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
+                Alumnos ordenados por antigüedad de rutina · 🟢 &lt;14d · 🟡 14–30d · 🔴 &gt;30d
+              </p>
+            </div>
+            <button
+              onClick={() => { setStudentsLoaded(false); loadStudentsWorkoutData(); }}
+              className="p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              title="Actualizar"
+            >
+              <CheckCircle2 size={16} />
+            </button>
+          </div>
+
+          {isLoadingStudents ? (
+            <Card className="p-8 text-center">
+              <p className="text-sm text-slate-400 dark:text-slate-500">Cargando...</p>
+            </Card>
+          ) : studentsWorkoutData.length === 0 ? (
+            <Card className="p-8 text-center">
+              <Users size={28} className="text-slate-200 dark:text-slate-700 mx-auto mb-2" />
+              <p className="text-sm text-slate-400 dark:text-slate-500">No hay alumnos activos.</p>
+            </Card>
+          ) : (
+            <div className="space-y-2">
+              {studentsWorkoutData.map((row) => {
+                const freshness = getWorkoutFreshness(row.updated_at);
+                return (
+                  <Card key={row.id} className="p-4">
+                    <div className="flex items-center gap-3">
+                      {/* Dot de antigüedad */}
+                      <span className={`w-3 h-3 rounded-full shrink-0 ${freshness.dotClass}`} />
+
+                      {/* Nombre + plan */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-bold text-slate-900 dark:text-white">{row.name}</p>
+                          {row.hasPendingRequest && (
+                            <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                              <Bell size={9} />
+                              Pide nueva rutina
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                          {row.plan_name ?? "Sin rutina asignada"}
+                        </p>
+                      </div>
+
+                      {/* Badge de antigüedad */}
+                      <div className="shrink-0 text-right">
+                        {row.updated_at ? (
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold border ${freshness.bgClass} ${freshness.colorClass} ${freshness.borderClass}`}>
+                            {freshness.level === 'outdated' && <AlertTriangle size={10} />}
+                            {freshness.label}
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-400 border border-slate-200 dark:border-slate-700">
+                            Sin asignar
+                          </span>
+                        )}
+                        {row.hasPendingRequest && row.request && (
+                          <button
+                            onClick={() => handleResolveRequest(row.request.id, row.id)}
+                            className="mt-1 flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 transition-colors"
+                          >
+                            <CheckCircle2 size={10} />
+                            Marcar atendida
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 

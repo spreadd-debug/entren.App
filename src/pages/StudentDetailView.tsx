@@ -21,15 +21,19 @@ import {
   ChevronDown,
   ChevronLeft,
   ClipboardList,
+  Plus,
+  CheckCircle2,
 } from 'lucide-react';
 import { Card, StatusBadge, Button, BillingBadge, Input } from '../components/UI';
-import { Student, Payment, Plan } from '../../shared/types';
+import { Student, Payment, Plan, WorkoutOption, WorkoutUpdateRequest } from '../../shared/types';
 import { formatDate } from '../utils/dateUtils';
 import { RegisterPaymentModal } from '../components/RegisterPaymentModal';
 import { WorkoutPlanService } from '../services/WorkoutPlanService';
+import { WorkoutRequestService } from '../services/WorkoutRequestService';
 import { ExerciseVideoModal } from '../components/ExerciseVideoModal';
 import { CheckInService } from '../services/CheckInService';
 import { useToast } from '../context/ToastContext';
+import { getWorkoutFreshness } from '../config/workoutConfig';
 
 interface StudentDetailViewProps {
   student: Student;
@@ -64,10 +68,12 @@ export const StudentDetailView: React.FC<StudentDetailViewProps> = ({
   const [pendingDelete, setPendingDelete] = useState(false);
 
   const [workoutPlans, setWorkoutPlans] = useState<any[]>([]);
+  const [workoutOptions, setWorkoutOptions] = useState<WorkoutOption[]>([]);
   const [studentWorkoutExercises, setStudentWorkoutExercises] = useState<any[]>([]);
+  const [pendingUpdateRequest, setPendingUpdateRequest] = useState<WorkoutUpdateRequest | null>(null);
   const [selectedWorkoutPlanId, setSelectedWorkoutPlanId] = useState('');
   const [isLoadingWorkout, setIsLoadingWorkout] = useState(true);
-  const [isAssigningWorkout, setIsAssigningWorkout] = useState(false);
+  const [isAddingOption, setIsAddingOption] = useState(false);
   const [videoModal, setVideoModal] = useState<{
     isOpen: boolean;
     exerciseName: string;
@@ -160,17 +166,19 @@ export const StudentDetailView: React.FC<StudentDetailViewProps> = ({
     try {
       setIsLoadingWorkout(true);
 
-      const [plansData, exercisesData] = await Promise.all([
+      const [plansData, optionsData, exercisesData, requestData] = await Promise.allSettled([
         WorkoutPlanService.getPlans(gymId),
+        WorkoutPlanService.getStudentWorkoutOptions(student.id),
         WorkoutPlanService.getStudentWorkout(student.id),
+        WorkoutRequestService.getOpenRequest(student.id),
       ]);
 
-      setWorkoutPlans(Array.isArray(plansData) ? plansData : []);
-      setStudentWorkoutExercises(Array.isArray(exercisesData) ? exercisesData : []);
+      setWorkoutPlans(plansData.status === 'fulfilled' && Array.isArray(plansData.value) ? plansData.value : []);
+      setWorkoutOptions(optionsData.status === 'fulfilled' && Array.isArray(optionsData.value) ? optionsData.value : []);
+      setStudentWorkoutExercises(exercisesData.status === 'fulfilled' && Array.isArray(exercisesData.value) ? exercisesData.value : []);
+      setPendingUpdateRequest(requestData.status === 'fulfilled' ? requestData.value : null);
     } catch (error) {
       console.error('Error loading workout data:', error);
-      setWorkoutPlans([]);
-      setStudentWorkoutExercises([]);
     } finally {
       setIsLoadingWorkout(false);
     }
@@ -188,19 +196,40 @@ export const StudentDetailView: React.FC<StudentDetailViewProps> = ({
       .finally(() => setIsLoadingCheckIns(false));
   }, [student.id]);
 
-  const handleAssignWorkout = async () => {
+  const handleAddOption = async () => {
     if (!selectedWorkoutPlanId) return;
-
     try {
-      setIsAssigningWorkout(true);
-      await WorkoutPlanService.assignPlanToStudent(gymId, student.id, selectedWorkoutPlanId);
+      setIsAddingOption(true);
+      await WorkoutPlanService.addWorkoutOption(gymId, student.id, selectedWorkoutPlanId);
       await loadWorkoutData();
-      toast.success('Rutina asignada correctamente');
+      setSelectedWorkoutPlanId('');
+      toast.success('Rutina agregada como opción disponible');
     } catch (error) {
-      console.error('Error assigning workout:', error);
-      toast.error('No se pudo asignar la rutina');
+      console.error('Error adding workout option:', error);
+      toast.error('No se pudo agregar la opción');
     } finally {
-      setIsAssigningWorkout(false);
+      setIsAddingOption(false);
+    }
+  };
+
+  const handleRemoveOption = async (assignmentId: string) => {
+    try {
+      await WorkoutPlanService.removeWorkoutOption(assignmentId);
+      await loadWorkoutData();
+      toast.success('Opción eliminada');
+    } catch (error) {
+      toast.error('No se pudo eliminar la opción');
+    }
+  };
+
+  const handleResolveRequest = async () => {
+    if (!pendingUpdateRequest) return;
+    try {
+      await WorkoutRequestService.resolveRequest(pendingUpdateRequest.id);
+      setPendingUpdateRequest(null);
+      toast.success('Solicitud marcada como atendida');
+    } catch (error) {
+      toast.error('No se pudo actualizar la solicitud');
     }
   };
 
@@ -699,52 +728,100 @@ export const StudentDetailView: React.FC<StudentDetailViewProps> = ({
         )}
 
         <Card className="p-4 space-y-4">
-          <h3 className="font-bold text-slate-900 dark:text-white border-b border-slate-50 dark:border-slate-700 pb-2">Rutina</h3>
-
-          <div className="flex items-start gap-3">
-            <div className="p-2 bg-slate-100 dark:bg-slate-700 rounded-lg text-slate-600 dark:text-slate-300">
-              <Dumbbell size={18} />
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-bold text-slate-900 dark:text-white">Rutina actual</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                {isLoadingWorkout
-                  ? 'Cargando rutina...'
-                  : studentWorkoutExercises.length > 0
-                  ? `${studentWorkoutExercises.length} ejercicios cargados`
-                  : 'Sin rutina asignada'}
-              </p>
-            </div>
+          {/* Cabecera con indicador de solicitud pendiente */}
+          <div className="flex items-center justify-between border-b border-slate-50 dark:border-slate-700 pb-2">
+            <h3 className="font-bold text-slate-900 dark:text-white">Rutinas disponibles</h3>
+            {pendingUpdateRequest && (
+              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                <Bell size={11} />
+                Pide nueva rutina
+              </span>
+            )}
           </div>
 
-          <select
-            className="w-full px-4 h-12 rounded-2xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 dark:text-white"
-            value={selectedWorkoutPlanId}
-            onChange={(e) => setSelectedWorkoutPlanId(e.target.value)}
-          >
-            <option value="">Seleccionar rutina</option>
-            {workoutPlans.map((plan: any) => (
-              <option key={plan.id} value={plan.id}>
-                {plan.name}
-              </option>
-            ))}
-          </select>
+          {/* Lista de opciones activas con staleness */}
+          {isLoadingWorkout ? (
+            <p className="text-xs text-slate-400 dark:text-slate-500 text-center py-2">Cargando...</p>
+          ) : workoutOptions.length > 0 ? (
+            <div className="space-y-2">
+              {workoutOptions.map((option) => {
+                const freshness = getWorkoutFreshness(option.updated_at);
+                return (
+                  <div
+                    key={option.id}
+                    className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700"
+                  >
+                    <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${freshness.dotClass}`} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{option.plan_name}</p>
+                      <p className={`text-xs ${freshness.colorClass}`}>
+                        {freshness.daysOld !== null
+                          ? `Actualizada hace ${freshness.daysOld} día${freshness.daysOld === 1 ? '' : 's'}`
+                          : 'Sin fecha de actualización'}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleRemoveOption(option.id)}
+                      className="p-1.5 rounded-lg text-slate-300 dark:text-slate-600 hover:text-rose-500 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors shrink-0"
+                      title="Quitar esta opción"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-sm text-slate-400 dark:text-slate-500 text-center py-1">Sin rutinas asignadas</p>
+          )}
 
-          <Button
-            variant="secondary"
-            fullWidth
-            onClick={handleAssignWorkout}
-            disabled={!selectedWorkoutPlanId || isAssigningWorkout}
-          >
-            {isAssigningWorkout ? 'Asignando...' : 'Asignar / Cambiar rutina'}
-          </Button>
+          {/* Botón para atender la solicitud del alumno */}
+          {pendingUpdateRequest && (
+            <button
+              onClick={handleResolveRequest}
+              className="w-full flex items-center justify-center gap-2 py-2.5 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 bg-emerald-500/5 hover:bg-emerald-500/10 rounded-xl border border-emerald-500/20 transition-colors"
+            >
+              <CheckCircle2 size={13} />
+              Marcar solicitud como atendida
+            </button>
+          )}
 
-          <div className="space-y-3">
-            {studentWorkoutExercises.length > 0 ? (
-              studentWorkoutExercises.map((exercise: any, index: number) => (
+          {/* Agregar opción */}
+          <div className="pt-1 space-y-2 border-t border-slate-100 dark:border-slate-700">
+            <select
+              className="w-full px-4 h-12 rounded-2xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 dark:text-white text-sm"
+              value={selectedWorkoutPlanId}
+              onChange={(e) => setSelectedWorkoutPlanId(e.target.value)}
+            >
+              <option value="">Agregar rutina disponible...</option>
+              {workoutPlans
+                .filter((p: any) => !workoutOptions.some((o) => o.workout_plan_id === p.id))
+                .map((plan: any) => (
+                  <option key={plan.id} value={plan.id}>{plan.name}</option>
+                ))}
+            </select>
+
+            <Button
+              variant="secondary"
+              fullWidth
+              onClick={handleAddOption}
+              disabled={!selectedWorkoutPlanId || isAddingOption}
+            >
+              <Plus size={15} className="inline mr-1" />
+              {isAddingOption ? 'Agregando...' : 'Agregar como opción'}
+            </Button>
+          </div>
+
+          {/* Vista previa de ejercicios de la primera opción */}
+          {studentWorkoutExercises.length > 0 && (
+            <div className="space-y-1 border-t border-slate-100 dark:border-slate-700 pt-3">
+              <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">
+                Ejercicios ({workoutOptions[0]?.plan_name ?? 'Rutina'})
+              </p>
+              {studentWorkoutExercises.map((exercise: any, index: number) => (
                 <div
                   key={exercise.id}
-                  className="flex items-center justify-between py-3 border-b border-slate-50 dark:border-slate-700 last:border-0 gap-3"
+                  className="flex items-center justify-between py-2.5 border-b border-slate-50 dark:border-slate-700 last:border-0 gap-3"
                 >
                   <div>
                     <p className="text-sm font-bold text-slate-900 dark:text-white">
@@ -774,15 +851,10 @@ export const StudentDetailView: React.FC<StudentDetailViewProps> = ({
                     <Dumbbell size={16} className="text-slate-300 dark:text-slate-600 shrink-0" />
                   )}
                 </div>
-              ))
-            ) : (
-              !isLoadingWorkout && (
-                <p className="text-sm text-slate-400 dark:text-slate-500 text-center py-2">
-                  Este alumno todavía no tiene rutina asignada.
-                </p>
-              )
-            )}
-          </div>
+              ))}
+            </div>
+          )}
+
         </Card>
 
         <Card className="p-4 space-y-4">

@@ -159,6 +159,60 @@ export interface CheckIn {
   checked_in_at: string;
 }
 
+// ─── Workout (multi-option, sessions, requests) ───────────────────────────────
+
+/** Una rutina disponible para un alumno (fila de student_workout_assignments + plan info) */
+export interface WorkoutOption {
+  id: string;             // assignment id
+  gym_id: string;
+  student_id: string;
+  workout_plan_id: string;
+  plan_name: string;
+  plan_description: string | null;
+  /** Fecha de última modificación de la asignación — base para calcular antigüedad */
+  updated_at: string;
+  created_at: string;
+}
+
+/** Sesión diaria de entrenamiento elegida por el alumno */
+export interface WorkoutSession {
+  id: string;
+  gym_id: string;
+  student_id: string;
+  workout_plan_id: string;
+  session_date: string;   // "YYYY-MM-DD"
+  completed_at: string | null;
+  created_at: string;
+}
+
+/** Estado de un ejercicio dentro de una sesión (checklist) */
+export interface WorkoutSessionExercise {
+  id: string;
+  session_id: string;
+  workout_exercise_id: string;
+  completed: boolean;
+  created_at: string;
+  // Datos del ejercicio (join de workout_exercises)
+  exercise_name: string;
+  sets: number | null;
+  reps: string | null;
+  weight: string | null;
+  rest_seconds: number | null;
+  notes: string | null;
+  video_url: string | null;
+  exercise_order: number;
+}
+
+/** Solicitud del alumno para que el profe actualice su rutina */
+export interface WorkoutUpdateRequest {
+  id: string;
+  gym_id: string;
+  student_id: string;
+  status: 'pending' | 'acknowledged' | 'resolved';
+  created_at: string;
+  resolved_at: string | null;
+}
+
 // ─── Gym Subscription ────────────────────────────────────────────────────────
 
 export type GymSubscriptionStatus = 'trial' | 'active' | 'past_due' | 'suspended' | 'cancelled';

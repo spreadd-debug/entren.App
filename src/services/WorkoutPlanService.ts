@@ -148,6 +148,8 @@ export const WorkoutPlanService = {
 
   // ─── Student Workout Assignments ──────────────────────────────────────────
 
+  // ─── Asignación (comportamiento original: reemplaza la opción activa) ─────────
+
   async assignPlanToStudent(gymId: string, studentId: string, planId: string) {
     await supabase
       .from("student_workout_assignments")
@@ -166,14 +168,80 @@ export const WorkoutPlanService = {
     if (error) throw error;
   },
 
+  // ─── Multi-opción: agregar rutina disponible sin quitar las otras ────────────
+
+  /**
+   * Agrega una rutina como opción disponible para el alumno.
+   * No desactiva las otras opciones existentes (a diferencia de assignPlanToStudent).
+   * Si la rutina ya está asignada y activa, no hace nada.
+   */
+  async addWorkoutOption(gymId: string, studentId: string, planId: string): Promise<void> {
+    const { data: existing } = await supabase
+      .from("student_workout_assignments")
+      .select("id")
+      .eq("student_id", studentId)
+      .eq("workout_plan_id", planId)
+      .eq("active", true)
+      .limit(1);
+
+    if (existing && existing.length > 0) return; // ya está asignada
+
+    const { error } = await supabase
+      .from("student_workout_assignments")
+      .insert({ gym_id: gymId, student_id: studentId, workout_plan_id: planId, active: true });
+
+    if (error) throw error;
+  },
+
+  /**
+   * Quita una opción de rutina del alumno (desactiva la asignación por ID).
+   */
+  async removeWorkoutOption(assignmentId: string): Promise<void> {
+    const { error } = await supabase
+      .from("student_workout_assignments")
+      .update({ active: false })
+      .eq("id", assignmentId);
+
+    if (error) throw error;
+  },
+
+  /**
+   * Devuelve todas las opciones de rutina activas del alumno, con nombre y
+   * descripción del plan, ordenadas de más reciente a más antigua.
+   */
+  async getStudentWorkoutOptions(studentId: string): Promise<any[]> {
+    const { data } = await supabase
+      .from("student_workout_assignments")
+      .select("*, workout_plans(id, name, description, updated_at)")
+      .eq("student_id", studentId)
+      .eq("active", true)
+      .order("updated_at", { ascending: false });
+
+    return (data ?? []).map((row: any) => ({
+      id: row.id,
+      gym_id: row.gym_id,
+      student_id: row.student_id,
+      workout_plan_id: row.workout_plan_id,
+      plan_name: row.workout_plans?.name ?? "",
+      plan_description: row.workout_plans?.description ?? null,
+      updated_at: row.updated_at ?? row.created_at,
+      created_at: row.created_at,
+    }));
+  },
+
+  // ─── Consulta compatibilidad: ejercicios de la rutina primaria ───────────────
+
   async getStudentWorkout(studentId: string) {
-    const { data: assignment } = await supabase
+    // Usa limit(1) en lugar de .single() para soportar múltiples activas
+    const { data: assignments } = await supabase
       .from("student_workout_assignments")
       .select("*")
       .eq("student_id", studentId)
       .eq("active", true)
-      .single();
+      .order("updated_at", { ascending: false })
+      .limit(1);
 
+    const assignment = assignments?.[0] ?? null;
     if (!assignment) return null;
 
     const { data: exercises } = await supabase
