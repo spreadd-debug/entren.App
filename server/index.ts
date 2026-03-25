@@ -13,7 +13,12 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const { default: express } = await import("express");
+    const path = await import("path");
     app.use(express.static("dist"));
+    // SPA fallback: serve index.html for all non-API routes
+    app.get("*", (_req, res) => {
+      res.sendFile(path.resolve("dist", "index.html"));
+    });
   }
 
   app.listen(PORT, "0.0.0.0", () => {

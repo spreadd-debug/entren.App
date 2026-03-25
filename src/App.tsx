@@ -1,5 +1,6 @@
 import { supabase } from './db/supabase';
 import React, { useState, useEffect } from 'react';
+import { Routes, Route, useNavigate, useLocation, useParams, Navigate } from 'react-router-dom';
 import { AppShell } from './components/AppShell';
 import { DashboardView } from './pages/DashboardView';
 import { StudentsView } from './pages/StudentsView';
@@ -23,6 +24,7 @@ import { DemoTour } from './components/DemoTour';
 import { ThemeProvider } from './context/ThemeContext';
 import { ShiftService } from './services/ShiftService';
 import { useToast } from './context/ToastContext';
+import { viewToPath, pathToView } from './utils/routes';
 
 import {
   Student,
@@ -36,21 +38,6 @@ import {
 } from '../shared/types';
 
 import { api } from './services/api';
-
-type GymView =
-  | 'dashboard'
-  | 'students'
-  | 'student-detail'
-  | 'payments'
-  | 'defaulters'
-  | 'settings'
-  | 'register'
-  | 'plans'
-  | 'new-student'
-  | 'automation'
-  | 'workouts'
-  | 'shifts'
-  | 'student-portal';
 
 export default function App() {
 
@@ -214,12 +201,13 @@ function GymApp({ gymId, userRole, onLogout, isDemo = false, onRegister }: {
   onRegister?: () => void;
 }) {
   const toast = useToast();
+  const navigate = useNavigate();
+  const location = useLocation();
   const currentUserRole = userRole;
   const canViewFinancials = currentUserRole === 'admin';
   const canManageSettings = currentUserRole === 'admin';
 
-  const [currentView, setCurrentView] = useState<GymView>('dashboard');
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const currentView = pathToView(location.pathname);
 
   const [students, setStudents] = useState<Student[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -327,13 +315,11 @@ function GymApp({ gymId, userRole, onLogout, isDemo = false, onRegister }: {
   };
 
   const handleNavigate = (view: string) => {
-    setCurrentView(view as GymView);
-    if (view !== 'student-detail') setSelectedStudent(null);
+    navigate(viewToPath(view));
   };
 
   const handleSelectStudent = (student: Student) => {
-    setSelectedStudent(student);
-    setCurrentView('student-detail');
+    navigate(viewToPath('student-detail', { studentId: student.id }));
   };
 
   const handleRegisterPayment = async (paymentData: {
@@ -351,9 +337,6 @@ function GymApp({ gymId, userRole, onLogout, isDemo = false, onRegister }: {
       ]);
       setStudents(updatedStudents);
       setPayments(updatedPayments);
-      if (selectedStudent?.id === paymentData.studentId) {
-        setSelectedStudent(updatedStudents.find((s: any) => s.id === paymentData.studentId) ?? null);
-      }
     } catch (error: any) {
       console.error('Error registering payment:', error);
       toast.error(`No se pudo registrar el pago: ${error?.message ?? 'Error desconocido'}`);
@@ -423,7 +406,7 @@ function GymApp({ gymId, userRole, onLogout, isDemo = false, onRegister }: {
       ]);
       setStudents(updatedStudents);
       setPayments(updatedPayments);
-      setCurrentView('students');
+      navigate('/students');
     } catch (error: any) {
       console.error('Error creating student:', error);
       toast.error(`No se pudo crear el alumno: ${error?.message ?? 'Error desconocido'}`);
@@ -444,7 +427,6 @@ function GymApp({ gymId, userRole, onLogout, isDemo = false, onRegister }: {
       await api.students.update(id, updates);
       const updatedStudents = await api.students.getAll(gymId);
       setStudents(updatedStudents);
-      setSelectedStudent(updatedStudents.find((s: any) => s.id === id) ?? null);
     } catch (error: any) {
       console.error('Error updating student:', error);
       toast.error(`No se pudo guardar los cambios: ${error?.message ?? 'Error desconocido'}`);
@@ -456,8 +438,7 @@ function GymApp({ gymId, userRole, onLogout, isDemo = false, onRegister }: {
       await api.students.delete(id, gymId);
       const updatedStudents = await api.students.getAll(gymId);
       setStudents(updatedStudents);
-      setSelectedStudent(null);
-      setCurrentView('students');
+      navigate('/students');
     } catch (error: any) {
       console.error('Error deleting student:', error);
       toast.error(`No se pudo eliminar el alumno: ${error?.message ?? 'Error desconocido'}`);
@@ -481,112 +462,31 @@ function GymApp({ gymId, userRole, onLogout, isDemo = false, onRegister }: {
     }
   };
 
-  const renderView = () => {
-    if (isLoading) {
-      return <div className="flex items-center justify-center h-64 text-slate-400">Cargando...</div>;
-    }
+  // Loading state
+  const loadingEl = isLoading
+    ? <div className="flex items-center justify-center h-64 text-slate-400">Cargando...</div>
+    : null;
 
-    switch (currentView) {
-      case 'dashboard':
-        return (
-          <DashboardView
-            onNavigate={handleNavigate}
-            students={students}
-            payments={payments}
-            onSelectStudent={handleSelectStudent}
-            canViewFinancials={canViewFinancials}
-            shiftsEnabled={shiftsEnabled}
-            todayShifts={todayShifts}
-          />
-        );
-      case 'students':
-        return <StudentsView onSelectStudent={handleSelectStudent} students={students} onNavigate={handleNavigate} />;
-      case 'student-detail':
-        return selectedStudent ? (
-          <StudentDetailView
-            student={selectedStudent}
-            payments={payments.filter((p: any) => (p.studentId ?? p.student_id) === selectedStudent.id)}
-            plans={plans}
-            gymId={gymId}
-            onBack={() => setCurrentView('students')}
-            onRegisterPayment={handleRegisterPayment}
-            onUpdateStudent={handleUpdateStudent}
-            onDeleteStudent={handleDeleteStudent}
-          />
-        ) : (
-          <StudentsView onSelectStudent={handleSelectStudent} students={students} onNavigate={handleNavigate} />
-        );
-      case 'payments':
-        return (
-          <PaymentsView
-            payments={payments}
-            canViewFinancials={canViewFinancials}
-            students={students}
-            plans={plans}
-            onRegisterPayment={handleRegisterPayment}
-          />
-        );
-      case 'defaulters':
-        return <DefaultersView students={students} plans={plans} onRegisterPayment={handleRegisterPayment} />;
-      case 'shifts':
-        return <ShiftsView gymId={gymId} students={students} />;
-      case 'settings':
-        return (
-          <SettingsView
-            onNavigate={handleNavigate}
-            canManageSettings={canManageSettings}
-            shiftsEnabled={shiftsEnabled}
-            onToggleShifts={handleToggleShifts}
-            gymId={gymId}
-            gymName={gymSubscription?.gym_name}
-          />
-        );
-      case 'automation':
-        return (
-          <AutomationView
-            rules={reminderRules}
-            templates={messageTemplates}
-            logs={reminderLogs}
-            status={automationStatus}
-            subscription={gymSubscription}
-            onBack={() => setCurrentView('settings')}
-            onRunAutomation={handleRunAutomation}
-            onUpdateRule={() => {}}
-            onUpdateTemplate={() => {}}
-          />
-        );
-      case 'plans':
-        return (
-          <PlansView
-            plans={plans}
-            onBack={() => setCurrentView('settings')}
-            onSavePlan={handleSavePlan}
-            onDeletePlan={handleDeletePlan}
-          />
-        );
-      case 'workouts':
-        return <WorkoutPlansView gymId={gymId} />;
-      case 'new-student':
-        return (
-          <NewStudentView
-            plans={plans}
-            onBack={() => setCurrentView('students')}
-            onCreateStudent={handleCreateStudent}
-          />
-        );
-      default:
-        return (
-          <DashboardView
-            onNavigate={handleNavigate}
-            students={students}
-            payments={payments}
-            onSelectStudent={handleSelectStudent}
-            canViewFinancials={canViewFinancials}
-            shiftsEnabled={shiftsEnabled}
-            todayShifts={todayShifts}
-          />
-        );
-    }
+  // ── Student detail wrapper (reads :studentId from URL params) ───────────────
+  const StudentDetailRoute = () => {
+    const { studentId } = useParams<{ studentId: string }>();
+    const student = students.find((s: any) => s.id === studentId) ?? null;
+
+    if (isLoading) return loadingEl;
+    if (!student) return <Navigate to="/students" replace />;
+
+    return (
+      <StudentDetailView
+        student={student}
+        payments={payments.filter((p: any) => (p.studentId ?? p.student_id) === student.id)}
+        plans={plans}
+        gymId={gymId}
+        onBack={() => navigate('/students')}
+        onRegisterPayment={handleRegisterPayment}
+        onUpdateStudent={handleUpdateStudent}
+        onDeleteStudent={handleDeleteStudent}
+      />
+    );
   };
 
   // ── Demo student portal preview (full-screen, outside AppShell) ─────────────
@@ -619,7 +519,103 @@ function GymApp({ gymId, userRole, onLogout, isDemo = false, onRegister }: {
         onLogout={onLogout}
       >
         <SubscriptionGuard subscription={gymSubscription}>
-          {renderView()}
+          <Routes>
+            <Route path="/" element={
+              loadingEl ?? (
+                <DashboardView
+                  onNavigate={handleNavigate}
+                  students={students}
+                  payments={payments}
+                  onSelectStudent={handleSelectStudent}
+                  canViewFinancials={canViewFinancials}
+                  shiftsEnabled={shiftsEnabled}
+                  todayShifts={todayShifts}
+                />
+              )
+            } />
+            <Route path="/students" element={
+              loadingEl ?? (
+                <StudentsView onSelectStudent={handleSelectStudent} students={students} onNavigate={handleNavigate} />
+              )
+            } />
+            <Route path="/students/new" element={
+              loadingEl ?? (
+                <NewStudentView
+                  plans={plans}
+                  onBack={() => navigate('/students')}
+                  onCreateStudent={handleCreateStudent}
+                />
+              )
+            } />
+            <Route path="/students/:studentId" element={<StudentDetailRoute />} />
+            <Route path="/payments" element={
+              loadingEl ?? (
+                <PaymentsView
+                  payments={payments}
+                  canViewFinancials={canViewFinancials}
+                  students={students}
+                  plans={plans}
+                  onRegisterPayment={handleRegisterPayment}
+                />
+              )
+            } />
+            <Route path="/defaulters" element={
+              loadingEl ?? (
+                <DefaultersView students={students} plans={plans} onRegisterPayment={handleRegisterPayment} />
+              )
+            } />
+            <Route path="/workouts" element={
+              loadingEl ?? <WorkoutPlansView gymId={gymId} />
+            } />
+            <Route path="/shifts" element={
+              loadingEl ?? <ShiftsView gymId={gymId} students={students} />
+            } />
+            <Route path="/settings" element={
+              loadingEl ?? (
+                <SettingsView
+                  onNavigate={handleNavigate}
+                  canManageSettings={canManageSettings}
+                  shiftsEnabled={shiftsEnabled}
+                  onToggleShifts={handleToggleShifts}
+                  gymId={gymId}
+                  gymName={gymSubscription?.gym_name}
+                />
+              )
+            } />
+            <Route path="/automation" element={
+              loadingEl ?? (
+                <AutomationView
+                  rules={reminderRules}
+                  templates={messageTemplates}
+                  logs={reminderLogs}
+                  status={automationStatus}
+                  subscription={gymSubscription}
+                  onBack={() => navigate('/settings')}
+                  onRunAutomation={handleRunAutomation}
+                  onUpdateRule={() => {}}
+                  onUpdateTemplate={() => {}}
+                />
+              )
+            } />
+            <Route path="/plans" element={
+              loadingEl ?? (
+                <PlansView
+                  plans={plans}
+                  onBack={() => navigate('/settings')}
+                  onSavePlan={handleSavePlan}
+                  onDeletePlan={handleDeletePlan}
+                />
+              )
+            } />
+            <Route path="/portal-preview" element={
+              <StudentPortalView
+                studentId={DEMO_STUDENT_ID}
+                onLogout={() => navigate('/workouts')}
+              />
+            } />
+            {/* Catch-all: redirect to dashboard */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
         </SubscriptionGuard>
       </AppShell>
 
