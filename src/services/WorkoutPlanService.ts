@@ -212,7 +212,7 @@ export const WorkoutPlanService = {
   async getStudentWorkoutOptions(studentId: string): Promise<any[]> {
     const { data } = await supabase
       .from("student_workout_assignments")
-      .select("*, workout_plans(id, name, description, updated_at)")
+      .select("id, gym_id, student_id, workout_plan_id, days_of_week, updated_at, created_at, workout_plans(id, name, description, updated_at)")
       .eq("student_id", studentId)
       .eq("active", true)
       .order("updated_at", { ascending: false });
@@ -226,7 +226,21 @@ export const WorkoutPlanService = {
       plan_description: row.workout_plans?.description ?? null,
       updated_at: row.updated_at ?? row.created_at,
       created_at: row.created_at,
+      days_of_week: row.days_of_week ?? null,
     }));
+  },
+
+  /**
+   * Actualiza los días de la semana habilitados para una asignación.
+   * Pasar null para quitar la restricción de días.
+   */
+  async updateWorkoutOptionDays(assignmentId: string, daysOfWeek: number[] | null): Promise<void> {
+    const { error } = await supabase
+      .from("student_workout_assignments")
+      .update({ days_of_week: daysOfWeek })
+      .eq("id", assignmentId);
+
+    if (error) throw error;
   },
 
   // ─── Consulta compatibilidad: ejercicios de la rutina primaria ───────────────

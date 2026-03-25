@@ -30,10 +30,14 @@ import { formatDate } from '../utils/dateUtils';
 import { RegisterPaymentModal } from '../components/RegisterPaymentModal';
 import { WorkoutPlanService } from '../services/WorkoutPlanService';
 import { WorkoutRequestService } from '../services/WorkoutRequestService';
+import { WorkoutSessionService } from '../services/WorkoutSessionService';
 import { ExerciseVideoModal } from '../components/ExerciseVideoModal';
 import { CheckInService } from '../services/CheckInService';
 import { useToast } from '../context/ToastContext';
 import { getWorkoutFreshness } from '../config/workoutConfig';
+
+// Nombres cortos de días (0=Dom, 1=Lun, ..., 6=Sáb)
+const DAY_NAMES_SHORT = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
 interface StudentDetailViewProps {
   student: Student;
@@ -74,6 +78,12 @@ export const StudentDetailView: React.FC<StudentDetailViewProps> = ({
   const [selectedWorkoutPlanId, setSelectedWorkoutPlanId] = useState('');
   const [isLoadingWorkout, setIsLoadingWorkout] = useState(true);
   const [isAddingOption, setIsAddingOption] = useState(false);
+  const [adherenceStats, setAdherenceStats] = useState<{
+    totalSessions: number;
+    completedSessions: number;
+    adherencePercent: number;
+    lastSessionDate: string | null;
+  } | null>(null);
   const [videoModal, setVideoModal] = useState<{
     isOpen: boolean;
     exerciseName: string;
@@ -166,17 +176,19 @@ export const StudentDetailView: React.FC<StudentDetailViewProps> = ({
     try {
       setIsLoadingWorkout(true);
 
-      const [plansData, optionsData, exercisesData, requestData] = await Promise.allSettled([
+      const [plansData, optionsData, exercisesData, requestData, adherenceData] = await Promise.allSettled([
         WorkoutPlanService.getPlans(gymId),
         WorkoutPlanService.getStudentWorkoutOptions(student.id),
         WorkoutPlanService.getStudentWorkout(student.id),
         WorkoutRequestService.getOpenRequest(student.id),
+        WorkoutSessionService.getAdherenceStats(student.id, 30),
       ]);
 
       setWorkoutPlans(plansData.status === 'fulfilled' && Array.isArray(plansData.value) ? plansData.value : []);
       setWorkoutOptions(optionsData.status === 'fulfilled' && Array.isArray(optionsData.value) ? optionsData.value : []);
       setStudentWorkoutExercises(exercisesData.status === 'fulfilled' && Array.isArray(exercisesData.value) ? exercisesData.value : []);
       setPendingUpdateRequest(requestData.status === 'fulfilled' ? requestData.value : null);
+      setAdherenceStats(adherenceData.status === 'fulfilled' ? adherenceData.value : null);
     } catch (error) {
       console.error('Error loading workout data:', error);
     } finally {
@@ -230,6 +242,27 @@ export const StudentDetailView: React.FC<StudentDetailViewProps> = ({
       toast.success('Solicitud marcada como atendida');
     } catch (error) {
       toast.error('No se pudo actualizar la solicitud');
+    }
+  };
+
+  const handleToggleOptionDay = async (option: WorkoutOption, day: number) => {
+    const current = option.days_of_week ?? [];
+    const newDays = current.includes(day)
+      ? current.filter((d) => d !== day)
+      : [...current, day].sort((a, b) => a - b);
+    const updatedDays = newDays.length > 0 ? newDays : null;
+    // Optimistic update
+    setWorkoutOptions((prev) =>
+      prev.map((o) => (o.id === option.id ? { ...o, days_of_week: updatedDays } : o))
+    );
+    try {
+      await WorkoutPlanService.updateWorkoutOptionDays(option.id, updatedDays);
+    } catch (error) {
+      // Revert
+      setWorkoutOptions((prev) =>
+        prev.map((o) => (o.id === option.id ? { ...o, days_of_week: option.days_of_week } : o))
+      );
+      toast.error('No se pudo actualizar los días');
     }
   };
 
@@ -728,45 +761,89 @@ export const StudentDetailView: React.FC<StudentDetailViewProps> = ({
         )}
 
         <Card className="p-4 space-y-4">
-          {/* Cabecera con indicador de solicitud pendiente */}
+          {/* Cabecera con indicador de solicitud pendiente y adherencia */}
           <div className="flex items-center justify-between border-b border-slate-50 dark:border-slate-700 pb-2">
-            <h3 className="font-bold text-slate-900 dark:text-white">Rutinas disponibles</h3>
+            <div>
+              <h3 className="font-bold text-slate-900 dark:text-white">Rutinas disponibles</h3>
+              {adherenceStats && adherenceStats.totalSessions > 0 && (
+                <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
+                  Adherencia 30d:{' '}
+                  <span className={`font-bold ${
+                    adherenceStats.adherencePercent >= 80
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : adherenceStats.adherencePercent >= 50
+                      ? 'text-amber-600 dark:text-amber-400'
+                      : 'text-rose-600 dark:text-rose-400'
+                  }`}>
+                    {adherenceStats.adherencePercent}%
+                  </span>
+                  {' '}({adherenceStats.completedSessions}/{adherenceStats.totalSessions} sesiones)
+                </p>
+              )}
+            </div>
             {pendingUpdateRequest && (
-              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 shrink-0">
                 <Bell size={11} />
                 Pide nueva rutina
               </span>
             )}
           </div>
 
-          {/* Lista de opciones activas con staleness */}
+          {/* Lista de opciones activas con staleness + chips de días */}
           {isLoadingWorkout ? (
             <p className="text-xs text-slate-400 dark:text-slate-500 text-center py-2">Cargando...</p>
           ) : workoutOptions.length > 0 ? (
-            <div className="space-y-2">
+            <div className="space-y-3">
               {workoutOptions.map((option) => {
                 const freshness = getWorkoutFreshness(option.updated_at);
                 return (
                   <div
                     key={option.id}
-                    className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700"
+                    className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 space-y-2.5"
                   >
-                    <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${freshness.dotClass}`} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{option.plan_name}</p>
-                      <p className={`text-xs ${freshness.colorClass}`}>
-                        {freshness.daysOld !== null
-                          ? `Actualizada hace ${freshness.daysOld} día${freshness.daysOld === 1 ? '' : 's'}`
-                          : 'Sin fecha de actualización'}
-                      </p>
+                    <div className="flex items-center gap-3">
+                      <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${freshness.dotClass}`} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{option.plan_name}</p>
+                        <p className={`text-xs ${freshness.colorClass}`}>
+                          {freshness.daysOld !== null
+                            ? `Actualizada hace ${freshness.daysOld} día${freshness.daysOld === 1 ? '' : 's'}`
+                            : 'Sin fecha de actualización'}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => handleRemoveOption(option.id)}
+                        className="p-1.5 rounded-lg text-slate-300 dark:text-slate-600 hover:text-rose-500 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors shrink-0"
+                        title="Quitar esta opción"
+                      >
+                        <X size={14} />
+                      </button>
                     </div>
-                    <button
-                      onClick={() => handleRemoveOption(option.id)}
-                      className="p-1.5 rounded-lg text-slate-300 dark:text-slate-600 hover:text-rose-500 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors shrink-0"
-                      title="Quitar esta opción"
-                    >
-                      <X size={14} />
-                    </button>
+                    {/* Chips de días de la semana */}
+                    <div>
+                      <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1.5">
+                        Días habilitados
+                      </p>
+                      <div className="flex gap-1 flex-wrap">
+                        {[1, 2, 3, 4, 5, 6, 0].map((day) => {
+                          const isActive = option.days_of_week?.includes(day) ?? false;
+                          return (
+                            <button
+                              key={day}
+                              type="button"
+                              onClick={() => handleToggleOptionDay(option, day)}
+                              className={`px-2 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                                isActive
+                                  ? 'bg-indigo-500 text-white shadow-sm'
+                                  : 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-300 dark:hover:bg-slate-600'
+                              }`}
+                            >
+                              {DAY_NAMES_SHORT[day]}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
                 );
               })}

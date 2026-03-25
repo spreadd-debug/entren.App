@@ -172,6 +172,8 @@ export interface WorkoutOption {
   /** Fecha de última modificación de la asignación — base para calcular antigüedad */
   updated_at: string;
   created_at: string;
+  /** Días habilitados para esta rutina (0=Dom, 1=Lun, ..., 6=Sáb). null = cualquier día */
+  days_of_week: number[] | null;
 }
 
 /** Sesión diaria de entrenamiento elegida por el alumno */

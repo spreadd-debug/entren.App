@@ -3,6 +3,7 @@ import { StudentPortalService } from "../services/StudentPortalService";
 import { WorkoutPlanService } from "../services/WorkoutPlanService";
 import { WorkoutSessionService } from "../services/WorkoutSessionService";
 import { WorkoutRequestService } from "../services/WorkoutRequestService";
+import { NotificationService } from "../services/NotificationService";
 import { getWorkoutFreshness } from "../config/workoutConfig";
 import {
   Dumbbell,
@@ -19,11 +20,16 @@ import {
   Play,
   Trophy,
   RefreshCw,
+  History,
+  CalendarDays,
 } from "lucide-react";
 import { formatDate } from "../utils/dateUtils";
 import { ExerciseVideoModal } from "../components/ExerciseVideoModal";
 import { useToast } from "../context/ToastContext";
 import { WorkoutOption, WorkoutSession, WorkoutSessionExercise, WorkoutUpdateRequest } from "../../shared/types";
+
+// Nombres de días en español (0=Dom, 1=Lun, ..., 6=Sáb)
+const DAY_NAMES = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 
 interface StudentPortalViewProps {
   studentId: string;
@@ -55,6 +61,15 @@ export default function StudentPortalView({
   // ─── Timer de descanso ─────────────────────────────────────────────────────
   const [timer, setTimer] = useState<number | null>(null);
 
+  // ─── Historial ────────────────────────────────────────────────────────────
+  const [recentSessions, setRecentSessions] = useState<Array<{
+    id: string;
+    session_date: string;
+    completed_at: string | null;
+    plan_name: string;
+  }>>([]);
+  const [showHistory, setShowHistory] = useState(false);
+
   // ─── Modal de video ────────────────────────────────────────────────────────
   const [videoModal, setVideoModal] = useState<{
     isOpen: boolean;
@@ -67,16 +82,29 @@ export default function StudentPortalView({
     const load = async () => {
       try {
         setIsLoading(true);
-        const data = await StudentPortalService.getFullPortalData(studentId);
+        const [data, history] = await Promise.all([
+          StudentPortalService.getFullPortalData(studentId),
+          WorkoutSessionService.getRecentSessionsWithDetails(studentId, 7),
+        ]);
+
         setStudent(data.student);
         setOptions(data.options);
         setPendingRequest(data.pendingRequest);
+        setRecentSessions(history);
+
         if (data.todaySession) {
           setActiveSession(data.todaySession.session);
           setSessionItems(data.todaySession.items);
         }
-        // Pre-seleccionar la primera opción disponible
-        if (data.options.length > 0) {
+
+        // Auto-seleccionar según el día de la semana actual
+        const todayDay = new Date().getDay(); // 0=Dom, 1=Lun...
+        const todayOption = data.options.find(
+          (o) => o.days_of_week && o.days_of_week.includes(todayDay)
+        );
+        if (todayOption) {
+          setSelectedOptionId(todayOption.id);
+        } else if (data.options.length > 0) {
           setSelectedOptionId(data.options[0].id);
         }
       } catch (error) {
@@ -199,6 +227,9 @@ export default function StudentPortalView({
       setIsCompletingSession(true);
       await WorkoutSessionService.completeSession(activeSession.id);
       setActiveSession((prev) => prev ? { ...prev, completed_at: new Date().toISOString() } : prev);
+      // Actualizar historial
+      const history = await WorkoutSessionService.getRecentSessionsWithDetails(studentId, 7);
+      setRecentSessions(history);
       toast.success("¡Entrenamiento completado! Excelente trabajo 💪");
     } catch (error) {
       toast.error("No se pudo registrar la sesión");
@@ -216,6 +247,8 @@ export default function StudentPortalView({
       const req = await WorkoutRequestService.getOpenRequest(studentId);
       setPendingRequest(req);
       toast.success("Solicitud enviada al profesor");
+      // Notificación WhatsApp al profe (best-effort)
+      NotificationService.notifyWorkoutRequest(student.gym_id, studentName);
     } catch (error) {
       toast.error("No se pudo enviar la solicitud");
     } finally {
@@ -368,46 +401,83 @@ export default function StudentPortalView({
               {/* Opciones disponibles */}
               {options.length === 1 ? (
                 <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700">
-                  <p className="text-xs text-slate-400 dark:text-slate-500 font-medium mb-0.5">Rutina disponible</p>
-                  <p className="text-sm font-bold text-slate-900 dark:text-white">{options[0].plan_name}</p>
-                  {options[0].plan_description && (
-                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{options[0].plan_description}</p>
-                  )}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-xs text-slate-400 dark:text-slate-500 font-medium mb-0.5">Rutina disponible</p>
+                      <p className="text-sm font-bold text-slate-900 dark:text-white">{options[0].plan_name}</p>
+                      {options[0].plan_description && (
+                        <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{options[0].plan_description}</p>
+                      )}
+                    </div>
+                    {options[0].days_of_week && options[0].days_of_week.length > 0 && (
+                      <div className="flex gap-0.5 shrink-0 flex-wrap justify-end">
+                        {options[0].days_of_week.map((d) => (
+                          <span key={d} className="px-1.5 py-0.5 rounded-md bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 text-[10px] font-bold">
+                            {DAY_NAMES[d]}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-2">
                   <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                     Elegí tu rutina de hoy
                   </p>
-                  {options.map((option) => (
-                    <button
-                      key={option.id}
-                      onClick={() => setSelectedOptionId(option.id)}
-                      className={`w-full text-left p-3.5 rounded-xl border transition-all ${
-                        selectedOptionId === option.id
-                          ? "bg-cyan-500/10 border-cyan-500/40 dark:border-cyan-500/40"
-                          : "bg-slate-50 dark:bg-slate-800 border-slate-100 dark:border-slate-700 hover:border-slate-200 dark:hover:border-slate-600"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                  {options.map((option) => {
+                    const todayDay = new Date().getDay();
+                    const isTodayPlan = option.days_of_week?.includes(todayDay);
+                    return (
+                      <button
+                        key={option.id}
+                        onClick={() => setSelectedOptionId(option.id)}
+                        className={`w-full text-left p-3.5 rounded-xl border transition-all ${
                           selectedOptionId === option.id
-                            ? "border-cyan-500 bg-cyan-500"
-                            : "border-slate-300 dark:border-slate-600"
-                        }`}>
-                          {selectedOptionId === option.id && (
-                            <div className="w-1.5 h-1.5 bg-white rounded-full" />
-                          )}
+                            ? "bg-cyan-500/10 border-cyan-500/40 dark:border-cyan-500/40"
+                            : "bg-slate-50 dark:bg-slate-800 border-slate-100 dark:border-slate-700 hover:border-slate-200 dark:hover:border-slate-600"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                            selectedOptionId === option.id
+                              ? "border-cyan-500 bg-cyan-500"
+                              : "border-slate-300 dark:border-slate-600"
+                          }`}>
+                            {selectedOptionId === option.id && (
+                              <div className="w-1.5 h-1.5 bg-white rounded-full" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{option.plan_name}</p>
+                              {isTodayPlan && (
+                                <span className="px-1.5 py-0.5 rounded-md bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 text-[10px] font-black">
+                                  Hoy
+                                </span>
+                              )}
+                            </div>
+                            {option.plan_description && (
+                              <p className="text-xs text-slate-400 dark:text-slate-500 truncate">{option.plan_description}</p>
+                            )}
+                            {option.days_of_week && option.days_of_week.length > 0 && (
+                              <div className="flex gap-0.5 mt-1 flex-wrap">
+                                {option.days_of_week.map((d) => (
+                                  <span key={d} className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
+                                    d === new Date().getDay()
+                                      ? "bg-cyan-500/15 text-cyan-600 dark:text-cyan-400"
+                                      : "bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400"
+                                  }`}>
+                                    {DAY_NAMES[d]}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{option.plan_name}</p>
-                          {option.plan_description && (
-                            <p className="text-xs text-slate-400 dark:text-slate-500 truncate">{option.plan_description}</p>
-                          )}
-                        </div>
-                      </div>
-                    </button>
-                  ))}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
 
@@ -565,6 +635,90 @@ export default function StudentPortalView({
             )}
           </div>
         )}
+
+        {/* ── Historial de sesiones ─────────────────────────────────────── */}
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+          <button
+            onClick={() => setShowHistory((v) => !v)}
+            className="w-full px-4 py-3.5 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+          >
+            <div className="p-2.5 rounded-xl bg-violet-500/10 shrink-0">
+              <History size={16} className="text-violet-500" />
+            </div>
+            <div className="flex-1 text-left">
+              <p className="text-sm font-bold text-slate-900 dark:text-white">Historial</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500">
+                {recentSessions.length > 0
+                  ? `Últimas ${recentSessions.length} sesiones`
+                  : "Sin sesiones registradas"}
+              </p>
+            </div>
+            <ChevronRight
+              size={16}
+              className={`text-slate-300 dark:text-slate-600 transition-transform ${showHistory ? "rotate-90" : ""}`}
+            />
+          </button>
+
+          {showHistory && (
+            <div className="border-t border-slate-100 dark:border-slate-800">
+              {recentSessions.length === 0 ? (
+                <div className="px-4 py-8 text-center">
+                  <CalendarDays size={24} className="text-slate-200 dark:text-slate-700 mx-auto mb-2" />
+                  <p className="text-sm text-slate-400 dark:text-slate-500">Aún no hay sesiones registradas.</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-600 mt-0.5">
+                    Completá tu primer entrenamiento para verlo acá.
+                  </p>
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {recentSessions.map((session) => {
+                    const date = new Date(session.session_date + "T12:00:00");
+                    const isCompleted = !!session.completed_at;
+                    const dayName = date.toLocaleDateString("es-AR", { weekday: "short" });
+                    const dateStr = date.toLocaleDateString("es-AR", { day: "numeric", month: "short" });
+                    return (
+                      <div
+                        key={session.id}
+                        className="px-4 py-3 flex items-center gap-3"
+                      >
+                        {/* Estado */}
+                        <div className={`shrink-0 w-8 h-8 rounded-xl flex items-center justify-center ${
+                          isCompleted
+                            ? "bg-emerald-500/10"
+                            : "bg-slate-100 dark:bg-slate-800"
+                        }`}>
+                          {isCompleted
+                            ? <CheckCircle2 size={15} className="text-emerald-500" />
+                            : <Circle size={15} className="text-slate-300 dark:text-slate-600" />
+                          }
+                        </div>
+
+                        {/* Info */}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                            {session.plan_name}
+                          </p>
+                          <p className="text-xs text-slate-400 dark:text-slate-500 capitalize">
+                            {dayName} {dateStr}
+                          </p>
+                        </div>
+
+                        {/* Badge */}
+                        <span className={`shrink-0 text-xs font-bold px-2 py-0.5 rounded-lg ${
+                          isCompleted
+                            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                            : "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500"
+                        }`}>
+                          {isCompleted ? "Completa" : "Parcial"}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* ── Timer de descanso ─────────────────────────────────────────── */}
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-5 space-y-5">

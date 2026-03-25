@@ -103,6 +103,60 @@ export const WorkoutSessionService = {
     return (data ?? []) as WorkoutSession[];
   },
 
+  /** Historial con nombre del plan (para mostrar en el portal del alumno) */
+  async getRecentSessionsWithDetails(studentId: string, limit = 7): Promise<Array<{
+    id: string;
+    session_date: string;
+    completed_at: string | null;
+    plan_name: string;
+  }>> {
+    const { data } = await supabase
+      .from('workout_sessions')
+      .select('id, session_date, completed_at, workout_plans(name)')
+      .eq('student_id', studentId)
+      .order('session_date', { ascending: false })
+      .limit(limit);
+
+    return (data ?? []).map((s: any) => ({
+      id: s.id,
+      session_date: s.session_date,
+      completed_at: s.completed_at,
+      plan_name: s.workout_plans?.name ?? 'Rutina',
+    }));
+  },
+
+  // ─── Estadísticas de adherencia ──────────────────────────────────────────────
+
+  /**
+   * Retorna métricas de adherencia para los últimos N días.
+   * adherencePercent = sesiones completadas / total sesiones (100% si no hay ninguna)
+   */
+  async getAdherenceStats(studentId: string, days = 30): Promise<{
+    totalSessions: number;
+    completedSessions: number;
+    adherencePercent: number;
+    lastSessionDate: string | null;
+  }> {
+    const since = new Date();
+    since.setDate(since.getDate() - days);
+    const sinceStr = since.toLocaleDateString('sv-SE');
+
+    const { data } = await supabase
+      .from('workout_sessions')
+      .select('session_date, completed_at')
+      .eq('student_id', studentId)
+      .gte('session_date', sinceStr)
+      .order('session_date', { ascending: false });
+
+    const sessions = data ?? [];
+    const totalSessions = sessions.length;
+    const completedSessions = sessions.filter((s: any) => s.completed_at !== null).length;
+    const adherencePercent = totalSessions > 0 ? Math.round((completedSessions / totalSessions) * 100) : 0;
+    const lastSessionDate = (sessions[0] as any)?.session_date ?? null;
+
+    return { totalSessions, completedSessions, adherencePercent, lastSessionDate };
+  },
+
   // ─── Interno: cargar ítems de una sesión ────────────────────────────────────
 
   async _loadSessionItems(session: WorkoutSession): Promise<{

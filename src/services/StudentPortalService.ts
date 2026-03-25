@@ -46,7 +46,7 @@ export const StudentPortalService = {
     // 2. Todas las opciones activas con info del plan
     const { data: assignments } = await supabase
       .from("student_workout_assignments")
-      .select("*, workout_plans(id, name, description, updated_at)")
+      .select("id, gym_id, student_id, workout_plan_id, days_of_week, updated_at, created_at, workout_plans(id, name, description, updated_at)")
       .eq("student_id", studentId)
       .eq("active", true)
       .order("updated_at", { ascending: false });
@@ -60,6 +60,7 @@ export const StudentPortalService = {
       plan_description: row.workout_plans?.description ?? null,
       updated_at: row.updated_at ?? row.created_at,
       created_at: row.created_at,
+      days_of_week: row.days_of_week ?? null,
     }));
 
     // 3. Sesión de hoy

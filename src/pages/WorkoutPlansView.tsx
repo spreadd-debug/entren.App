@@ -308,6 +308,8 @@ export default function WorkoutPlansView({ gymId }: { gymId: string }) {
         .eq("gym_id", gymId)
         .eq("status", "activo");
 
+      const studentIds = (students ?? []).map((s: any) => s.id);
+
       // 2. Asignaciones activas con nombre del plan
       const { data: assignments } = await supabase
         .from("student_workout_assignments")
@@ -321,7 +323,26 @@ export default function WorkoutPlansView({ gymId }: { gymId: string }) {
         pendingRequests.map((r: any) => [r.student_id, r]),
       );
 
-      // 4. Merge: una fila por alumno con su asignación más reciente
+      // 4. Adherencia últimos 30 días (una query para todos los alumnos)
+      const adherenceMap = new Map<string, { total: number; completed: number }>();
+      if (studentIds.length > 0) {
+        const since = new Date();
+        since.setDate(since.getDate() - 30);
+        const sinceStr = since.toLocaleDateString("sv-SE");
+        const { data: sessions } = await supabase
+          .from("workout_sessions")
+          .select("student_id, completed_at")
+          .in("student_id", studentIds)
+          .gte("session_date", sinceStr);
+        (sessions ?? []).forEach((s: any) => {
+          const curr = adherenceMap.get(s.student_id) ?? { total: 0, completed: 0 };
+          curr.total++;
+          if (s.completed_at) curr.completed++;
+          adherenceMap.set(s.student_id, curr);
+        });
+      }
+
+      // 5. Merge: una fila por alumno con su asignación más reciente
       const assignmentsByStudent = new Map<string, any>();
       (assignments ?? []).forEach((a: any) => {
         const existing = assignmentsByStudent.get(a.student_id);
@@ -333,6 +354,7 @@ export default function WorkoutPlansView({ gymId }: { gymId: string }) {
       const rows = (students ?? []).map((s: any) => {
         const assignment = assignmentsByStudent.get(s.id) ?? null;
         const request = requestsByStudent.get(s.id) ?? null;
+        const adh = adherenceMap.get(s.id);
         return {
           id: s.id,
           name: `${s.nombre ?? ""} ${s.apellido ?? ""}`.trim(),
@@ -340,6 +362,9 @@ export default function WorkoutPlansView({ gymId }: { gymId: string }) {
           updated_at: assignment?.updated_at ?? null,
           hasPendingRequest: !!request,
           request,
+          adherence: adh
+            ? { total: adh.total, completed: adh.completed, percent: Math.round((adh.completed / adh.total) * 100) }
+            : null,
         };
       });
 
@@ -1107,8 +1132,8 @@ export default function WorkoutPlansView({ gymId }: { gymId: string }) {
                         </p>
                       </div>
 
-                      {/* Badge de antigüedad */}
-                      <div className="shrink-0 text-right">
+                      {/* Badge de antigüedad + adherencia */}
+                      <div className="shrink-0 text-right space-y-1">
                         {row.updated_at ? (
                           <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold border ${freshness.bgClass} ${freshness.colorClass} ${freshness.borderClass}`}>
                             {freshness.level === 'outdated' && <AlertTriangle size={10} />}
@@ -1118,6 +1143,19 @@ export default function WorkoutPlansView({ gymId }: { gymId: string }) {
                           <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-400 border border-slate-200 dark:border-slate-700">
                             Sin asignar
                           </span>
+                        )}
+                        {row.adherence && row.adherence.total > 0 && (
+                          <div className="flex justify-end">
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold ${
+                              row.adherence.percent >= 80
+                                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                                : row.adherence.percent >= 50
+                                ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                                : 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
+                            }`}>
+                              {row.adherence.percent}% adh.
+                            </span>
+                          </div>
                         )}
                         {row.hasPendingRequest && row.request && (
                           <button
