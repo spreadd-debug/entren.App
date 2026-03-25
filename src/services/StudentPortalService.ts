@@ -49,7 +49,7 @@ export const StudentPortalService = {
       .select("*, workout_plans(id, name, description, updated_at)")
       .eq("student_id", studentId)
       .eq("active", true)
-      .order("created_at", { ascending: false });
+      .order("assigned_at", { ascending: false });
 
     if (assignmentsError) {
       console.error("[getFullPortalData] assignments error:", assignmentsError);
@@ -62,8 +62,8 @@ export const StudentPortalService = {
       workout_plan_id: row.workout_plan_id,
       plan_name: row.workout_plans?.name ?? "Sin nombre",
       plan_description: row.workout_plans?.description ?? null,
-      updated_at: row.updated_at ?? row.created_at,
-      created_at: row.created_at,
+      updated_at: row.assigned_at,
+      created_at: row.assigned_at,
       days_of_week: row.days_of_week ?? null,
     }));
 
