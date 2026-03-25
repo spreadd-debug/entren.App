@@ -212,7 +212,7 @@ export const WorkoutPlanService = {
   async getStudentWorkoutOptions(studentId: string): Promise<any[]> {
     const { data } = await supabase
       .from("student_workout_assignments")
-      .select("id, gym_id, student_id, workout_plan_id, days_of_week, updated_at, created_at, workout_plans(id, name, description, updated_at)")
+      .select("*, workout_plans(id, name, description, updated_at)")
       .eq("student_id", studentId)
       .eq("active", true)
       .order("updated_at", { ascending: false });
