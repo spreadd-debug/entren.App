@@ -44,12 +44,16 @@ export const StudentPortalService = {
     if (studentError) throw studentError;
 
     // 2. Todas las opciones activas con info del plan
-    const { data: assignments } = await supabase
+    const { data: assignments, error: assignmentsError } = await supabase
       .from("student_workout_assignments")
       .select("*, workout_plans(id, name, description, updated_at)")
       .eq("student_id", studentId)
       .eq("active", true)
-      .order("updated_at", { ascending: false });
+      .order("created_at", { ascending: false });
+
+    if (assignmentsError) {
+      console.error("[getFullPortalData] assignments error:", assignmentsError);
+    }
 
     const options: WorkoutOption[] = (assignments ?? []).map((row: any) => ({
       id: row.id,

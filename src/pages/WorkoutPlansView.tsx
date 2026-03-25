@@ -313,7 +313,7 @@ export default function WorkoutPlansView({ gymId }: { gymId: string }) {
       // 2. Asignaciones activas con nombre del plan
       const { data: assignments } = await supabase
         .from("student_workout_assignments")
-        .select("student_id, workout_plan_id, updated_at, workout_plans(name)")
+        .select("student_id, workout_plan_id, created_at, updated_at, workout_plans(name)")
         .eq("gym_id", gymId)
         .eq("active", true);
 
@@ -346,7 +346,9 @@ export default function WorkoutPlansView({ gymId }: { gymId: string }) {
       const assignmentsByStudent = new Map<string, any>();
       (assignments ?? []).forEach((a: any) => {
         const existing = assignmentsByStudent.get(a.student_id);
-        if (!existing || new Date(a.updated_at) > new Date(existing.updated_at)) {
+        const aDate = a.updated_at ?? a.created_at ?? "";
+        const existingDate = existing ? (existing.updated_at ?? existing.created_at ?? "") : "";
+        if (!existing || aDate > existingDate) {
           assignmentsByStudent.set(a.student_id, a);
         }
       });
@@ -359,7 +361,7 @@ export default function WorkoutPlansView({ gymId }: { gymId: string }) {
           id: s.id,
           name: `${s.nombre ?? ""} ${s.apellido ?? ""}`.trim(),
           plan_name: assignment?.workout_plans?.name ?? null,
-          updated_at: assignment?.updated_at ?? null,
+          updated_at: assignment?.updated_at ?? assignment?.created_at ?? null,
           hasPendingRequest: !!request,
           request,
           adherence: adh

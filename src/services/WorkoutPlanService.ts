@@ -210,24 +210,35 @@ export const WorkoutPlanService = {
    * descripción del plan, ordenadas de más reciente a más antigua.
    */
   async getStudentWorkoutOptions(studentId: string): Promise<any[]> {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("student_workout_assignments")
       .select("*, workout_plans(id, name, description, updated_at)")
       .eq("student_id", studentId)
       .eq("active", true)
-      .order("updated_at", { ascending: false });
+      .order("created_at", { ascending: false });
 
-    return (data ?? []).map((row: any) => ({
-      id: row.id,
-      gym_id: row.gym_id,
-      student_id: row.student_id,
-      workout_plan_id: row.workout_plan_id,
-      plan_name: row.workout_plans?.name ?? "",
-      plan_description: row.workout_plans?.description ?? null,
-      updated_at: row.updated_at ?? row.created_at,
-      created_at: row.created_at,
-      days_of_week: row.days_of_week ?? null,
-    }));
+    if (error) {
+      console.error("[getStudentWorkoutOptions] Supabase error:", error);
+      return [];
+    }
+
+    return (data ?? [])
+      .map((row: any) => ({
+        id: row.id,
+        gym_id: row.gym_id,
+        student_id: row.student_id,
+        workout_plan_id: row.workout_plan_id,
+        plan_name: row.workout_plans?.name ?? "",
+        plan_description: row.workout_plans?.description ?? null,
+        updated_at: row.updated_at ?? row.created_at,
+        created_at: row.created_at,
+        days_of_week: row.days_of_week ?? null,
+      }))
+      .sort((a: any, b: any) => {
+        const aDate = a.updated_at ?? a.created_at ?? "";
+        const bDate = b.updated_at ?? b.created_at ?? "";
+        return bDate.localeCompare(aDate);
+      });
   },
 
   /**
