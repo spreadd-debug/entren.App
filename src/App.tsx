@@ -718,11 +718,11 @@ function PTApp({ gymId, onLogout }: {
   }, []);
 
   const handleNavigate = (view: string) => {
-    navigate(viewToPath(view));
+    navigate(viewToPath(view, { pt: true }));
   };
 
   const handleSelectStudent = (student: Student) => {
-    navigate(viewToPath('student-detail', { studentId: student.id }));
+    navigate(viewToPath('student-detail', { studentId: student.id, pt: true }));
   };
 
   const normalizePhone = (phone: string) => phone.replace(/\D/g, '');

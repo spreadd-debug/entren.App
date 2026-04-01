@@ -36,11 +36,15 @@ const PATH_TO_VIEW: Record<string, string> = {
   '/register':        'register',
 };
 
-/** Convert a legacy view ID to a URL path */
-export function viewToPath(view: string, params?: { studentId?: string }): string {
+/** Convert a legacy view ID to a URL path.
+ *  When `pt` is true, students routes map to /clients instead of /students. */
+export function viewToPath(view: string, params?: { studentId?: string; pt?: boolean }): string {
+  const useClients = params?.pt;
   if (view === 'student-detail' && params?.studentId) {
-    return `/students/${params.studentId}`;
+    return useClients ? `/clients/${params.studentId}` : `/students/${params.studentId}`;
   }
+  if (useClients && view === 'students') return '/clients';
+  if (useClients && view === 'new-student') return '/clients/new';
   return VIEW_TO_PATH[view] ?? '/';
 }
 
