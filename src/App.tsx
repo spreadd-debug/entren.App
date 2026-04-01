@@ -475,7 +475,7 @@ function GymApp({ gymId, userRole, onLogout, isDemo = false, onRegister }: {
       }
     }
     try {
-      await api.students.update(id, updates);
+      await api.students.update(id, { ...updates, gym_id: gymId });
       const updatedStudents = await api.students.getAll(gymId);
       setStudents(updatedStudents);
     } catch (error: any) {
@@ -768,7 +768,7 @@ function PTApp({ gymId, onLogout }: {
       }
     }
     try {
-      await api.students.update(id, updates);
+      await api.students.update(id, { ...updates, gym_id: gymId });
       setStudents(await api.students.getAll(gymId));
     } catch (error: any) {
       toast.error(`No se pudo guardar los cambios: ${error?.message ?? 'Error desconocido'}`);
