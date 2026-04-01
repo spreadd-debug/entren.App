@@ -27,6 +27,7 @@ function mapStudentRowToStudent(row) {
     observations: row.observaciones ?? void 0,
     emergency_contact_name: row.emergency_contact_name ?? void 0,
     emergency_contact_phone: row.emergency_contact_phone ?? void 0,
+    access_code: row.access_code ?? void 0,
     createdAt: row.created_at ?? "",
     updatedAt: row.updated_at ?? ""
   };
@@ -47,6 +48,14 @@ var supabase = createClient(supabaseUrl, supabaseKey);
 
 // server/services/StudentService.ts
 var DEFAULT_GYM_ID = "11111111-1111-1111-1111-111111111111";
+function generateAccessCode() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let code = "";
+  for (let i = 0; i < 6; i++) {
+    code += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return code;
+}
 var StudentService = {
   async getAll(gymId) {
     const resolvedGymId = gymId || DEFAULT_GYM_ID;
@@ -69,6 +78,7 @@ var StudentService = {
         observaciones,
         emergency_contact_name,
         emergency_contact_phone,
+        access_code,
         created_at,
         updated_at
       `).eq("gym_id", resolvedGymId).order("nombre", { ascending: true });
@@ -96,6 +106,7 @@ var StudentService = {
         observaciones,
         emergency_contact_name,
         emergency_contact_phone,
+        access_code,
         created_at,
         updated_at
       `).eq("id", id).eq("gym_id", resolvedGymId).single();
@@ -121,7 +132,8 @@ var StudentService = {
       next_due_date: student.next_due_date ?? student.nextDueDate ?? null,
       observaciones: student.observaciones ?? student.observations ?? null,
       emergency_contact_name: student.emergency_contact_name ?? null,
-      emergency_contact_phone: student.emergency_contact_phone ?? null
+      emergency_contact_phone: student.emergency_contact_phone ?? null,
+      access_code: generateAccessCode()
     };
     const { data, error } = await supabase.from("students").insert([payload]).select(`
         id,
@@ -142,6 +154,7 @@ var StudentService = {
         observaciones,
         emergency_contact_name,
         emergency_contact_phone,
+        access_code,
         created_at,
         updated_at
       `).single();
@@ -233,11 +246,19 @@ var StudentService = {
         observaciones,
         emergency_contact_name,
         emergency_contact_phone,
+        access_code,
         created_at,
         updated_at
       `).single();
     if (error) throw error;
     return data;
+  },
+  async regenerateAccessCode(id, gymId) {
+    const newCode = generateAccessCode();
+    const resolvedGymId = gymId || DEFAULT_GYM_ID;
+    const { error } = await supabase.from("students").update({ access_code: newCode }).eq("id", id).eq("gym_id", resolvedGymId);
+    if (error) throw error;
+    return newCode;
   },
   async delete(id, gymId) {
     const resolvedGymId = gymId || DEFAULT_GYM_ID;
@@ -279,6 +300,15 @@ router.put("/:id", async (req, res) => {
   try {
     const student = await StudentService.update(req.params.id, req.body);
     res.json(student);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+router.post("/:id/regenerate-code", async (req, res) => {
+  try {
+    const gymId = req.query.gymId || req.body.gymId || "11111111-1111-1111-1111-111111111111";
+    const newCode = await StudentService.regenerateAccessCode(req.params.id, gymId);
+    res.json({ access_code: newCode });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

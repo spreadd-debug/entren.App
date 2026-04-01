@@ -358,8 +358,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </div>
       ))}
 
-      {/* ── Equipo (solo admin) ──────────────────────────────────── */}
-      {canManageSettings && (
+      {/* ── Equipo (solo admin, solo gym) ─────────────────────────── */}
+      {canManageSettings && !isPT && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <SectionLabel>Equipo</SectionLabel>

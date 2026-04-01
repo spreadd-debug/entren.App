@@ -4,6 +4,15 @@ import { Student } from '../../shared/types';
 
 const DEFAULT_GYM_ID = '11111111-1111-1111-1111-111111111111';
 
+function generateAccessCode(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no I/O/0/1 to avoid confusion
+  let code = '';
+  for (let i = 0; i < 6; i++) {
+    code += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return code;
+}
+
 type StudentDbRow = {
   id?: string;
   gym_id: string;
@@ -23,6 +32,7 @@ type StudentDbRow = {
   observaciones?: string | null;
   emergency_contact_name?: string | null;
   emergency_contact_phone?: string | null;
+  access_code?: string | null;
   created_at?: string;
   updated_at?: string;
 };
@@ -52,6 +62,7 @@ export const StudentService = {
         observaciones,
         emergency_contact_name,
         emergency_contact_phone,
+        access_code,
         created_at,
         updated_at
       `)
@@ -87,6 +98,7 @@ export const StudentService = {
         observaciones,
         emergency_contact_name,
         emergency_contact_phone,
+        access_code,
         created_at,
         updated_at
       `)
@@ -119,6 +131,7 @@ export const StudentService = {
       observaciones: student.observaciones ?? student.observations ?? null,
       emergency_contact_name: student.emergency_contact_name ?? null,
       emergency_contact_phone: student.emergency_contact_phone ?? null,
+      access_code: generateAccessCode(),
     };
 
     const { data, error } = await supabase
@@ -143,6 +156,7 @@ export const StudentService = {
         observaciones,
         emergency_contact_name,
         emergency_contact_phone,
+        access_code,
         created_at,
         updated_at
       `)
@@ -267,6 +281,7 @@ export const StudentService = {
         observaciones,
         emergency_contact_name,
         emergency_contact_phone,
+        access_code,
         created_at,
         updated_at
       `)
@@ -274,6 +289,20 @@ export const StudentService = {
 
     if (error) throw error;
     return (data as unknown) as Student;
+  },
+
+  async regenerateAccessCode(id: string, gymId: string): Promise<string> {
+    const newCode = generateAccessCode();
+    const resolvedGymId = gymId || DEFAULT_GYM_ID;
+
+    const { error } = await supabase
+      .from('students')
+      .update({ access_code: newCode })
+      .eq('id', id)
+      .eq('gym_id', resolvedGymId);
+
+    if (error) throw error;
+    return newCode;
   },
 
   async delete(id: string, gymId: string): Promise<void> {

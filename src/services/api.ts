@@ -185,6 +185,14 @@ export const api = {
     async delete(id: string, gymId: string = DEFAULT_GYM_ID): Promise<void> {
       await fetchJson(`${API_BASE}/students/${id}?gymId=${gymId}`, { method: 'DELETE' });
     },
+
+    async regenerateAccessCode(id: string, gymId: string = DEFAULT_GYM_ID): Promise<{ access_code: string }> {
+      return fetchJson(`${API_BASE}/students/${id}/regenerate-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gymId }),
+      });
+    },
   },
 
   plans: {

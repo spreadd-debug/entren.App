@@ -43,6 +43,16 @@ router.put('/:id', async (req, res) => {
   }
 });
 
+router.post('/:id/regenerate-code', async (req, res) => {
+  try {
+    const gymId = req.query.gymId as string || req.body.gymId || '11111111-1111-1111-1111-111111111111';
+    const newCode = await StudentService.regenerateAccessCode(req.params.id, gymId);
+    res.json({ access_code: newCode });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 router.delete('/:id', async (req, res) => {
   try {
     const gymId = req.query.gymId as string || '11111111-1111-1111-1111-111111111111';
