@@ -785,6 +785,28 @@ function PTApp({ gymId, onLogout }: {
     }
   };
 
+  const handleSavePlan = async (plan: Partial<Plan>) => {
+    try {
+      if ((plan as any).id) {
+        await api.plans.update((plan as any).id, plan);
+      } else {
+        await api.plans.create({ ...plan, gym_id: gymId });
+      }
+      setPlans(await api.plans.getAll(gymId));
+    } catch (error: any) {
+      toast.error(`No se pudo guardar el plan: ${error?.message ?? 'Error desconocido'}`);
+    }
+  };
+
+  const handleDeletePlan = async (id: string) => {
+    try {
+      await api.plans.delete(id);
+      setPlans(await api.plans.getAll(gymId));
+    } catch (error: any) {
+      toast.error(`No se pudo eliminar el plan: ${error?.message ?? 'Error desconocido'}`);
+    }
+  };
+
   const getViewTitle = () => {
     switch (currentView) {
       case 'dashboard':      return 'Panel General';
@@ -792,6 +814,7 @@ function PTApp({ gymId, onLogout }: {
       case 'student-detail': return 'Detalle de Cliente';
       case 'calendar':       return 'Mi Agenda';
       case 'workouts':       return 'Rutinas';
+      case 'plans':          return 'Planes y Precios';
       case 'settings':       return 'Ajustes';
       case 'new-student':    return 'Nuevo Cliente';
       default:               return 'entrenApp PT';
@@ -855,6 +878,16 @@ function PTApp({ gymId, onLogout }: {
             )
           } />
           <Route path="/clients/:studentId" element={<PTStudentDetailRoute />} />
+          <Route path="/plans" element={
+            loadingEl ?? (
+              <PlansView
+                plans={plans}
+                onBack={() => navigate('/settings')}
+                onSavePlan={handleSavePlan}
+                onDeletePlan={handleDeletePlan}
+              />
+            )
+          } />
           <Route path="/calendar" element={
             loadingEl ?? <PTCalendarView gymId={gymId} students={students} />
           } />
@@ -870,6 +903,7 @@ function PTApp({ gymId, onLogout }: {
                 onToggleShifts={() => {}}
                 gymId={gymId}
                 gymName={gymSubscription?.gym_name}
+                gymType="personal_trainer"
               />
             )
           } />

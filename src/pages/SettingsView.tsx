@@ -34,6 +34,7 @@ interface SettingsViewProps {
   onToggleShifts: (enabled: boolean) => void;
   gymId?: string;
   gymName?: string;
+  gymType?: 'gym' | 'personal_trainer';
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
@@ -43,7 +44,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onToggleShifts,
   gymId,
   gymName,
+  gymType = 'gym',
 }) => {
+  const isPT = gymType === 'personal_trainer';
   const { theme, toggleTheme } = useTheme();
   const toast = useToast();
   const [copied, setCopied] = useState(false);
@@ -110,28 +113,30 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
   const sections = [
     {
-      title: 'Gimnasio',
+      title: isPT ? 'Mi Negocio' : 'Gimnasio',
       items: [
         {
           id: 'plans',
           label: 'Planes y Precios',
-          description: 'Gestioná los planes de membresía',
+          description: isPT ? 'Gestioná tus planes de entrenamiento' : 'Gestioná los planes de membresía',
           icon: CreditCard,
           iconBg: 'bg-cyan-500/10',
           iconColor: 'text-cyan-500',
         },
-        {
-          id: 'automation',
-          label: 'Automatización WA',
-          description: 'Recordatorios automáticos por WhatsApp',
-          icon: MessageSquare,
-          iconBg: 'bg-emerald-500/10',
-          iconColor: 'text-emerald-500',
-        },
+        ...(!isPT ? [
+          {
+            id: 'automation',
+            label: 'Automatización WA',
+            description: 'Recordatorios automáticos por WhatsApp',
+            icon: MessageSquare,
+            iconBg: 'bg-emerald-500/10',
+            iconColor: 'text-emerald-500',
+          },
+        ] : []),
         {
           id: 'profile',
-          label: 'Perfil del Gimnasio',
-          description: 'Nombre, dirección y datos del gimnasio',
+          label: isPT ? 'Mi Perfil Profesional' : 'Perfil del Gimnasio',
+          description: isPT ? 'Tu información profesional' : 'Nombre, dirección y datos del gimnasio',
           icon: Dumbbell,
           iconBg: 'bg-violet-500/10',
           iconColor: 'text-violet-500',
@@ -190,7 +195,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
           <div>
             <h3 className="text-lg font-black text-white tracking-tight">
-              {gymName ?? 'Mi Gimnasio'}
+              {gymName ?? (isPT ? 'Mi Estudio' : 'Mi Gimnasio')}
             </h3>
             <span className="mt-1.5 inline-block px-2.5 py-0.5 bg-cyan-500/20 border border-cyan-500/30 text-cyan-400 rounded-full text-[10px] font-black uppercase tracking-wider">
               Plan Activo
@@ -199,7 +204,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </div>
       </div>
 
-      {/* ── Módulos ──────────────────────────────────────────────── */}
+      {/* ── Módulos (solo gym) ───────────────────────────────────── */}
+      {!isPT && (
       <div className="space-y-2">
         <SectionLabel>Módulos</SectionLabel>
         <Card>
@@ -227,9 +233,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
         </Card>
       </div>
+      )}
 
-      {/* ── Check-in QR ──────────────────────────────────────────── */}
-      <div className="space-y-2" data-tour="qr-section">
+      {/* ── Check-in QR (solo gym) ──────────────────────────────── */}
+      {!isPT && <div className="space-y-2" data-tour="qr-section">
         <SectionLabel>Check-in QR</SectionLabel>
         <Card>
           <div className="p-5 space-y-4">
@@ -278,7 +285,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
           </div>
         </Card>
-      </div>
+      </div>}
 
       {/* ── Apariencia ───────────────────────────────────────────── */}
       <div className="space-y-2">

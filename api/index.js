@@ -927,27 +927,6 @@ function getAdminClient() {
   }
   return createClient2(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
 }
-router6.get("/debug-auth/:email", async (req, res) => {
-  try {
-    const admin = getAdminClient();
-    const { data, error } = await admin.auth.admin.listUsers();
-    if (error) return res.status(500).json({ error: error.message });
-    const match = data.users.filter((u) => u.email === req.params.email);
-    res.json({
-      server_supabase_url: process.env.SUPABASE_URL?.slice(0, 30) + "...",
-      total_auth_users: data.users.length,
-      matching_users: match.map((u) => ({
-        id: u.id,
-        email: u.email,
-        email_confirmed: u.email_confirmed_at,
-        created_at: u.created_at,
-        user_metadata: u.user_metadata
-      }))
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 router6.get("/billing", async (req, res) => {
   try {
     const gymId = req.query.gymId;

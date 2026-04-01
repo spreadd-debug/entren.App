@@ -71,11 +71,9 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onRegisterClick, 
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({ email, password });
 
       if (authError) {
-        console.error('[LOGIN] Auth error:', authError.message, authError.status, authError);
-        setError(`Credenciales incorrectas. (${authError.message})`);
+        setError('Credenciales incorrectas.');
         return;
       }
-      console.log('[LOGIN] Auth success:', authData.user?.id, authData.user?.email, authData.user?.user_metadata);
 
       // Auth state change in App.tsx will handle the redirect automatically
       onLogin();
