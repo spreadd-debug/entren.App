@@ -3,11 +3,14 @@ export type StudentStatus = 'active' | 'inactive' | 'expiring' | 'expired';
 export type ScholarshipType = 'none' | 'partial' | 'complete';
 export type PaymentMethod = 'cash' | 'transfer' | 'mercadopago';
 
+export type GymType = 'gym' | 'personal_trainer';
+
 export interface Gym {
   id: string;
   name: string;
   owner_email: string;
   owner_phone?: string;
+  gym_type: GymType;
   created_at: string;
 }
 
@@ -213,6 +216,71 @@ export interface WorkoutUpdateRequest {
   status: 'pending' | 'acknowledged' | 'resolved';
   created_at: string;
   resolved_at: string | null;
+}
+
+// ─── Personal Trainer ────────────────────────────────────────────────────────
+
+export interface ClientAnthropometry {
+  id: string;
+  gym_id: string;
+  student_id: string;
+  measured_at: string;
+  height_cm: number | null;
+  weight_kg: number | null;
+  body_fat_pct: number | null;
+  muscle_mass_kg: number | null;
+  bmi: number | null;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface ClientMeasurement {
+  id: string;
+  gym_id: string;
+  student_id: string;
+  measured_at: string;
+  chest_cm: number | null;
+  waist_cm: number | null;
+  hips_cm: number | null;
+  bicep_l_cm: number | null;
+  bicep_r_cm: number | null;
+  thigh_l_cm: number | null;
+  thigh_r_cm: number | null;
+  calf_l_cm: number | null;
+  calf_r_cm: number | null;
+  shoulders_cm: number | null;
+  neck_cm: number | null;
+  notes: string | null;
+  created_at: string;
+}
+
+export type GoalType = 'lose_weight' | 'gain_muscle' | 'rehab' | 'flexibility' | 'endurance' | 'strength' | 'general_fitness' | 'other';
+export type GoalStatus = 'active' | 'achieved' | 'paused' | 'abandoned';
+
+export interface ClientGoal {
+  id: string;
+  gym_id: string;
+  student_id: string;
+  goal_type: GoalType;
+  description: string | null;
+  target_value: string | null;
+  target_date: string | null;
+  status: GoalStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export type NoteCategory = 'progress' | 'injury' | 'nutrition' | 'motivation' | 'other';
+
+export interface SessionNote {
+  id: string;
+  gym_id: string;
+  student_id: string;
+  session_id: string | null;
+  note_date: string;
+  content: string;
+  category: NoteCategory | null;
+  created_at: string;
 }
 
 // ─── Gym Subscription ────────────────────────────────────────────────────────

@@ -31,11 +31,11 @@ router.post('/billing', async (req, res) => {
 // POST /api/subscriptions/gyms — create new gym + initial trial subscription
 router.post('/gyms', async (req, res) => {
   try {
-    const { name, owner_email, owner_phone, plan_tier = 'starter', trial_days = 30 } = req.body;
+    const { name, owner_email, owner_phone, plan_tier = 'starter', trial_days = 30, gym_type = 'gym' } = req.body;
     if (!name || !owner_email) {
       return res.status(400).json({ error: 'name y owner_email son requeridos' });
     }
-    const sub = await SubscriptionService.createGym(name, owner_email, plan_tier, Number(trial_days), owner_phone);
+    const sub = await SubscriptionService.createGym(name, owner_email, plan_tier, Number(trial_days), owner_phone, gym_type);
     res.status(201).json(sub);
   } catch (error: any) {
     res.status(500).json({ error: error.message });

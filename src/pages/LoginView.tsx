@@ -5,6 +5,7 @@ import { supabase } from '../db/supabase';
 interface LoginViewProps {
   onLogin: () => void;
   onRegisterClick: () => void;
+  onRegisterPTClick?: () => void;
 }
 
 const SUPERADMIN_USERNAME = import.meta.env.VITE_SUPERADMIN_USER ?? '';
@@ -17,7 +18,7 @@ const DEMO_STUDENT_ID = 'bbbb0001-0000-0000-0000-000000000001';
 // [TEST]   user: gymtest     / pass: gymtest      → vista dueño de gimnasio (datos demo)
 // [TEST]   user: alumnotest  / pass: alumnotest   → vista alumno (datos demo)
 
-export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onRegisterClick }) => {
+export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onRegisterClick, onRegisterPTClick }) => {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -207,8 +208,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onRegisterClick }
           </form>
         </div>
 
-        {/* Register link */}
-        <div className="text-center">
+        {/* Register links */}
+        <div className="text-center space-y-2">
           <p className="text-sm text-slate-600">
             ¿No tenés cuenta?{' '}
             <button
@@ -218,6 +219,17 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onRegisterClick }
               Registrá tu gimnasio
             </button>
           </p>
+          {onRegisterPTClick && (
+            <p className="text-sm text-slate-600">
+              ¿Sos Personal Trainer?{' '}
+              <button
+                onClick={onRegisterPTClick}
+                className="font-bold text-violet-400 hover:text-violet-300 transition-colors"
+              >
+                Registrate acá
+              </button>
+            </p>
+          )}
         </div>
 
         {/* Features strip */}

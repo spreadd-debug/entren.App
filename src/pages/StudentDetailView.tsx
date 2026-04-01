@@ -54,6 +54,7 @@ interface StudentDetailViewProps {
   }) => void;
   onUpdateStudent: (id: string, updates: any) => void;
   onDeleteStudent: (id: string) => void;
+  gymType?: 'gym' | 'personal_trainer';
 }
 
 export const StudentDetailView: React.FC<StudentDetailViewProps> = ({
@@ -65,6 +66,7 @@ export const StudentDetailView: React.FC<StudentDetailViewProps> = ({
   onRegisterPayment,
   onUpdateStudent,
   onDeleteStudent,
+  gymType = 'gym',
 }) => {
   const toast = useToast();
   const [isModalOpen, setIsModalOpen] = useState(false);

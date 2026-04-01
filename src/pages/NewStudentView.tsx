@@ -21,6 +21,7 @@ interface NewStudentViewProps {
   plans: Plan[];
   onBack: () => void;
   onCreateStudent: (student: Partial<Student>, registerPayment: boolean) => void;
+  gymType?: 'gym' | 'personal_trainer';
 }
 
 type ScholarshipTypeUI = 'ninguna' | 'parcial' | 'completa';
@@ -30,7 +31,9 @@ export const NewStudentView: React.FC<NewStudentViewProps> = ({
   plans,
   onBack,
   onCreateStudent,
+  gymType = 'gym',
 }) => {
+  const isPT = gymType === 'personal_trainer';
   const toast = useToast();
   const safePlans = Array.isArray(plans) ? plans : [];
 
@@ -138,7 +141,7 @@ export const NewStudentView: React.FC<NewStudentViewProps> = ({
         >
           <ChevronLeft size={20} />
         </button>
-        <h2 className="text-xl font-bold text-slate-900 dark:text-white">Nuevo Alumno</h2>
+        <h2 className="text-xl font-bold text-slate-900 dark:text-white">{isPT ? 'Nuevo Cliente' : 'Nuevo Alumno'}</h2>
       </div>
 
       <div className="space-y-6">
@@ -322,6 +325,7 @@ export const NewStudentView: React.FC<NewStudentViewProps> = ({
           </Card>
         </section>
 
+        {!isPT && (
         <section className="space-y-3">
           <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 px-1">
             Cobranza
@@ -483,6 +487,7 @@ export const NewStudentView: React.FC<NewStudentViewProps> = ({
             </div>
           </Card>
         </section>
+        )}
 
         <section className="space-y-3">
           <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 px-1">
@@ -531,26 +536,39 @@ export const NewStudentView: React.FC<NewStudentViewProps> = ({
         </section>
 
         <div className="space-y-3 pt-4">
-          <Button
-            variant="primary"
-            fullWidth
-            className="py-4 h-auto flex-col gap-1"
-            onClick={() => handleSubmit(true)}
-          >
-            <span className="text-base">Crear Alumno y Registrar Pago</span>
-            <span className="text-[10px] opacity-80 font-medium uppercase tracking-widest">
-              Recomendado para nuevos ingresos
-            </span>
-          </Button>
+          {isPT ? (
+            <Button
+              variant="primary"
+              fullWidth
+              className="py-4 h-auto"
+              onClick={() => handleSubmit(false)}
+            >
+              Crear Cliente
+            </Button>
+          ) : (
+            <>
+              <Button
+                variant="primary"
+                fullWidth
+                className="py-4 h-auto flex-col gap-1"
+                onClick={() => handleSubmit(true)}
+              >
+                <span className="text-base">Crear Alumno y Registrar Pago</span>
+                <span className="text-[10px] opacity-80 font-medium uppercase tracking-widest">
+                  Recomendado para nuevos ingresos
+                </span>
+              </Button>
 
-          <Button
-            variant="outline"
-            fullWidth
-            className="py-4 h-auto"
-            onClick={() => handleSubmit(false)}
-          >
-            Solo Crear Alumno
-          </Button>
+              <Button
+                variant="outline"
+                fullWidth
+                className="py-4 h-auto"
+                onClick={() => handleSubmit(false)}
+              >
+                Solo Crear Alumno
+              </Button>
+            </>
+          )}
 
           <Button variant="ghost" fullWidth onClick={onBack}>
             Cancelar

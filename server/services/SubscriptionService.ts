@@ -1,5 +1,5 @@
 import { supabase } from '../db/supabase';
-import { GymSubscription, GymBillingPayment, GymPlanTier } from '../../shared/types';
+import { GymSubscription, GymBillingPayment, GymPlanTier, GymType } from '../../shared/types';
 
 function mapRow(row: any): GymSubscription {
   return {
@@ -114,11 +114,12 @@ export const SubscriptionService = {
     planTier: GymPlanTier = 'starter',
     trialDays: number = 30,
     ownerPhone?: string,
+    gymType: GymType = 'gym',
   ): Promise<GymSubscription> {
     const { data: gym, error: gymError } = await supabase
       .from('gyms')
-      .insert([{ name, owner_email: ownerEmail, ...(ownerPhone ? { owner_phone: ownerPhone } : {}) }])
-      .select('id')
+      .insert([{ name, owner_email: ownerEmail, gym_type: gymType, ...(ownerPhone ? { owner_phone: ownerPhone } : {}) }])
+      .select('id, gym_type')
       .single();
 
     if (gymError) throw gymError;
@@ -139,7 +140,8 @@ export const SubscriptionService = {
       .single();
 
     if (error) throw error;
-    return mapRow(data);
+    const mapped = mapRow(data);
+    return { ...mapped, gym_type: gym.gym_type } as any;
   },
 
   // ── Billing payments ───────────────────────────────────────────────────────

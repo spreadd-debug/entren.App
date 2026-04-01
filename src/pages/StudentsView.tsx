@@ -8,6 +8,7 @@ interface StudentsViewProps {
   students: Student[];
   onSelectStudent: (student: Student) => void;
   onNavigate: (view: string) => void;
+  gymType?: 'gym' | 'personal_trainer';
 }
 
 const isValidDate = (value: unknown) => {
@@ -16,7 +17,8 @@ const isValidDate = (value: unknown) => {
   return !isNaN(date.getTime());
 };
 
-export const StudentsView: React.FC<StudentsViewProps> = ({ students, onSelectStudent, onNavigate }) => {
+export const StudentsView: React.FC<StudentsViewProps> = ({ students, onSelectStudent, onNavigate, gymType = 'gym' }) => {
+  const isPT = gymType === 'personal_trainer';
   const [searchTerm, setSearchTerm] = useState('');
 
   const safeStudents = Array.isArray(students) ? students : [];
@@ -63,7 +65,7 @@ export const StudentsView: React.FC<StudentsViewProps> = ({ students, onSelectSt
         <div className="relative flex-1">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
           <Input
-            placeholder="Buscar alumno..."
+            placeholder={isPT ? "Buscar cliente..." : "Buscar alumno..."}
             className="pl-12"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -81,7 +83,7 @@ export const StudentsView: React.FC<StudentsViewProps> = ({ students, onSelectSt
         onClick={() => onNavigate('new-student')}
       >
         <UserPlus size={20} />
-        Nuevo Alumno
+        {isPT ? 'Nuevo Cliente' : 'Nuevo Alumno'}
       </Button>
 
       <div className="space-y-3">
@@ -99,12 +101,14 @@ export const StudentsView: React.FC<StudentsViewProps> = ({ students, onSelectSt
                 <div>
                   <div className="flex items-center gap-2">
                     <h4 className="font-bold text-slate-900 dark:text-white">{student.displayName}</h4>
-                    <BillingBadge
-                      cobra_cuota={student.cobra_cuota}
-                      recordatorio_automatico={student.recordatorio_automatico}
-                      tipo_beca={student.tipo_beca}
-                      whatsapp_opt_in={student.whatsapp_opt_in}
-                    />
+                    {!isPT && (
+                      <BillingBadge
+                        cobra_cuota={student.cobra_cuota}
+                        recordatorio_automatico={student.recordatorio_automatico}
+                        tipo_beca={student.tipo_beca}
+                        whatsapp_opt_in={student.whatsapp_opt_in}
+                      />
+                    )}
                   </div>
                   <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">{student.planDisplay}</p>
                 </div>
@@ -114,39 +118,50 @@ export const StudentsView: React.FC<StudentsViewProps> = ({ students, onSelectSt
             </div>
 
             <div className="flex items-center justify-between pt-3 border-t border-slate-50 dark:border-slate-700">
-              <div className="text-xs">
-                <p className="text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold mb-0.5">Vencimiento</p>
-                <p
-                  className={`font-bold ${
-                    student.dueStatus === 'expired'
-                      ? 'text-rose-600'
-                      : student.dueStatus === 'expiring'
-                      ? 'text-amber-600'
-                      : 'text-slate-900 dark:text-white'
-                  }`}
-                >
-                  {student.nextDueDisplay ? formatDate(String(student.nextDueDisplay)) : 'Sin fecha'}
-                </p>
-              </div>
+              {!isPT ? (
+                <div className="text-xs">
+                  <p className="text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold mb-0.5">Vencimiento</p>
+                  <p
+                    className={`font-bold ${
+                      student.dueStatus === 'expired'
+                        ? 'text-rose-600'
+                        : student.dueStatus === 'expiring'
+                        ? 'text-amber-600'
+                        : 'text-slate-900 dark:text-white'
+                    }`}
+                  >
+                    {student.nextDueDisplay ? formatDate(String(student.nextDueDisplay)) : 'Sin fecha'}
+                  </p>
+                </div>
+              ) : (
+                <div className="text-xs">
+                  <p className="text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold mb-0.5">Plan</p>
+                  <p className="font-bold text-slate-900 dark:text-white">{student.planDisplay}</p>
+                </div>
+              )}
 
               <div className="flex gap-2">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                  }}
-                  className="p-2.5 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors"
-                >
-                  <MessageSquare size={18} />
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onSelectStudent(student);
-                  }}
-                  className="p-2.5 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors"
-                >
-                  <CreditCard size={18} />
-                </button>
+                {!isPT && (
+                  <>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                      }}
+                      className="p-2.5 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors"
+                    >
+                      <MessageSquare size={18} />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSelectStudent(student);
+                      }}
+                      className="p-2.5 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors"
+                    >
+                      <CreditCard size={18} />
+                    </button>
+                  </>
+                )}
                 <div className="p-2.5 text-slate-300 dark:text-slate-600">
                   <ChevronRight size={18} />
                 </div>
@@ -160,7 +175,7 @@ export const StudentsView: React.FC<StudentsViewProps> = ({ students, onSelectSt
             <div className="w-20 h-20 bg-slate-100 dark:bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-400 dark:text-slate-500">
               <Users size={40} />
             </div>
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white">No se encontraron alumnos</h3>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white">{isPT ? 'No se encontraron clientes' : 'No se encontraron alumnos'}</h3>
             <p className="text-slate-500 dark:text-slate-400">Probá con otro nombre o agregá uno nuevo.</p>
           </div>
         )}

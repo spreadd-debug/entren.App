@@ -2,9 +2,11 @@ import { supabase } from './db/supabase';
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, useNavigate, useLocation, useParams, Navigate } from 'react-router-dom';
 import { AppShell } from './components/AppShell';
+import { PTShell } from './components/PTShell';
 import { DashboardView } from './pages/DashboardView';
 import { StudentsView } from './pages/StudentsView';
 import { StudentDetailView } from './pages/StudentDetailView';
+import { ClientDetailView } from './pages/ClientDetailView';
 import { PaymentsView } from './pages/PaymentsView';
 import { DefaultersView } from './pages/DefaultersView';
 import { SettingsView } from './pages/SettingsView';
@@ -14,6 +16,8 @@ import { PlansView } from './pages/PlansView';
 import { NewStudentView } from './pages/NewStudentView';
 import { LoginView } from './pages/LoginView';
 import { RegisterGymView } from './pages/RegisterGymView';
+import { RegisterPTView } from './pages/RegisterPTView';
+import { PTDashboardView } from './pages/PTDashboardView';
 import { AutomationView } from './pages/AutomationView';
 import WorkoutPlansView from "./pages/WorkoutPlansView";
 import { ShiftsView } from './pages/ShiftsView';
@@ -35,6 +39,7 @@ import {
   MessageTemplate,
   AutomationStatus,
   GymSubscription,
+  GymType,
 } from '../shared/types';
 
 import { api } from './services/api';
@@ -44,6 +49,7 @@ export default function App() {
   const [supabaseUser, setSupabaseUser] = useState<any>(null);
   const [sessionLoading, setSessionLoading] = useState(true);
   const [isRegistering, setIsRegistering] = useState(false);
+  const [isRegisteringPT, setIsRegisteringPT] = useState(false);
   const [authTick, setAuthTick] = useState(0); // forces re-render after sessionStorage-based logins
   const [studentPortalId, setStudentPortalId] = useState<string | null>(
     localStorage.getItem("studentPortalId")
@@ -70,6 +76,7 @@ export default function App() {
   const isAuthenticated = isSuperAdmin || isDemo || isGymTest || isStudentDemo || supabaseUser !== null;
   const gymId = (isDemo || isGymTest) ? DEMO_GYM_ID : (supabaseUser?.user_metadata?.gym_id ?? null);
   const userRole = (supabaseUser?.user_metadata?.role ?? 'admin') as string;
+  const gymType = (supabaseUser?.user_metadata?.gym_type ?? 'gym') as GymType;
 
   const isStudentPortalMode = window.location.search.includes("student=1");
 
@@ -130,6 +137,17 @@ export default function App() {
     );
   }
 
+  if (isRegisteringPT) {
+    return (
+      <ThemeProvider>
+        <RegisterPTView
+          onBack={() => setIsRegisteringPT(false)}
+          onSuccess={() => setIsRegisteringPT(false)}
+        />
+      </ThemeProvider>
+    );
+  }
+
   // ── Login ────────────────────────────────────────────────────────────────────
 
   if (!isAuthenticated) {
@@ -138,6 +156,7 @@ export default function App() {
         <LoginView
           onLogin={() => setAuthTick(t => t + 1)}
           onRegisterClick={() => setIsRegistering(true)}
+          onRegisterPTClick={() => setIsRegisteringPT(true)}
         />
       </ThemeProvider>
     );
@@ -168,6 +187,19 @@ export default function App() {
       <ThemeProvider>
         <StudentPortalView
           studentId={demoStudentId}
+          onLogout={handleLogout}
+        />
+      </ThemeProvider>
+    );
+  }
+
+  // ── Personal Trainer app ─────────────────────────────────────────────────────
+
+  if (gymType === 'personal_trainer') {
+    return (
+      <ThemeProvider>
+        <PTApp
+          gymId={gymId!}
           onLogout={handleLogout}
         />
       </ThemeProvider>
@@ -627,5 +659,200 @@ function GymApp({ gymId, userRole, onLogout, isDemo = false, onRegister }: {
         />
       )}
     </>
+  );
+}
+
+// ── PTApp: Personal Trainer experience ──────────────────────────────────────
+
+function PTApp({ gymId, onLogout }: {
+  gymId: string;
+  onLogout: () => void;
+}) {
+  const toast = useToast();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const currentView = pathToView(location.pathname);
+
+  const [students, setStudents] = useState<Student[]>([]);
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [gymSubscription, setGymSubscription] = useState<GymSubscription | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      const results = await Promise.allSettled([
+        api.students.getAll(gymId),
+        api.plans.getAll(gymId),
+        api.subscriptions.getByGymId(gymId),
+      ]);
+
+      const [studentsRes, plansRes, subscriptionRes] = results;
+
+      if (studentsRes.status === 'fulfilled') setStudents(Array.isArray(studentsRes.value) ? studentsRes.value : []);
+      if (plansRes.status === 'fulfilled') setPlans(Array.isArray(plansRes.value) ? plansRes.value : []);
+      if (subscriptionRes.status === 'fulfilled') setGymSubscription(subscriptionRes.value);
+
+      setIsLoading(false);
+    };
+    fetchData();
+  }, []);
+
+  const handleNavigate = (view: string) => {
+    navigate(viewToPath(view));
+  };
+
+  const handleSelectStudent = (student: Student) => {
+    navigate(viewToPath('student-detail', { studentId: student.id }));
+  };
+
+  const normalizePhone = (phone: string) => phone.replace(/\D/g, '');
+
+  const findDuplicatePhone = (phone: string, excludeId?: string) => {
+    const cleaned = normalizePhone(phone);
+    if (cleaned.length < 6) return null;
+    return students.find((s: any) => {
+      if (excludeId && s.id === excludeId) return false;
+      const p = normalizePhone((s as any).telefono ?? (s as any).phone ?? '');
+      return p.length >= 6 && p === cleaned;
+    }) ?? null;
+  };
+
+  const handleCreateStudent = async (studentData: Partial<Student>, registerPayment: boolean) => {
+    const phone = (studentData as any).telefono ?? (studentData as any).phone ?? '';
+    if (phone.trim()) {
+      const dup = findDuplicatePhone(phone);
+      if (dup) {
+        const dupName = `${(dup as any).nombre ?? ''} ${(dup as any).apellido ?? ''}`.trim();
+        toast.error(`Ya existe un cliente con ese teléfono: ${dupName}`);
+        return;
+      }
+    }
+    try {
+      await api.students.create({ ...studentData, gym_id: gymId });
+      setStudents(await api.students.getAll(gymId));
+      navigate('/clients');
+    } catch (error: any) {
+      toast.error(`No se pudo crear el cliente: ${error?.message ?? 'Error desconocido'}`);
+    }
+  };
+
+  const handleUpdateStudent = async (id: string, updates: any) => {
+    const phone = updates.telefono ?? updates.phone ?? '';
+    if (phone.trim()) {
+      const dup = findDuplicatePhone(phone, id);
+      if (dup) {
+        const dupName = `${(dup as any).nombre ?? ''} ${(dup as any).apellido ?? ''}`.trim();
+        toast.error(`Ya existe un cliente con ese teléfono: ${dupName}`);
+        return;
+      }
+    }
+    try {
+      await api.students.update(id, updates);
+      setStudents(await api.students.getAll(gymId));
+    } catch (error: any) {
+      toast.error(`No se pudo guardar los cambios: ${error?.message ?? 'Error desconocido'}`);
+    }
+  };
+
+  const handleDeleteStudent = async (id: string) => {
+    try {
+      await api.students.delete(id, gymId);
+      setStudents(await api.students.getAll(gymId));
+      navigate('/clients');
+    } catch (error: any) {
+      toast.error(`No se pudo eliminar el cliente: ${error?.message ?? 'Error desconocido'}`);
+    }
+  };
+
+  const getViewTitle = () => {
+    switch (currentView) {
+      case 'dashboard':      return 'Panel General';
+      case 'students':       return 'Clientes';
+      case 'student-detail': return 'Detalle de Cliente';
+      case 'workouts':       return 'Rutinas';
+      case 'settings':       return 'Ajustes';
+      case 'new-student':    return 'Nuevo Cliente';
+      default:               return 'entrenApp PT';
+    }
+  };
+
+  const loadingEl = isLoading
+    ? <div className="flex items-center justify-center h-64 text-slate-400">Cargando...</div>
+    : null;
+
+  const PTStudentDetailRoute = () => {
+    const { studentId } = useParams<{ studentId: string }>();
+    const student = students.find((s: any) => s.id === studentId) ?? null;
+
+    if (isLoading) return loadingEl;
+    if (!student) return <Navigate to="/clients" replace />;
+
+    return (
+      <ClientDetailView
+        student={student}
+        plans={plans}
+        gymId={gymId}
+        onBack={() => navigate('/clients')}
+        onUpdateStudent={handleUpdateStudent}
+        onDeleteStudent={handleDeleteStudent}
+      />
+    );
+  };
+
+  return (
+    <PTShell
+      currentView={currentView === 'student-detail' ? 'students' : currentView}
+      onNavigate={handleNavigate}
+      title={getViewTitle()}
+      onLogout={onLogout}
+    >
+      <SubscriptionGuard subscription={gymSubscription}>
+        <Routes>
+          <Route path="/" element={
+            loadingEl ?? (
+              <PTDashboardView
+                onNavigate={handleNavigate}
+                students={students}
+                onSelectStudent={handleSelectStudent}
+              />
+            )
+          } />
+          <Route path="/clients" element={
+            loadingEl ?? (
+              <StudentsView onSelectStudent={handleSelectStudent} students={students} onNavigate={handleNavigate} gymType="personal_trainer" />
+            )
+          } />
+          <Route path="/clients/new" element={
+            loadingEl ?? (
+              <NewStudentView
+                plans={plans}
+                onBack={() => navigate('/clients')}
+                onCreateStudent={handleCreateStudent}
+                gymType="personal_trainer"
+              />
+            )
+          } />
+          <Route path="/clients/:studentId" element={<PTStudentDetailRoute />} />
+          <Route path="/workouts" element={
+            loadingEl ?? <WorkoutPlansView gymId={gymId} />
+          } />
+          <Route path="/settings" element={
+            loadingEl ?? (
+              <SettingsView
+                onNavigate={handleNavigate}
+                canManageSettings={true}
+                shiftsEnabled={false}
+                onToggleShifts={() => {}}
+                gymId={gymId}
+                gymName={gymSubscription?.gym_name}
+              />
+            )
+          } />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </SubscriptionGuard>
+    </PTShell>
   );
 }

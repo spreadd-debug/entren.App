@@ -22,6 +22,7 @@ const VIEW_TO_PATH: Record<string, string> = {
 const PATH_TO_VIEW: Record<string, string> = {
   '/':                'dashboard',
   '/students':        'students',
+  '/clients':         'students',
   '/payments':        'payments',
   '/defaulters':      'defaulters',
   '/settings':        'settings',
@@ -30,6 +31,7 @@ const PATH_TO_VIEW: Record<string, string> = {
   '/workouts':        'workouts',
   '/shifts':          'shifts',
   '/students/new':    'new-student',
+  '/clients/new':     'new-student',
   '/portal-preview':  'student-portal',
   '/register':        'register',
 };
@@ -46,8 +48,11 @@ export function viewToPath(view: string, params?: { studentId?: string }): strin
 export function pathToView(pathname: string): string {
   // Check exact match first
   if (PATH_TO_VIEW[pathname]) return PATH_TO_VIEW[pathname];
-  // Check /students/:id pattern
+  // Check /students/:id or /clients/:id pattern
   if (/^\/students\/[^/]+$/.test(pathname) && pathname !== '/students/new') {
+    return 'student-detail';
+  }
+  if (/^\/clients\/[^/]+$/.test(pathname) && pathname !== '/clients/new') {
     return 'student-detail';
   }
   return 'dashboard';
