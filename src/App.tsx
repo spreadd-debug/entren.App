@@ -768,14 +768,8 @@ function PTApp({ gymId, onLogout }: {
       }
     }
     try {
-      const payload = { ...updates, gym_id: gymId };
-      console.log('[PT handleUpdateStudent] id:', id, 'payload:', payload);
-      const result = await api.students.update(id, payload);
-      console.log('[PT handleUpdateStudent] result:', result);
-      const refreshed = await api.students.getAll(gymId);
-      const match = refreshed.find((s: any) => s.id === id);
-      console.log('[PT handleUpdateStudent] after refetch, student telefono:', (match as any)?.telefono, 'nombre:', (match as any)?.nombre);
-      setStudents(refreshed);
+      await api.students.update(id, { ...updates, gym_id: gymId });
+      setStudents(await api.students.getAll(gymId));
       toast.success('Cambios guardados');
     } catch (error: any) {
       console.error('[PT handleUpdateStudent] error:', error);

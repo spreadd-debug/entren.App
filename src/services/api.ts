@@ -71,6 +71,8 @@ function normalizeStudent(student: any, plans: Plan[] = []): Student {
     nombre,
     apellido,
     name: `${nombre} ${apellido}`.trim(),
+    telefono: student.telefono ?? student.phone ?? null,
+    observaciones: student.observaciones ?? student.observations ?? null,
     plan_id: student.plan_id ?? student.planId ?? null,
     planName:
       student.planName ??
@@ -79,15 +81,19 @@ function normalizeStudent(student: any, plans: Plan[] = []): Student {
       'Sin plan',
     next_due_date,
     nextDueDate: next_due_date,
-    precio_personalizado: student.precio_personalizado ?? null,
-    tipo_beca: student.tipo_beca ?? 'ninguna',
-    cobra_cuota: student.cobra_cuota ?? true,
-    recordatorio_automatico: student.recordatorio_automatico ?? true,
-    whatsapp_opt_in: student.whatsapp_opt_in ?? false,
+    precio_personalizado: student.precio_personalizado ?? student.customPrice ?? null,
+    tipo_beca: student.tipo_beca ?? student.discountType ?? 'ninguna',
+    cobra_cuota: student.cobra_cuota ?? student.chargeFee ?? true,
+    recordatorio_automatico: student.recordatorio_automatico ?? student.automaticReminder ?? true,
+    whatsapp_opt_in: student.whatsapp_opt_in ?? student.whatsappOptIn ?? false,
+    emergency_contact_name: student.emergency_contact_name ?? null,
+    emergency_contact_phone: student.emergency_contact_phone ?? null,
+    access_code: student.access_code ?? null,
     status: derivedStatus,
     debt: Number(
       student.debt ??
         student.precio_personalizado ??
+        student.customPrice ??
         matchedPlan?.precio ??
         0
     ),

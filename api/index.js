@@ -230,7 +230,6 @@ var StudentService = {
     }
     const gymId = updates.gym_id ?? updates.gymId ?? DEFAULT_GYM_ID;
     delete payload.gym_id;
-    console.log("[StudentService.update] id:", id, "gymId:", gymId, "payload:", JSON.stringify(payload));
     if (Object.keys(payload).length === 0) {
       const current = await this.getById(id, gymId);
       if (!current) throw new Error("Student not found");
@@ -259,7 +258,6 @@ var StudentService = {
         created_at,
         updated_at
       `).maybeSingle();
-    console.log("[StudentService.update] supabase error:", error, "data:", data);
     if (error) throw error;
     if (!data) throw new Error("No se encontr\xF3 el alumno o no se pudo actualizar");
     return mapStudentRowToStudent(data);
@@ -309,13 +307,10 @@ router.post("/", async (req, res) => {
 });
 router.put("/:id", async (req, res) => {
   try {
-    console.log("[PUT /students/:id] id:", req.params.id, "body:", JSON.stringify(req.body));
     const student = await StudentService.update(req.params.id, req.body);
-    console.log("[PUT /students/:id] result:", JSON.stringify(student));
     res.json(student);
   } catch (error) {
-    console.error("[PUT /students/:id] ERROR:", error.message, error);
-    res.status(500).json({ error: error.message, details: error.details ?? null });
+    res.status(500).json({ error: error.message });
   }
 });
 router.post("/:id/regenerate-code", async (req, res) => {
