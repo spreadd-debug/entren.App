@@ -171,13 +171,21 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({
     }
   };
 
-  const handleSave = () => {
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSave = async () => {
     if (!editData.nombre.trim() || !editData.apellido.trim()) {
       toast.error('Nombre y apellido son obligatorios');
       return;
     }
-    onUpdateStudent(student.id, { ...editData, nombre: editData.nombre.trim(), apellido: editData.apellido.trim() });
-    setIsEditing(false);
+    setIsSaving(true);
+    try {
+      await onUpdateStudent(student.id, { ...editData, nombre: editData.nombre.trim(), apellido: editData.apellido.trim() });
+      setIsEditing(false);
+    } catch {
+      // error already toasted by parent
+    }
+    setIsSaving(false);
   };
 
   const handleDelete = () => {
@@ -241,8 +249,8 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({
             <ArrowLeft size={24} />
           </button>
           <div className="flex gap-2">
-            <Button variant="outline" size="icon" onClick={() => setIsEditing(false)}><X size={18} /></Button>
-            <Button variant="secondary" size="icon" onClick={handleSave}><Save size={18} /></Button>
+            <Button variant="outline" size="icon" onClick={() => setIsEditing(false)} disabled={isSaving}><X size={18} /></Button>
+            <Button variant="secondary" size="icon" onClick={handleSave} disabled={isSaving}><Save size={18} /></Button>
           </div>
         </div>
         <Card className="p-5 space-y-4">
@@ -283,7 +291,9 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({
               <Input placeholder="Telefono" value={editData.emergency_contact_phone} onChange={e => setEditData({ ...editData, emergency_contact_phone: e.target.value })} />
             </div>
           </div>
-          <Button variant="secondary" fullWidth onClick={handleSave}>Guardar cambios</Button>
+          <Button variant="secondary" fullWidth onClick={handleSave} disabled={isSaving}>
+            {isSaving ? 'Guardando...' : 'Guardar cambios'}
+          </Button>
         </Card>
       </div>
     );
