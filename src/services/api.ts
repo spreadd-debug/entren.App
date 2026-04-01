@@ -382,6 +382,7 @@ export const api = {
       name: string;
       owner_email: string;
       owner_phone?: string;
+      password?: string;
       plan_tier?: GymPlanTier;
       trial_days?: number;
       gym_type?: 'gym' | 'personal_trainer';

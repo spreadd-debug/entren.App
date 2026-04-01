@@ -1,7 +1,14 @@
 import { Router } from 'express';
+import { createClient } from '@supabase/supabase-js';
 import { SubscriptionService } from '../services/SubscriptionService';
 
 const router = Router();
+
+function getAdminClient() {
+  const url = process.env.SUPABASE_URL!;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+  return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
+}
 
 // ── Billing payments (fixed paths must come BEFORE /:gymId) ───────────────────
 
@@ -28,14 +35,37 @@ router.post('/billing', async (req, res) => {
 
 // ── Gym subscriptions ─────────────────────────────────────────────────────────
 
-// POST /api/subscriptions/gyms — create new gym + initial trial subscription
+// POST /api/subscriptions/gyms — create new gym + initial trial subscription + auth user
 router.post('/gyms', async (req, res) => {
   try {
-    const { name, owner_email, owner_phone, plan_tier = 'starter', trial_days = 30, gym_type = 'gym', monthly_price } = req.body;
+    const { name, owner_email, owner_phone, plan_tier = 'starter', trial_days = 30, gym_type = 'gym', monthly_price, password } = req.body;
     if (!name || !owner_email) {
       return res.status(400).json({ error: 'name y owner_email son requeridos' });
     }
+
+    // 1. Create gym + subscription
     const sub = await SubscriptionService.createGym(name, owner_email, plan_tier, Number(trial_days), owner_phone, gym_type, monthly_price != null ? Number(monthly_price) : null);
+
+    // 2. If password provided, create Supabase Auth user (from SuperAdmin)
+    if (password) {
+      const supabaseAdmin = getAdminClient();
+      const { error: authError } = await supabaseAdmin.auth.admin.createUser({
+        email: owner_email,
+        password,
+        user_metadata: {
+          gym_id: sub.gym_id,
+          role: 'admin',
+          ...(gym_type === 'personal_trainer' ? { gym_type: 'personal_trainer' } : {}),
+          must_change_password: true,
+        },
+        email_confirm: true,
+      });
+      if (authError) {
+        // Gym was created but auth failed — return warning
+        return res.status(201).json({ ...sub, auth_warning: authError.message });
+      }
+    }
+
     res.status(201).json(sub);
   } catch (error: any) {
     res.status(500).json({ error: error.message });

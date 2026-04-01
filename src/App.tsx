@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Routes, Route, useNavigate, useLocation, useParams, Navigate } from 'react-router-dom';
 import { AppShell } from './components/AppShell';
 import { PTShell } from './components/PTShell';
+import { ChangePasswordModal } from './components/ChangePasswordModal';
 import { DashboardView } from './pages/DashboardView';
 import { StudentsView } from './pages/StudentsView';
 import { StudentDetailView } from './pages/StudentDetailView';
@@ -77,6 +78,7 @@ export default function App() {
   const gymId = (isDemo || isGymTest) ? DEMO_GYM_ID : (supabaseUser?.user_metadata?.gym_id ?? null);
   const userRole = (supabaseUser?.user_metadata?.role ?? 'admin') as string;
   const gymType = (supabaseUser?.user_metadata?.gym_type ?? 'gym') as GymType;
+  const mustChangePassword = supabaseUser?.user_metadata?.must_change_password === true;
 
   const isStudentPortalMode = window.location.search.includes("student=1");
 
@@ -188,6 +190,22 @@ export default function App() {
         <StudentPortalView
           studentId={demoStudentId}
           onLogout={handleLogout}
+        />
+      </ThemeProvider>
+    );
+  }
+
+  // ── Must change password (first login) ───────────────────────────────────────
+
+  if (mustChangePassword) {
+    return (
+      <ThemeProvider>
+        <ChangePasswordModal
+          onSuccess={async () => {
+            // Refresh the session so user_metadata is up to date
+            const { data } = await supabase.auth.getSession();
+            setSupabaseUser(data.session?.user ?? null);
+          }}
         />
       </ThemeProvider>
     );

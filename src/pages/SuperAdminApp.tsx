@@ -372,6 +372,7 @@ function NewGymModal({
     name: '',
     owner_email: '',
     owner_phone: '',
+    password: '',
     gym_type: 'gym' as GymType,
     plan_tier: 'starter' as GymPlanTier,
     trial_days: '30',
@@ -385,6 +386,14 @@ function NewGymModal({
       setError('Nombre y email son requeridos.');
       return;
     }
+    if (!form.password.trim()) {
+      setError('Ingresá una contraseña temporal para el usuario.');
+      return;
+    }
+    if (form.password.length < 6) {
+      setError('La contraseña debe tener al menos 6 caracteres.');
+      return;
+    }
     setSaving(true);
     setError('');
     try {
@@ -392,6 +401,7 @@ function NewGymModal({
         name: form.name.trim(),
         owner_email: form.owner_email.trim(),
         owner_phone: form.owner_phone.trim() || undefined,
+        password: form.password,
         gym_type: form.gym_type,
         plan_tier: form.plan_tier,
         trial_days: Number(form.trial_days),
@@ -467,17 +477,31 @@ function NewGymModal({
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
-              Teléfono
-            </label>
-            <input
-              type="tel"
-              placeholder="+54 9 11 1234-5678"
-              value={form.owner_phone}
-              onChange={e => setForm(f => ({ ...f, owner_phone: e.target.value }))}
-              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-white"
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
+                Teléfono
+              </label>
+              <input
+                type="tel"
+                placeholder="+54 9 11 1234-5678"
+                value={form.owner_phone}
+                onChange={e => setForm(f => ({ ...f, owner_phone: e.target.value }))}
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-white"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
+                Contraseña temporal *
+              </label>
+              <input
+                type="text"
+                placeholder="Ej: cambiar123"
+                value={form.password}
+                onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-white"
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-3 gap-3">
