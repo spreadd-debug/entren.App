@@ -407,6 +407,9 @@ function NewGymModal({
         trial_days: Number(form.trial_days),
         monthly_price: form.monthly_price ? Number(form.monthly_price) : null,
       });
+      if ((sub as any).auth_warning) {
+        setError(`Gym creado pero credenciales fallaron: ${(sub as any).auth_warning}`);
+      }
       onCreated(sub);
     } catch (err: any) {
       setError(err?.message ?? 'Error al crear.');
