@@ -385,7 +385,8 @@ export const api = {
       plan_tier?: GymPlanTier;
       trial_days?: number;
       gym_type?: 'gym' | 'personal_trainer';
-    }): Promise<GymSubscription & { gym_type?: string }> {
+      monthly_price?: number | null;
+    }): Promise<GymSubscription> {
       return fetchJson(`${API_BASE}/subscriptions/gyms`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

@@ -294,7 +294,9 @@ export interface GymSubscription {
   gym_name: string;
   owner_email: string;
   owner_phone?: string;
+  gym_type?: GymType;
   plan_tier: GymPlanTier;
+  monthly_price: number | null;
   status: GymSubscriptionStatus;
   trial_ends_at: string | null;
   current_period_start: string | null;

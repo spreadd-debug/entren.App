@@ -7,10 +7,11 @@ function mapRow(row: any): GymSubscription {
     gym_name: row.gym?.name ?? 'Desconocido',
     owner_email: row.gym?.owner_email ?? '',
     owner_phone: row.gym?.owner_phone ?? null,
+    gym_type: row.gym?.gym_type ?? 'gym',
   };
 }
 
-const GYM_SELECT = `*, gym:gyms (name, owner_email, owner_phone)`;
+const GYM_SELECT = `*, gym:gyms (name, owner_email, owner_phone, gym_type)`;
 
 export const SubscriptionService = {
   async getAll(): Promise<GymSubscription[]> {
@@ -37,7 +38,7 @@ export const SubscriptionService = {
 
   async upsert(gymId: string, updates: Partial<GymSubscription>): Promise<GymSubscription> {
     // Strip computed/joined fields before writing
-    const { gym_name, owner_email, ...rest } = updates as any;
+    const { gym_name, owner_email, owner_phone, gym_type, ...rest } = updates as any;
     const payload = { ...rest, gym_id: gymId };
 
     const { data, error } = await supabase
@@ -115,6 +116,7 @@ export const SubscriptionService = {
     trialDays: number = 30,
     ownerPhone?: string,
     gymType: GymType = 'gym',
+    monthlyPrice?: number | null,
   ): Promise<GymSubscription> {
     const { data: gym, error: gymError } = await supabase
       .from('gyms')
@@ -135,13 +137,13 @@ export const SubscriptionService = {
         status: 'trial',
         trial_ends_at: trialEndsAt.toISOString(),
         access_enabled: true,
+        ...(monthlyPrice != null ? { monthly_price: monthlyPrice } : {}),
       }])
       .select(GYM_SELECT)
       .single();
 
     if (error) throw error;
-    const mapped = mapRow(data);
-    return { ...mapped, gym_type: gym.gym_type } as any;
+    return mapRow(data);
   },
 
   // ── Billing payments ───────────────────────────────────────────────────────

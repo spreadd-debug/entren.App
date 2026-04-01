@@ -16,7 +16,7 @@ import {
   Building2,
   Plus,
 } from 'lucide-react';
-import { GymSubscription, GymBillingPayment, GymSubscriptionStatus, GymPlanTier } from '../../shared/types';
+import { GymSubscription, GymBillingPayment, GymSubscriptionStatus, GymPlanTier, GymType } from '../../shared/types';
 import { api } from '../services/api';
 import { SuperAdminShell, SAView } from '../components/SuperAdminShell';
 import {
@@ -80,6 +80,7 @@ function EditModal({
   const [form, setForm] = useState({
     status: sub.status,
     plan_tier: sub.plan_tier,
+    monthly_price: sub.monthly_price != null ? String(sub.monthly_price) : '',
     trial_ends_at: sub.trial_ends_at?.slice(0, 10) ?? '',
     current_period_end: sub.current_period_end?.slice(0, 10) ?? '',
     grace_period_days: String(sub.grace_period_days),
@@ -94,6 +95,7 @@ function EditModal({
       const updated = await api.subscriptions.update(sub.gym_id, {
         status: form.status as GymSubscriptionStatus,
         plan_tier: form.plan_tier as GymPlanTier,
+        monthly_price: form.monthly_price ? Number(form.monthly_price) : null,
         trial_ends_at: form.trial_ends_at || null,
         current_period_end: form.current_period_end || null,
         grace_period_days: Number(form.grace_period_days),
@@ -115,7 +117,20 @@ function EditModal({
         </div>
 
         <div className="px-6 py-5 space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+          {sub.gym_type && (
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-slate-400 font-semibold">Tipo:</span>
+              <span className={`px-2 py-0.5 rounded-full font-bold ${
+                sub.gym_type === 'personal_trainer'
+                  ? 'bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300'
+                  : 'bg-cyan-100 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-300'
+              }`}>
+                {sub.gym_type === 'personal_trainer' ? 'Personal Trainer' : 'Gimnasio'}
+              </span>
+            </div>
+          )}
+
+          <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Estado</label>
               <select
@@ -139,6 +154,17 @@ function EditModal({
                   <option key={t} value={t}>{PLAN_LABELS[t]}</option>
                 ))}
               </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Precio/mes ($)</label>
+              <input
+                type="number"
+                min="0"
+                placeholder="0"
+                value={form.monthly_price}
+                onChange={e => setForm(f => ({ ...f, monthly_price: e.target.value }))}
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-white"
+              />
             </div>
           </div>
 
@@ -346,8 +372,10 @@ function NewGymModal({
     name: '',
     owner_email: '',
     owner_phone: '',
+    gym_type: 'gym' as GymType,
     plan_tier: 'starter' as GymPlanTier,
     trial_days: '30',
+    monthly_price: '',
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -364,12 +392,14 @@ function NewGymModal({
         name: form.name.trim(),
         owner_email: form.owner_email.trim(),
         owner_phone: form.owner_phone.trim() || undefined,
+        gym_type: form.gym_type,
         plan_tier: form.plan_tier,
         trial_days: Number(form.trial_days),
+        monthly_price: form.monthly_price ? Number(form.monthly_price) : null,
       });
       onCreated(sub);
     } catch (err: any) {
-      setError(err?.message ?? 'Error al crear el gimnasio.');
+      setError(err?.message ?? 'Error al crear.');
     } finally {
       setSaving(false);
     }
@@ -379,20 +409,45 @@ function NewGymModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
       <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md border border-slate-100 dark:border-slate-800">
         <div className="px-6 pt-6 pb-4 border-b border-slate-100 dark:border-slate-800">
-          <h3 className="text-base font-black text-slate-900 dark:text-white">Nuevo Gimnasio</h3>
+          <h3 className="text-base font-black text-slate-900 dark:text-white">
+            {form.gym_type === 'personal_trainer' ? 'Nuevo Personal Trainer' : 'Nuevo Gimnasio'}
+          </h3>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
             Se creará con un trial de {form.trial_days} días.
           </p>
         </div>
 
         <div className="px-6 py-5 space-y-4">
+          {/* Tipo */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Tipo</label>
+            <div className="flex gap-2">
+              {([{ value: 'gym', label: 'Gimnasio' }, { value: 'personal_trainer', label: 'Personal Trainer' }] as const).map(opt => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setForm(f => ({ ...f, gym_type: opt.value }))}
+                  className={`flex-1 py-2 rounded-xl border text-sm font-bold transition-all ${
+                    form.gym_type === opt.value
+                      ? opt.value === 'personal_trainer'
+                        ? 'bg-violet-500 border-violet-500 text-white'
+                        : 'bg-cyan-500 border-cyan-500 text-slate-950'
+                      : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div>
             <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
-              Nombre del gimnasio *
+              {form.gym_type === 'personal_trainer' ? 'Nombre del PT *' : 'Nombre del gimnasio *'}
             </label>
             <input
               type="text"
-              placeholder="Ej: CrossFit Sur"
+              placeholder={form.gym_type === 'personal_trainer' ? 'Ej: Juan Pérez Fitness' : 'Ej: CrossFit Sur'}
               value={form.name}
               onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
               className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-white"
@@ -401,11 +456,11 @@ function NewGymModal({
 
           <div>
             <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
-              Email del dueño *
+              Email del {form.gym_type === 'personal_trainer' ? 'PT' : 'dueño'} *
             </label>
             <input
               type="email"
-              placeholder="dueño@email.com"
+              placeholder="email@ejemplo.com"
               value={form.owner_email}
               onChange={e => setForm(f => ({ ...f, owner_email: e.target.value }))}
               className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-white"
@@ -414,7 +469,7 @@ function NewGymModal({
 
           <div>
             <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
-              Teléfono del dueño
+              Teléfono
             </label>
             <input
               type="tel"
@@ -425,9 +480,9 @@ function NewGymModal({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Plan inicial</label>
+              <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Plan</label>
               <select
                 value={form.plan_tier}
                 onChange={e => setForm(f => ({ ...f, plan_tier: e.target.value as GymPlanTier }))}
@@ -439,7 +494,18 @@ function NewGymModal({
               </select>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Días de trial</label>
+              <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Precio/mes ($)</label>
+              <input
+                type="number"
+                min="0"
+                placeholder="0"
+                value={form.monthly_price}
+                onChange={e => setForm(f => ({ ...f, monthly_price: e.target.value }))}
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-white"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Días trial</label>
               <input
                 type="number"
                 min="1"
@@ -458,8 +524,12 @@ function NewGymModal({
           <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
             Cancelar
           </button>
-          <button onClick={handleCreate} disabled={saving} className="px-5 py-2 bg-cyan-500 hover:bg-cyan-400 disabled:opacity-60 text-slate-950 rounded-xl text-sm font-bold transition-all">
-            {saving ? 'Creando...' : 'Crear gimnasio'}
+          <button onClick={handleCreate} disabled={saving} className={`px-5 py-2 disabled:opacity-60 rounded-xl text-sm font-bold transition-all ${
+            form.gym_type === 'personal_trainer'
+              ? 'bg-violet-500 hover:bg-violet-400 text-white'
+              : 'bg-cyan-500 hover:bg-cyan-400 text-slate-950'
+          }`}>
+            {saving ? 'Creando...' : form.gym_type === 'personal_trainer' ? 'Crear PT' : 'Crear gimnasio'}
           </button>
         </div>
       </div>
@@ -993,7 +1063,13 @@ function GymRow({
           </div>
           <div className="flex items-center gap-3 mt-1.5 flex-wrap">
             <StatusBadge status={sub.status} />
+            {sub.gym_type === 'personal_trainer' && (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300">PT</span>
+            )}
             <span className="text-xs text-slate-400 dark:text-slate-500 font-medium">{PLAN_LABELS[sub.plan_tier]}</span>
+            {sub.monthly_price != null && sub.monthly_price > 0 && (
+              <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">${Number(sub.monthly_price).toLocaleString('es-AR')}/mes</span>
+            )}
             {relevantDate && (
               <span className="flex items-center gap-1 text-xs text-slate-400 dark:text-slate-500">
                 <Calendar size={10} />
