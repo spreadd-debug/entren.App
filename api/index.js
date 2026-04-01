@@ -25,6 +25,8 @@ function mapStudentRowToStudent(row) {
     lastPaymentDate: row.last_payment_date ?? void 0,
     nextDueDate: row.next_due_date ?? void 0,
     observations: row.observaciones ?? void 0,
+    emergency_contact_name: row.emergency_contact_name ?? void 0,
+    emergency_contact_phone: row.emergency_contact_phone ?? void 0,
     createdAt: row.created_at ?? "",
     updatedAt: row.updated_at ?? ""
   };
@@ -65,13 +67,16 @@ var StudentService = {
         last_payment_date,
         next_due_date,
         observaciones,
+        emergency_contact_name,
+        emergency_contact_phone,
         created_at,
         updated_at
       `).eq("gym_id", resolvedGymId).order("nombre", { ascending: true });
     if (error) throw error;
     return (data || []).map((row) => mapStudentRowToStudent(row));
   },
-  async getById(id) {
+  async getById(id, gymId) {
+    const resolvedGymId = gymId || DEFAULT_GYM_ID;
     const { data, error } = await supabase.from("students").select(`
         id,
         gym_id,
@@ -89,9 +94,11 @@ var StudentService = {
         last_payment_date,
         next_due_date,
         observaciones,
+        emergency_contact_name,
+        emergency_contact_phone,
         created_at,
         updated_at
-      `).eq("id", id).single();
+      `).eq("id", id).eq("gym_id", resolvedGymId).single();
     if (error) throw error;
     if (!data) return null;
     return mapStudentRowToStudent(data);
@@ -112,7 +119,9 @@ var StudentService = {
       whatsapp_opt_in_at: student.whatsapp_opt_in ? (/* @__PURE__ */ new Date()).toISOString() : null,
       last_payment_date: student.last_payment_date ?? student.lastPaymentDate ?? null,
       next_due_date: student.next_due_date ?? student.nextDueDate ?? null,
-      observaciones: student.observaciones ?? student.observations ?? null
+      observaciones: student.observaciones ?? student.observations ?? null,
+      emergency_contact_name: student.emergency_contact_name ?? null,
+      emergency_contact_phone: student.emergency_contact_phone ?? null
     };
     const { data, error } = await supabase.from("students").insert([payload]).select(`
         id,
@@ -131,6 +140,8 @@ var StudentService = {
         last_payment_date,
         next_due_date,
         observaciones,
+        emergency_contact_name,
+        emergency_contact_phone,
         created_at,
         updated_at
       `).single();
@@ -195,7 +206,15 @@ var StudentService = {
     if (updates.observaciones !== void 0 || updates.observations !== void 0) {
       payload.observaciones = updates.observaciones ?? updates.observations;
     }
-    const { data, error } = await supabase.from("students").update(payload).eq("id", id).select(`
+    if (updates.emergency_contact_name !== void 0) {
+      payload.emergency_contact_name = updates.emergency_contact_name;
+    }
+    if (updates.emergency_contact_phone !== void 0) {
+      payload.emergency_contact_phone = updates.emergency_contact_phone;
+    }
+    const gymId = updates.gym_id ?? updates.gymId ?? DEFAULT_GYM_ID;
+    delete payload.gym_id;
+    const { data, error } = await supabase.from("students").update(payload).eq("id", id).eq("gym_id", gymId).select(`
         id,
         gym_id,
         plan_id,
@@ -212,14 +231,17 @@ var StudentService = {
         last_payment_date,
         next_due_date,
         observaciones,
+        emergency_contact_name,
+        emergency_contact_phone,
         created_at,
         updated_at
       `).single();
     if (error) throw error;
     return data;
   },
-  async delete(id) {
-    const { error } = await supabase.from("students").delete().eq("id", id);
+  async delete(id, gymId) {
+    const resolvedGymId = gymId || DEFAULT_GYM_ID;
+    const { error } = await supabase.from("students").delete().eq("id", id).eq("gym_id", resolvedGymId);
     if (error) throw error;
   }
 };
@@ -237,7 +259,8 @@ router.get("/", async (req, res) => {
 });
 router.get("/:id", async (req, res) => {
   try {
-    const student = await StudentService.getById(req.params.id);
+    const gymId = req.query.gymId || "11111111-1111-1111-1111-111111111111";
+    const student = await StudentService.getById(req.params.id, gymId);
     if (!student) return res.status(404).json({ error: "Student not found" });
     res.json(student);
   } catch (error) {
@@ -262,7 +285,8 @@ router.put("/:id", async (req, res) => {
 });
 router.delete("/:id", async (req, res) => {
   try {
-    await StudentService.delete(req.params.id);
+    const gymId = req.query.gymId || "11111111-1111-1111-1111-111111111111";
+    await StudentService.delete(req.params.id, gymId);
     res.status(204).send();
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -434,6 +458,10 @@ var PaymentService = {
     if (!studentId) {
       throw new Error("studentId is required");
     }
+    const { data: studentCheck } = await supabase.from("students").select("id").eq("id", studentId).eq("gym_id", gymId).maybeSingle();
+    if (!studentCheck) {
+      throw new Error("Student not found for this gym");
+    }
     const { data: membership, error: membershipError } = await supabase.from("memberships").select(`
         id,
         student_id,
@@ -539,6 +567,48 @@ var dashboard_default = router4;
 // server/routes/automation.ts
 import { Router as Router5 } from "express";
 
+// server/services/WhatsAppProvider.ts
+var WhatsAppProvider = {
+  async sendMessage(phone, message) {
+    const token = process.env.WHATSAPP_ACCESS_TOKEN;
+    const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+    if (!token || !phoneNumberId) {
+      console.warn(`[WhatsApp] Credenciales no configuradas, simulando env\xEDo a ${phone}`);
+      return true;
+    }
+    const cleanPhone = phone.replace(/\D/g, "");
+    try {
+      const res = await fetch(
+        `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`,
+        {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            messaging_product: "whatsapp",
+            to: cleanPhone,
+            type: "text",
+            text: { body: message }
+          })
+        }
+      );
+      if (!res.ok) {
+        const errText = await res.text();
+        console.error(`[WhatsApp] Error API (${res.status}):`, errText);
+        return false;
+      }
+      const data = await res.json();
+      console.log(`[WhatsApp] Mensaje enviado a ${cleanPhone}, id: ${data?.messages?.[0]?.id}`);
+      return true;
+    } catch (err) {
+      console.error("[WhatsApp] Error de red:", err);
+      return false;
+    }
+  }
+};
+
 // server/services/BillingReminderService.ts
 var BillingReminderService = {
   async getRules(gymId) {
@@ -605,8 +675,14 @@ var BillingReminderService = {
               };
               const { data: savedLog, error: logError } = await supabase.from("reminder_logs").insert([log]).select().single();
               if (!logError && savedLog) {
-                newLogs.push(savedLog);
-                totalGenerated++;
+                const sent = await WhatsAppProvider.sendMessage(student.phone, message);
+                await supabase.from("reminder_logs").update({
+                  status: sent ? "sent" : "failed",
+                  sentAt: (/* @__PURE__ */ new Date()).toISOString(),
+                  ...sent ? {} : { error: "WhatsApp API call failed" }
+                }).eq("id", savedLog.id);
+                newLogs.push({ ...savedLog, status: sent ? "sent" : "failed" });
+                if (sent) totalGenerated++;
               }
             }
           }
@@ -678,20 +754,46 @@ router5.post("/run", async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+router5.post("/cron", async (req, res) => {
+  const authHeader = req.headers["authorization"];
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  try {
+    const { data: subs, error } = await supabase.from("gym_subscriptions").select("gym_id").in("plan_tier", ["pro", "business"]).eq("status", "active").eq("access_enabled", true);
+    if (error) throw error;
+    const gymIds = (subs || []).map((s) => s.gym_id);
+    const results = await Promise.allSettled(
+      gymIds.map((gymId) => BillingReminderService.runDailyCheck(gymId))
+    );
+    const summary = results.map((r, i) => ({
+      gymId: gymIds[i],
+      status: r.status,
+      ...r.status === "fulfilled" ? { result: r.value } : { error: r.reason?.message }
+    }));
+    res.json({ ok: true, ran: gymIds.length, summary });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 var automation_default = router5;
 
 // server/routes/subscriptions.ts
 import { Router as Router6 } from "express";
+import { createClient as createClient2 } from "@supabase/supabase-js";
 
 // server/services/SubscriptionService.ts
 function mapRow(row) {
   return {
     ...row,
     gym_name: row.gym?.name ?? "Desconocido",
-    owner_email: row.gym?.owner_email ?? ""
+    owner_email: row.gym?.owner_email ?? "",
+    owner_phone: row.gym?.owner_phone ?? null,
+    gym_type: row.gym?.gym_type ?? "gym"
   };
 }
-var GYM_SELECT = `*, gym:gyms (name, owner_email)`;
+var GYM_SELECT = `*, gym:gyms (name, owner_email, owner_phone, gym_type)`;
 var SubscriptionService = {
   async getAll() {
     const { data, error } = await supabase.from("gym_subscriptions").select(GYM_SELECT).order("created_at", { ascending: false });
@@ -705,13 +807,19 @@ var SubscriptionService = {
     return mapRow(data);
   },
   async upsert(gymId, updates) {
-    const { gym_name, owner_email, ...rest } = updates;
+    const { gym_name, owner_email, owner_phone, gym_type, ...rest } = updates;
     const payload = { ...rest, gym_id: gymId };
     const { data, error } = await supabase.from("gym_subscriptions").upsert(payload, { onConflict: "gym_id" }).select(GYM_SELECT).single();
     if (error) throw error;
     return mapRow(data);
   },
-  async activate(gymId, periodEnd, planTier) {
+  async activate(gymId, periodEnd, planTier, skipPaymentCheck = false) {
+    if (!skipPaymentCheck) {
+      const { data: payments } = await supabase.from("gym_billing_payments").select("id").eq("gym_id", gymId).limit(1);
+      if (!payments || payments.length === 0) {
+        throw new Error("No se puede activar: el gimnasio no tiene pagos registrados. Registr\xE1 un pago primero.");
+      }
+    }
     return this.upsert(gymId, {
       status: "active",
       current_period_start: (/* @__PURE__ */ new Date()).toISOString(),
@@ -753,8 +861,8 @@ var SubscriptionService = {
       access_enabled: true
     });
   },
-  async createGym(name, ownerEmail, planTier = "basic", trialDays = 30) {
-    const { data: gym, error: gymError } = await supabase.from("gyms").insert([{ name, owner_email: ownerEmail }]).select("id").single();
+  async createGym(name, ownerEmail, planTier = "starter", trialDays = 30, ownerPhone, gymType = "gym", monthlyPrice) {
+    const { data: gym, error: gymError } = await supabase.from("gyms").insert([{ name, owner_email: ownerEmail, gym_type: gymType, ...ownerPhone ? { owner_phone: ownerPhone } : {} }]).select("id, gym_type").single();
     if (gymError) throw gymError;
     const trialEndsAt = /* @__PURE__ */ new Date();
     trialEndsAt.setDate(trialEndsAt.getDate() + trialDays);
@@ -763,7 +871,8 @@ var SubscriptionService = {
       plan_tier: planTier,
       status: "trial",
       trial_ends_at: trialEndsAt.toISOString(),
-      access_enabled: true
+      access_enabled: true,
+      ...monthlyPrice != null ? { monthly_price: monthlyPrice } : {}
     }]).select(GYM_SELECT).single();
     if (error) throw error;
     return mapRow(data);
@@ -803,13 +912,42 @@ var SubscriptionService = {
     const { data, error } = await supabase.from("gym_billing_payments").insert([payload]).select("*").single();
     if (error) throw error;
     const { data: gym } = await supabase.from("gyms").select("name").eq("id", payment.gym_id).maybeSingle();
-    await this.activate(payment.gym_id, payment.period_end);
+    await this.activate(payment.gym_id, payment.period_end, void 0, true);
     return { ...data, gym_name: gym?.name ?? "Desconocido" };
   }
 };
 
 // server/routes/subscriptions.ts
 var router6 = Router6();
+function getAdminClient() {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) {
+    throw new Error("SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not configured");
+  }
+  return createClient2(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
+}
+router6.get("/debug-auth/:email", async (req, res) => {
+  try {
+    const admin = getAdminClient();
+    const { data, error } = await admin.auth.admin.listUsers();
+    if (error) return res.status(500).json({ error: error.message });
+    const match = data.users.filter((u) => u.email === req.params.email);
+    res.json({
+      server_supabase_url: process.env.SUPABASE_URL?.slice(0, 30) + "...",
+      total_auth_users: data.users.length,
+      matching_users: match.map((u) => ({
+        id: u.id,
+        email: u.email,
+        email_confirmed: u.email_confirmed_at,
+        created_at: u.created_at,
+        user_metadata: u.user_metadata
+      }))
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 router6.get("/billing", async (req, res) => {
   try {
     const gymId = req.query.gymId;
@@ -829,11 +967,28 @@ router6.post("/billing", async (req, res) => {
 });
 router6.post("/gyms", async (req, res) => {
   try {
-    const { name, owner_email, plan_tier = "basic", trial_days = 30 } = req.body;
+    const { name, owner_email, owner_phone, plan_tier = "starter", trial_days = 30, gym_type = "gym", monthly_price, password } = req.body;
     if (!name || !owner_email) {
       return res.status(400).json({ error: "name y owner_email son requeridos" });
     }
-    const sub = await SubscriptionService.createGym(name, owner_email, plan_tier, Number(trial_days));
+    const sub = await SubscriptionService.createGym(name, owner_email, plan_tier, Number(trial_days), owner_phone, gym_type, monthly_price != null ? Number(monthly_price) : null);
+    if (password) {
+      const supabaseAdmin = getAdminClient();
+      const { error: authError } = await supabaseAdmin.auth.admin.createUser({
+        email: owner_email,
+        password,
+        user_metadata: {
+          gym_id: sub.gym_id,
+          role: "admin",
+          ...gym_type === "personal_trainer" ? { gym_type: "personal_trainer" } : {},
+          must_change_password: true
+        },
+        email_confirm: true
+      });
+      if (authError) {
+        return res.status(201).json({ ...sub, auth_warning: authError.message });
+      }
+    }
     res.status(201).json(sub);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -871,7 +1026,8 @@ router6.post("/:gymId/activate", async (req, res) => {
     const updated = await SubscriptionService.activate(req.params.gymId, period_end, plan_tier);
     res.json(updated);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    const status = error.message?.includes("no tiene pagos registrados") ? 422 : 500;
+    res.status(status).json({ error: error.message });
   }
 });
 router6.post("/:gymId/suspend", async (req, res) => {
@@ -919,6 +1075,59 @@ router6.post("/:gymId/past-due", async (req, res) => {
 });
 var subscriptions_default = router6;
 
+// server/routes/staff.ts
+import { Router as Router7 } from "express";
+import { createClient as createClient3 } from "@supabase/supabase-js";
+var router7 = Router7();
+function getAdminClient2() {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  return createClient3(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
+}
+router7.post("/", async (req, res) => {
+  try {
+    const { email, password, name, gym_id } = req.body;
+    if (!email || !password || !gym_id) {
+      return res.status(400).json({ error: "email, password y gym_id son requeridos" });
+    }
+    const supabase2 = getAdminClient2();
+    const { data, error } = await supabase2.auth.admin.createUser({
+      email,
+      password,
+      user_metadata: { gym_id, role: "staff", name: name ?? "" },
+      email_confirm: true
+    });
+    if (error) return res.status(400).json({ error: error.message });
+    res.status(201).json({ id: data.user.id, email: data.user.email, name: name ?? "" });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+router7.get("/", async (req, res) => {
+  try {
+    const gymId = req.query.gymId;
+    if (!gymId) return res.status(400).json({ error: "gymId requerido" });
+    const supabase2 = getAdminClient2();
+    const { data, error } = await supabase2.auth.admin.listUsers();
+    if (error) return res.status(400).json({ error: error.message });
+    const staff = data.users.filter((u) => u.user_metadata?.gym_id === gymId && u.user_metadata?.role === "staff").map((u) => ({ id: u.id, email: u.email ?? "", name: u.user_metadata?.name ?? "" }));
+    res.json(staff);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+router7.delete("/:userId", async (req, res) => {
+  try {
+    const supabase2 = getAdminClient2();
+    const { error } = await supabase2.auth.admin.deleteUser(req.params.userId);
+    if (error) return res.status(400).json({ error: error.message });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+var staff_default = router7;
+
 // api/_handler.ts
 var app = express();
 app.use(cors());
@@ -929,6 +1138,7 @@ app.use("/api/payments", payments_default);
 app.use("/api/dashboard", dashboard_default);
 app.use("/api/automation", automation_default);
 app.use("/api/subscriptions", subscriptions_default);
+app.use("/api/staff", staff_default);
 app.get("/api/health", async (_req, res) => {
   const supabaseUrl2 = process.env.SUPABASE_URL;
   const supabaseKey2 = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_ANON_KEY;
@@ -940,8 +1150,8 @@ app.get("/api/health", async (_req, res) => {
     db: null
   };
   try {
-    const { createClient: createClient2 } = await import("@supabase/supabase-js");
-    const client = createClient2(supabaseUrl2, supabaseKey2);
+    const { createClient: createClient4 } = await import("@supabase/supabase-js");
+    const client = createClient4(supabaseUrl2, supabaseKey2);
     const { data, error } = await client.from("gym_subscriptions").select("gym_id").limit(1);
     status.db = error ? { error: error.message } : { ok: true, rows: data?.length ?? 0 };
   } catch (e) {
