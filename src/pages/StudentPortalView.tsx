@@ -139,6 +139,8 @@ export default function StudentPortalView({
       } catch (error) {
         console.error(error);
         toast.error("No se pudo cargar el portal del alumno");
+        // Student likely deleted — force back to login
+        onLogout();
       } finally {
         setIsLoading(false);
       }
