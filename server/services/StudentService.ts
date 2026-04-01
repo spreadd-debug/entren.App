@@ -200,7 +200,8 @@ export const StudentService = {
     }
 
     if (updates.plan_id !== undefined || updates.planId !== undefined) {
-      payload.plan_id = updates.plan_id ?? updates.planId;
+      const rawPlan = updates.plan_id ?? updates.planId;
+      payload.plan_id = rawPlan || null; // '' -> null to avoid FK violation
     }
 
     if (updates.nombre !== undefined || updates.firstName !== undefined || updates.name !== undefined) {
@@ -212,7 +213,8 @@ export const StudentService = {
     }
 
     if (updates.telefono !== undefined || updates.phone !== undefined) {
-      payload.telefono = updates.telefono ?? updates.phone;
+      const rawPhone = updates.telefono ?? updates.phone;
+      payload.telefono = rawPhone?.trim() || null; // '' -> null
     }
 
     if (updates.status !== undefined) payload.status = updates.status;
@@ -242,20 +244,28 @@ export const StudentService = {
     }
 
     if (updates.observaciones !== undefined || updates.observations !== undefined) {
-      payload.observaciones = updates.observaciones ?? updates.observations;
+      const rawObs = updates.observaciones ?? updates.observations;
+      payload.observaciones = rawObs?.trim() || null;
     }
 
     if (updates.emergency_contact_name !== undefined) {
-      payload.emergency_contact_name = updates.emergency_contact_name;
+      payload.emergency_contact_name = updates.emergency_contact_name?.trim() || null;
     }
 
     if (updates.emergency_contact_phone !== undefined) {
-      payload.emergency_contact_phone = updates.emergency_contact_phone;
+      payload.emergency_contact_phone = updates.emergency_contact_phone?.trim() || null;
     }
 
     const gymId = updates.gym_id ?? updates.gymId ?? DEFAULT_GYM_ID;
     // Don't allow moving a student to a different gym
     delete payload.gym_id;
+
+    if (Object.keys(payload).length === 0) {
+      // Nothing to update — just return current student
+      const current = await this.getById(id, gymId);
+      if (!current) throw new Error('Student not found');
+      return current;
+    }
 
     const { data, error } = await supabase
       .from('students')
@@ -285,10 +295,11 @@ export const StudentService = {
         created_at,
         updated_at
       `)
-      .single();
+      .maybeSingle();
 
     if (error) throw error;
-    return (data as unknown) as Student;
+    if (!data) throw new Error('No se encontró el alumno o no se pudo actualizar');
+    return mapStudentRowToStudent(data as any);
   },
 
   async regenerateAccessCode(id: string, gymId: string): Promise<string> {

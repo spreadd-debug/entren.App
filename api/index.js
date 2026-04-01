@@ -186,7 +186,8 @@ var StudentService = {
       payload.gym_id = updates.gym_id ?? updates.gymId;
     }
     if (updates.plan_id !== void 0 || updates.planId !== void 0) {
-      payload.plan_id = updates.plan_id ?? updates.planId;
+      const rawPlan = updates.plan_id ?? updates.planId;
+      payload.plan_id = rawPlan || null;
     }
     if (updates.nombre !== void 0 || updates.firstName !== void 0 || updates.name !== void 0) {
       payload.nombre = updates.nombre ?? updates.firstName ?? updates.name;
@@ -195,7 +196,8 @@ var StudentService = {
       payload.apellido = updates.apellido ?? updates.lastName;
     }
     if (updates.telefono !== void 0 || updates.phone !== void 0) {
-      payload.telefono = updates.telefono ?? updates.phone;
+      const rawPhone = updates.telefono ?? updates.phone;
+      payload.telefono = rawPhone?.trim() || null;
     }
     if (updates.status !== void 0) payload.status = updates.status;
     if (updates.precio_personalizado !== void 0 || updates.customPrice !== void 0) {
@@ -217,16 +219,22 @@ var StudentService = {
       payload.next_due_date = updates.next_due_date ?? updates.nextDueDate;
     }
     if (updates.observaciones !== void 0 || updates.observations !== void 0) {
-      payload.observaciones = updates.observaciones ?? updates.observations;
+      const rawObs = updates.observaciones ?? updates.observations;
+      payload.observaciones = rawObs?.trim() || null;
     }
     if (updates.emergency_contact_name !== void 0) {
-      payload.emergency_contact_name = updates.emergency_contact_name;
+      payload.emergency_contact_name = updates.emergency_contact_name?.trim() || null;
     }
     if (updates.emergency_contact_phone !== void 0) {
-      payload.emergency_contact_phone = updates.emergency_contact_phone;
+      payload.emergency_contact_phone = updates.emergency_contact_phone?.trim() || null;
     }
     const gymId = updates.gym_id ?? updates.gymId ?? DEFAULT_GYM_ID;
     delete payload.gym_id;
+    if (Object.keys(payload).length === 0) {
+      const current = await this.getById(id, gymId);
+      if (!current) throw new Error("Student not found");
+      return current;
+    }
     const { data, error } = await supabase.from("students").update(payload).eq("id", id).eq("gym_id", gymId).select(`
         id,
         gym_id,
@@ -249,9 +257,10 @@ var StudentService = {
         access_code,
         created_at,
         updated_at
-      `).single();
+      `).maybeSingle();
     if (error) throw error;
-    return data;
+    if (!data) throw new Error("No se encontr\xF3 el alumno o no se pudo actualizar");
+    return mapStudentRowToStudent(data);
   },
   async regenerateAccessCode(id, gymId) {
     const newCode = generateAccessCode();
