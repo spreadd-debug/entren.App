@@ -193,7 +193,7 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({
     onDeleteStudent(student.id);
   };
 
-  const portalUrl = `${window.location.origin}${window.location.pathname}?student=1`;
+  const portalUrl = `${window.location.origin}?student=1`;
 
   const handleCopyCode = () => {
     if (!accessCode) return;
