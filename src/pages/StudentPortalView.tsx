@@ -128,6 +128,8 @@ export default function StudentPortalView({
 
   // ─── Derivados ────────────────────────────────────────────────────────────
 
+  const isPT = student?.gym_type === 'personal_trainer';
+
   const studentName =
     student?.name ??
     `${student?.nombre ?? ""} ${student?.apellido ?? ""}`.trim();
@@ -246,7 +248,7 @@ export default function StudentPortalView({
       // Refresh pending request
       const req = await WorkoutRequestService.getOpenRequest(studentId);
       setPendingRequest(req);
-      toast.success("Solicitud enviada al profesor");
+      toast.success(isPT ? "Solicitud enviada a tu entrenador" : "Solicitud enviada al profesor");
       // Notificación WhatsApp al profe (best-effort)
       NotificationService.notifyWorkoutRequest(student.gym_id, studentName);
     } catch (error) {
@@ -309,7 +311,8 @@ export default function StudentPortalView({
 
       <div className="px-4 py-4 space-y-4 max-w-lg mx-auto">
 
-        {/* ── Estado de cuota ──────────────────────────────────────────── */}
+        {/* ── Estado de cuota (solo gym, no PT) ────────────────────────── */}
+        {!isPT && (
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 flex items-center justify-between shadow-sm">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800">
@@ -329,6 +332,7 @@ export default function StudentPortalView({
             </span>
           )}
         </div>
+        )}
 
         {/* ── Banner de rutina desactualizada ──────────────────────────── */}
         {routineFreshness && (routineFreshness.level === 'stale' || routineFreshness.level === 'outdated') && (
@@ -341,7 +345,7 @@ export default function StudentPortalView({
                   : 'Tu rutina empieza a quedar vieja'}
               </p>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Fue asignada hace {routineFreshness.daysOld} días. Podés pedir una nueva al profesor.
+                Fue asignada hace {routineFreshness.daysOld} días. Podés pedir una nueva {isPT ? 'a tu entrenador' : 'al profesor'}.
               </p>
             </div>
           </div>
@@ -391,7 +395,7 @@ export default function StudentPortalView({
             <div className="px-4 py-10 text-center space-y-2">
               <Dumbbell size={28} className="text-slate-200 dark:text-slate-700 mx-auto" />
               <p className="text-sm font-bold text-slate-400 dark:text-slate-500">Sin rutina asignada</p>
-              <p className="text-xs text-slate-400 dark:text-slate-600">Tu profesor aún no asignó ninguna rutina.</p>
+              <p className="text-xs text-slate-400 dark:text-slate-600">{isPT ? 'Tu entrenador' : 'Tu profesor'} aún no asignó ninguna rutina.</p>
             </div>
           )}
 
@@ -608,7 +612,7 @@ export default function StudentPortalView({
                 <div className="min-w-0">
                   <p className="text-sm font-bold text-slate-900 dark:text-white">Solicitud enviada</p>
                   <p className="text-xs text-slate-400 dark:text-slate-500">
-                    Le avisaste al profesor que querés una nueva rutina.
+                    Le avisaste {isPT ? 'a tu entrenador' : 'al profesor'} que querés una nueva rutina.
                   </p>
                 </div>
                 <span className="shrink-0 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
@@ -622,7 +626,7 @@ export default function StudentPortalView({
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold text-slate-900 dark:text-white">¿Querés rutina nueva?</p>
-                  <p className="text-xs text-slate-400 dark:text-slate-500">Avisale al profesor para que te actualice la rutina.</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500">Avisale {isPT ? 'a tu entrenador' : 'al profesor'} para que te actualice la rutina.</p>
                 </div>
                 <button
                   onClick={handleRequestUpdate}

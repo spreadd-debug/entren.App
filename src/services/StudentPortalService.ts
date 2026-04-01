@@ -34,14 +34,20 @@ export const StudentPortalService = {
     todaySession: { session: WorkoutSession; items: WorkoutSessionExercise[] } | null;
     pendingRequest: WorkoutUpdateRequest | null;
   }> {
-    // 1. Alumno
+    // 1. Alumno + gym_type del gimnasio
     const { data: student, error: studentError } = await supabase
       .from("students")
-      .select("*")
+      .select("*, gym:gyms(gym_type)")
       .eq("id", studentId)
       .single();
 
     if (studentError) throw studentError;
+
+    // Flatten gym_type onto the student object
+    if (student) {
+      (student as any).gym_type = (student as any).gym?.gym_type ?? 'gym';
+      delete (student as any).gym;
+    }
 
     // 2. Todas las opciones activas con info del plan
     const { data: assignments, error: assignmentsError } = await supabase
