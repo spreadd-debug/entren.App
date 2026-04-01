@@ -2,6 +2,7 @@ import React from 'react';
 import {
   LayoutDashboard,
   Users,
+  CalendarDays,
   Dumbbell,
   Settings,
   Plus,
@@ -28,6 +29,7 @@ export const PTShell: React.FC<PTShellProps> = ({
   const navItems = [
     { id: 'dashboard', label: 'Inicio',   icon: LayoutDashboard },
     { id: 'students',  label: 'Clientes', icon: Users },
+    { id: 'calendar',  label: 'Agenda',   icon: CalendarDays },
     { id: 'workouts',  label: 'Rutinas',  icon: Dumbbell },
     { id: 'settings',  label: 'Ajustes',  icon: Settings },
   ];

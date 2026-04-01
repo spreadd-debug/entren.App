@@ -21,6 +21,7 @@ import { RegisterPTView } from './pages/RegisterPTView';
 import { PTDashboardView } from './pages/PTDashboardView';
 import { AutomationView } from './pages/AutomationView';
 import WorkoutPlansView from "./pages/WorkoutPlansView";
+import PTCalendarView from './pages/PTCalendarView';
 import { ShiftsView } from './pages/ShiftsView';
 import CheckInView from './pages/CheckInView';
 import { SuperAdminApp } from './pages/SuperAdminApp';
@@ -789,6 +790,7 @@ function PTApp({ gymId, onLogout }: {
       case 'dashboard':      return 'Panel General';
       case 'students':       return 'Clientes';
       case 'student-detail': return 'Detalle de Cliente';
+      case 'calendar':       return 'Mi Agenda';
       case 'workouts':       return 'Rutinas';
       case 'settings':       return 'Ajustes';
       case 'new-student':    return 'Nuevo Cliente';
@@ -853,6 +855,9 @@ function PTApp({ gymId, onLogout }: {
             )
           } />
           <Route path="/clients/:studentId" element={<PTStudentDetailRoute />} />
+          <Route path="/calendar" element={
+            loadingEl ?? <PTCalendarView gymId={gymId} students={students} />
+          } />
           <Route path="/workouts" element={
             loadingEl ?? <WorkoutPlansView gymId={gymId} />
           } />
