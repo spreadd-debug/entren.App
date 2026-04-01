@@ -63,24 +63,24 @@ export interface StudentPortalPTViewProps {
 
 // ─── Theme constants ───────────────────────────────────────────────────────────
 
-const card = "bg-white/10 backdrop-blur-xl border-white/10 rounded-2xl border shadow-lg shadow-black/10";
-const cardBorder = "border-white/5";
-const cardDivider = "divide-white/5";
-const textPrimary = "text-white";
-const textSecondary = "text-violet-300/60";
-const iconBg = "bg-violet-500/15";
-const iconColor = "text-violet-400";
-const subtleBg = "bg-white/5";
-const chipActive = "bg-violet-500/15 text-violet-300 border-violet-500/30";
+const card = "bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm";
+const cardBorder = "border-slate-100 dark:border-slate-800";
+const cardDivider = "divide-slate-100 dark:divide-slate-800";
+const textPrimary = "text-slate-900 dark:text-white";
+const textSecondary = "text-slate-400 dark:text-slate-500";
+const iconBg = "bg-violet-500/10";
+const iconColor = "text-violet-500";
+const subtleBg = "bg-slate-50 dark:bg-slate-800";
+const chipActive = "bg-violet-500/10 text-violet-600 dark:text-violet-400";
 
 // ─── Note category config ──────────────────────────────────────────────────────
 
 const noteCategoryConfig: Record<NoteCategory, { label: string; color: string }> = {
-  progress: { label: "Progreso", color: "bg-emerald-500/10 text-emerald-400" },
-  injury: { label: "Lesión", color: "bg-rose-500/10 text-rose-400" },
-  nutrition: { label: "Nutrición", color: "bg-amber-500/10 text-amber-400" },
-  motivation: { label: "Motivación", color: "bg-violet-500/10 text-violet-300" },
-  other: { label: "Otro", color: "bg-slate-500/10 text-slate-400" },
+  progress: { label: "Progreso", color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
+  injury: { label: "Lesión", color: "bg-rose-500/10 text-rose-600 dark:text-rose-400" },
+  nutrition: { label: "Nutrición", color: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
+  motivation: { label: "Motivación", color: "bg-violet-500/10 text-violet-600 dark:text-violet-400" },
+  other: { label: "Otro", color: "bg-slate-500/10 text-slate-600 dark:text-slate-400" },
 };
 
 // ─── Goal config ───────────────────────────────────────────────────────────────
@@ -97,14 +97,14 @@ const goalLabels: Record<string, string> = {
 };
 
 const goalColors: Record<string, string> = {
-  lose_weight: "bg-violet-500/10 text-violet-400",
-  gain_muscle: "bg-violet-500/10 text-violet-400",
-  rehab: "bg-rose-500/10 text-rose-400",
-  flexibility: "bg-amber-500/10 text-amber-400",
-  endurance: "bg-emerald-500/10 text-emerald-400",
-  strength: "bg-orange-500/10 text-orange-400",
-  general_fitness: "bg-blue-500/10 text-blue-400",
-  other: "bg-slate-500/10 text-slate-400",
+  lose_weight: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
+  gain_muscle: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
+  rehab: "bg-rose-500/10 text-rose-600 dark:text-rose-400",
+  flexibility: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+  endurance: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  strength: "bg-orange-500/10 text-orange-600 dark:text-orange-400",
+  general_fitness: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+  other: "bg-slate-500/10 text-slate-600 dark:text-slate-400",
 };
 
 // ─── Component ─────────────────────────────────────────────────────────────────
@@ -162,35 +162,35 @@ export default function StudentPortalPTView({
 
   const adherencePercent = adherenceStats?.adherencePercent ?? 0;
   const adherenceColor =
-    adherencePercent >= 80 ? "text-emerald-400" :
-    adherencePercent >= 50 ? "text-amber-400" :
-    "text-rose-400";
+    adherencePercent >= 80 ? "text-emerald-600 dark:text-emerald-400" :
+    adherencePercent >= 50 ? "text-amber-600 dark:text-amber-400" :
+    "text-rose-600 dark:text-rose-400";
   const adherenceStroke =
     adherencePercent >= 80 ? "stroke-emerald-500" :
     adherencePercent >= 50 ? "stroke-amber-500" :
     "stroke-rose-500";
 
   return (
-    <div className="min-h-screen bg-violet-950">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
 
       {/* ── Header ───────────────────────────────────────────────────────── */}
-      <div className="px-4 py-3.5 flex items-center justify-between sticky top-0 z-10 bg-violet-950/90 backdrop-blur-xl border-b border-white/5">
+      <div className="px-4 py-3.5 flex items-center justify-between sticky top-0 z-10 bg-white dark:bg-slate-950 border-b border-slate-100 dark:border-slate-800">
         <div className="flex items-center gap-2.5">
           <div className="w-7 h-7 rounded-lg flex items-center justify-center shadow-sm bg-gradient-to-br from-violet-500 to-purple-600 shadow-violet-500/30">
             <Dumbbell size={13} className="text-white" strokeWidth={2.5} />
           </div>
           <div>
-            <p className="text-sm font-black leading-tight tracking-tight text-white">
+            <p className="text-sm font-black leading-tight tracking-tight text-slate-900 dark:text-white">
               Hola, {firstName}
             </p>
-            <p className="text-[10px] font-medium text-violet-400/60">
+            <p className="text-[10px] font-medium text-violet-500 dark:text-violet-400/60">
               Tu portal de entrenamiento
             </p>
           </div>
         </div>
         <button
           onClick={onLogout}
-          className="p-2 rounded-xl transition-colors text-violet-400/50 hover:bg-white/5 hover:text-violet-300"
+          className="p-2 rounded-xl transition-colors text-slate-400 dark:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-900 hover:text-slate-700 dark:hover:text-slate-300"
         >
           <LogOut size={17} />
         </button>
@@ -203,7 +203,7 @@ export default function StudentPortalPTView({
           <div className={`${card} p-4 flex items-center gap-4`}>
             <div className="shrink-0 relative w-14 h-14">
               <svg className="w-14 h-14 -rotate-90" viewBox="0 0 44 44">
-                <circle cx="22" cy="22" r="18" fill="none" strokeWidth="4" className="stroke-white/10" />
+                <circle cx="22" cy="22" r="18" fill="none" strokeWidth="4" className="stroke-slate-200 dark:stroke-slate-700" />
                 <circle
                   cx="22" cy="22" r="18" fill="none" strokeWidth="4"
                   strokeLinecap="round"
@@ -216,12 +216,12 @@ export default function StudentPortalPTView({
               </span>
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-black text-white">Constancia</p>
-              <p className="text-xs text-violet-300/60">
+              <p className="text-sm font-black text-slate-900 dark:text-white">Constancia</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500">
                 {adherenceStats.completedSessions} de {adherenceStats.totalSessions} sesiones completadas
               </p>
               {adherenceStats.lastSessionDate && (
-                <p className="text-[10px] text-violet-300/40 mt-0.5">
+                <p className="text-[10px] text-slate-400 dark:text-slate-600 mt-0.5">
                   Última sesión: {new Date(adherenceStats.lastSessionDate + "T12:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "short" })}
                 </p>
               )}
@@ -237,9 +237,9 @@ export default function StudentPortalPTView({
               <Dumbbell size={16} className={iconColor} />
             </div>
             <div className="flex-1 min-w-0">
-              <h2 className="text-sm font-black text-white">Tu rutina de hoy</h2>
+              <h2 className="text-sm font-black text-slate-900 dark:text-white">Tu rutina de hoy</h2>
               {todayOption && (
-                <p className="text-xs text-violet-300/60">
+                <p className="text-xs text-slate-400 dark:text-slate-500">
                   {todayOption.plan_name}
                   {todayOption.days_of_week && todayOption.days_of_week.length > 0 && (
                     <> · {todayOption.days_of_week.map((d) => DAY_NAMES[d]).join(", ")}</>
@@ -248,7 +248,7 @@ export default function StudentPortalPTView({
               )}
             </div>
             {sessionCompleted && (
-              <span className="shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400">
+              <span className="shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
                 <CheckCircle2 size={12} /> Hecho
               </span>
             )}
@@ -257,19 +257,19 @@ export default function StudentPortalPTView({
           {/* No routine today */}
           {options.length === 0 ? (
             <div className="px-4 py-10 text-center space-y-2">
-              <Dumbbell size={28} className="text-violet-300/20 mx-auto" />
-              <p className="text-sm font-bold text-violet-300/40">Sin rutina asignada</p>
-              <p className="text-xs text-violet-300/30">Tu entrenador aún no asignó ninguna rutina.</p>
+              <Dumbbell size={28} className="text-slate-200 dark:text-slate-700 mx-auto" />
+              <p className="text-sm font-bold text-slate-400 dark:text-slate-600">Sin rutina asignada</p>
+              <p className="text-xs text-slate-400 dark:text-slate-600">Tu entrenador aún no asignó ninguna rutina.</p>
             </div>
           ) : !todayOption ? (
             <div className="px-4 py-10 text-center space-y-3">
-              <Coffee size={28} className="text-violet-300/30 mx-auto" />
-              <p className="text-sm font-bold text-violet-300/50">Hoy es día de descanso</p>
-              <p className="text-xs text-violet-300/30">No tenés rutina programada para hoy. ¡Descansá bien!</p>
+              <Coffee size={28} className="text-slate-400 dark:text-slate-600 mx-auto" />
+              <p className="text-sm font-bold text-slate-400 dark:text-slate-500">Hoy es día de descanso</p>
+              <p className="text-xs text-slate-400 dark:text-slate-600">No tenés rutina programada para hoy. ¡Descansá bien!</p>
             </div>
           ) : exercisesToShow.length === 0 ? (
             <div className="px-4 py-8 text-center">
-              <p className="text-sm text-violet-300/40">No hay ejercicios cargados aún.</p>
+              <p className="text-sm text-slate-400 dark:text-slate-600">No hay ejercicios cargados aún.</p>
             </div>
           ) : (
             <div className={`divide-y ${cardDivider}`}>
@@ -287,12 +287,12 @@ export default function StudentPortalPTView({
                   <div className="flex-1 min-w-0">
                     <p className={`text-sm font-bold truncate ${
                       item.completed
-                        ? "text-violet-300/40 line-through"
-                        : "text-white"
+                        ? "text-slate-400 dark:text-slate-600 line-through"
+                        : "text-slate-900 dark:text-white"
                     }`}>
                       {item.exercise_name}
                     </p>
-                    <p className="text-xs text-violet-300/60">
+                    <p className="text-xs text-slate-400 dark:text-slate-500">
                       {[
                         item.sets && `${item.sets} series`,
                         item.reps && `${item.reps} reps`,
@@ -300,7 +300,7 @@ export default function StudentPortalPTView({
                       ].filter(Boolean).join(" · ") || "Sin datos"}
                     </p>
                     {item.notes && (
-                      <p className="text-xs text-violet-300/30 italic mt-0.5">{item.notes}</p>
+                      <p className="text-xs text-slate-400 dark:text-slate-600 italic mt-0.5">{item.notes}</p>
                     )}
                   </div>
 
@@ -315,7 +315,7 @@ export default function StudentPortalPTView({
                           videoUrl: item.video_url!,
                         })
                       }
-                      className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-violet-500/10 text-violet-300 border-violet-500/20 hover:bg-violet-500/20 text-xs font-bold border transition-colors"
+                      className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20 hover:bg-violet-500/20 text-xs font-bold border transition-colors"
                     >
                       <Image size={13} />
                       Ver
@@ -329,7 +329,7 @@ export default function StudentPortalPTView({
           {/* Completed banner */}
           {sessionCompleted && (
             <div className="px-4 pb-4 pt-2">
-              <div className="flex items-center justify-center gap-2 py-3 rounded-xl bg-emerald-500/10 text-emerald-400 text-sm font-bold">
+              <div className="flex items-center justify-center gap-2 py-3 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-sm font-bold">
                 <Trophy size={15} />
                 ¡Entrenamiento de hoy completado!
               </div>
@@ -364,20 +364,20 @@ export default function StudentPortalPTView({
             <div className={`${card} overflow-hidden`}>
               <button
                 onClick={() => setShowProgress((v) => !v)}
-                className="w-full px-4 py-3.5 flex items-center gap-3 hover:bg-white/5 transition-colors"
+                className="w-full px-4 py-3.5 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
               >
                 <div className="p-2.5 rounded-xl bg-emerald-500/10 shrink-0">
                   <Activity size={16} className="text-emerald-500" />
                 </div>
                 <div className="flex-1 text-left">
-                  <p className="text-sm font-black text-white">Mi Progreso</p>
-                  <p className="text-xs text-violet-300/60">
+                  <p className="text-sm font-black text-slate-900 dark:text-white">Mi Progreso</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500">
                     {anthropometry.length} medición{anthropometry.length !== 1 ? "es" : ""} registrada{anthropometry.length !== 1 ? "s" : ""}
                   </p>
                 </div>
                 <ChevronRight
                   size={16}
-                  className={`text-violet-300/30 transition-transform ${showProgress ? "rotate-90" : ""}`}
+                  className={`text-slate-400 dark:text-slate-600 transition-transform ${showProgress ? "rotate-90" : ""}`}
                 />
               </button>
 
@@ -387,8 +387,8 @@ export default function StudentPortalPTView({
                   <div className="grid grid-cols-3 gap-2">
                     <div className={`p-3 rounded-xl ${subtleBg} text-center`}>
                       <Scale size={14} className="text-violet-400 mx-auto mb-1" />
-                      <p className="text-lg font-black text-white leading-tight">{latest.weight_kg ?? "—"}</p>
-                      <p className="text-[10px] text-violet-300/40 font-medium">kg</p>
+                      <p className="text-lg font-black text-slate-900 dark:text-white leading-tight">{latest.weight_kg ?? "—"}</p>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-600 font-medium">kg</p>
                       {weightDiff !== null && (
                         <div className={`flex items-center justify-center gap-0.5 mt-1 text-[10px] font-bold ${
                           weightDiff < 0 ? "text-emerald-500" : weightDiff > 0 ? "text-rose-500" : "text-slate-400"
@@ -401,8 +401,8 @@ export default function StudentPortalPTView({
 
                     <div className={`p-3 rounded-xl ${subtleBg} text-center`}>
                       <Target size={14} className="text-amber-500 mx-auto mb-1" />
-                      <p className="text-lg font-black text-white leading-tight">{latest.body_fat_pct ?? "—"}</p>
-                      <p className="text-[10px] text-violet-300/40 font-medium">% grasa</p>
+                      <p className="text-lg font-black text-slate-900 dark:text-white leading-tight">{latest.body_fat_pct ?? "—"}</p>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-600 font-medium">% grasa</p>
                       {fatDiff !== null && (
                         <div className={`flex items-center justify-center gap-0.5 mt-1 text-[10px] font-bold ${
                           fatDiff < 0 ? "text-emerald-500" : fatDiff > 0 ? "text-rose-500" : "text-slate-400"
@@ -415,8 +415,8 @@ export default function StudentPortalPTView({
 
                     <div className={`p-3 rounded-xl ${subtleBg} text-center`}>
                       <Dumbbell size={14} className="text-violet-500 mx-auto mb-1" />
-                      <p className="text-lg font-black text-white leading-tight">{latest.muscle_mass_kg ?? "—"}</p>
-                      <p className="text-[10px] text-violet-300/40 font-medium">kg músculo</p>
+                      <p className="text-lg font-black text-slate-900 dark:text-white leading-tight">{latest.muscle_mass_kg ?? "—"}</p>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-600 font-medium">kg músculo</p>
                       {muscleDiff !== null && (
                         <div className={`flex items-center justify-center gap-0.5 mt-1 text-[10px] font-bold ${
                           muscleDiff > 0 ? "text-emerald-500" : muscleDiff < 0 ? "text-rose-500" : "text-slate-400"
@@ -431,16 +431,16 @@ export default function StudentPortalPTView({
                   {/* BMI badge */}
                   {latest.bmi && (
                     <div className="flex items-center justify-center gap-2">
-                      <span className="text-xs text-violet-300/60">IMC:</span>
+                      <span className="text-xs text-slate-400 dark:text-slate-500">IMC:</span>
                       <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                        latest.bmi < 18.5 ? "bg-amber-500/10 text-amber-400" :
-                        latest.bmi < 25 ? "bg-emerald-500/10 text-emerald-400" :
-                        latest.bmi < 30 ? "bg-amber-500/10 text-amber-400" :
-                        "bg-rose-500/10 text-rose-400"
+                        latest.bmi < 18.5 ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" :
+                        latest.bmi < 25 ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" :
+                        latest.bmi < 30 ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" :
+                        "bg-rose-500/10 text-rose-600 dark:text-rose-400"
                       }`}>
                         {latest.bmi}
                       </span>
-                      <span className="text-[10px] text-violet-300/40">
+                      <span className="text-[10px] text-slate-400 dark:text-slate-600">
                         {latest.bmi < 18.5 ? "Bajo peso" : latest.bmi < 25 ? "Normal" : latest.bmi < 30 ? "Sobrepeso" : "Obesidad"}
                       </span>
                     </div>
@@ -449,10 +449,10 @@ export default function StudentPortalPTView({
                   {/* Weight chart */}
                   {chartData.length >= 2 && (
                     <div>
-                      <p className="text-xs font-bold text-violet-300/40 uppercase tracking-wider mb-2">
+                      <p className="text-xs font-bold text-slate-400 dark:text-slate-600 uppercase tracking-wider mb-2">
                         Evolución de peso
                       </p>
-                      <div className="bg-white/5 rounded-xl p-3">
+                      <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-3">
                         <svg viewBox="0 0 300 120" className="w-full h-auto">
                           {[0, 0.25, 0.5, 0.75, 1].map((pct) => (
                             <line
@@ -461,7 +461,7 @@ export default function StudentPortalPTView({
                               x2="290" y2={10 + (1 - pct) * 90}
                               stroke="currentColor"
                               strokeWidth="0.5"
-                              className="text-white/10"
+                              className="text-slate-200 dark:text-slate-700"
                             />
                           ))}
                           {[0, 0.5, 1].map((pct) => (
@@ -469,7 +469,7 @@ export default function StudentPortalPTView({
                               key={pct}
                               x="27" y={10 + (1 - pct) * 90 + 3}
                               textAnchor="end"
-                              className="fill-violet-300/40"
+                              className="fill-slate-400 dark:fill-slate-500"
                               fontSize="8"
                             >
                               {Math.round(minW + pct * range)}
@@ -502,12 +502,12 @@ export default function StudentPortalPTView({
                             return (
                               <g key={entry.id}>
                                 <circle cx={x} cy={y} r="3.5" className="fill-violet-500" />
-                                <circle cx={x} cy={y} r="2" className="fill-violet-950" />
+                                <circle cx={x} cy={y} r="2" className="fill-white dark:fill-slate-800" />
                                 {(i === 0 || i === chartData.length - 1) && (
                                   <text
                                     x={x} y={y - 8}
                                     textAnchor="middle"
-                                    className="fill-violet-200"
+                                    className="fill-slate-600 dark:fill-slate-300"
                                     fontSize="8"
                                     fontWeight="bold"
                                   >
@@ -526,7 +526,7 @@ export default function StudentPortalPTView({
                                 key={entry.id + "_label"}
                                 x={x} y={112}
                                 textAnchor="middle"
-                                className="fill-violet-300/40"
+                                className="fill-slate-400 dark:fill-slate-500"
                                 fontSize="7"
                               >
                                 {d.toLocaleDateString("es-AR", { day: "numeric", month: "short" })}
@@ -538,7 +538,7 @@ export default function StudentPortalPTView({
                     </div>
                   )}
 
-                  <p className="text-[10px] text-violet-300/30 text-center">
+                  <p className="text-[10px] text-slate-400 dark:text-slate-600 text-center">
                     Última medición: {new Date(latest.measured_at + "T12:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric" })}
                   </p>
                 </div>
@@ -573,21 +573,21 @@ export default function StudentPortalPTView({
             <div className={`${card} overflow-hidden`}>
               <button
                 onClick={() => setShowMeasurements((v) => !v)}
-                className="w-full px-4 py-3.5 flex items-center gap-3 hover:bg-white/5 transition-colors"
+                className="w-full px-4 py-3.5 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
               >
                 <div className={`p-2.5 rounded-xl ${iconBg} shrink-0`}>
                   <Ruler size={16} className={iconColor} />
                 </div>
                 <div className="flex-1 text-left">
-                  <p className="text-sm font-bold text-white">Medidas corporales</p>
-                  <p className="text-xs text-violet-300/60">
+                  <p className="text-sm font-bold text-slate-900 dark:text-white">Medidas corporales</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500">
                     {new Date(latest.measured_at + "T12:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "short" })}
                     {previous ? ` vs ${new Date(previous.measured_at + "T12:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "short" })}` : ""}
                   </p>
                 </div>
                 <ChevronRight
                   size={16}
-                  className={`text-violet-300/30 transition-transform ${showMeasurements ? "rotate-90" : ""}`}
+                  className={`text-slate-400 dark:text-slate-600 transition-transform ${showMeasurements ? "rotate-90" : ""}`}
                 />
               </button>
 
@@ -600,9 +600,9 @@ export default function StudentPortalPTView({
                       const diff = prevVal ? Math.round((val - prevVal) * 10) / 10 : null;
                       return (
                         <div key={f.key} className="px-4 py-2.5 flex items-center justify-between">
-                          <span className="text-sm text-violet-300/70">{f.label}</span>
+                          <span className="text-sm text-slate-600 dark:text-slate-400">{f.label}</span>
                           <div className="flex items-center gap-2">
-                            <span className="text-sm font-bold text-white">{val} cm</span>
+                            <span className="text-sm font-bold text-slate-900 dark:text-white">{val} cm</span>
                             {diff !== null && diff !== 0 && (
                               <span className={`flex items-center gap-0.5 text-[10px] font-bold ${
                                 diff < 0 ? "text-emerald-500" : "text-rose-500"
@@ -634,7 +634,7 @@ export default function StudentPortalPTView({
                   <Target size={16} className="text-amber-500" />
                 </div>
                 <div>
-                  <p className="text-sm font-black text-white">Mis objetivos</p>
+                  <p className="text-sm font-black text-slate-900 dark:text-white">Mis objetivos</p>
                   {achievedGoals.length > 0 && (
                     <p className="text-xs text-emerald-500 font-medium">{achievedGoals.length} logrado{achievedGoals.length !== 1 ? "s" : ""} ✓</p>
                   )}
@@ -651,14 +651,14 @@ export default function StudentPortalPTView({
                             {goalLabels[goal.goal_type] ?? "Otro"}
                           </span>
                           {goal.description && (
-                            <p className="text-sm text-violet-200">{goal.description}</p>
+                            <p className="text-sm text-slate-700 dark:text-slate-300">{goal.description}</p>
                           )}
                           {goal.target_value && (
-                            <p className="text-xs text-violet-300/50 mt-0.5">Meta: {goal.target_value}</p>
+                            <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Meta: {goal.target_value}</p>
                           )}
                         </div>
                         {goal.target_date && (
-                          <span className="text-[10px] text-violet-300/40 shrink-0 mt-1">
+                          <span className="text-[10px] text-slate-400 dark:text-slate-600 shrink-0 mt-1">
                             {new Date(goal.target_date + "T12:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "short" })}
                           </span>
                         )}
@@ -670,11 +670,11 @@ export default function StudentPortalPTView({
 
               {achievedGoals.length > 0 && (
                 <div className="space-y-1.5">
-                  <p className="text-[10px] font-bold text-violet-300/40 uppercase tracking-wider">Logrados</p>
+                  <p className="text-[10px] font-bold text-slate-400 dark:text-slate-600 uppercase tracking-wider">Logrados</p>
                   {achievedGoals.map((goal) => (
                     <div key={goal.id} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-500/5 border border-emerald-500/10">
                       <Trophy size={12} className="text-emerald-500 shrink-0" />
-                      <span className="text-xs text-violet-300/70 truncate">
+                      <span className="text-xs text-slate-600 dark:text-slate-400 truncate">
                         {goalLabels[goal.goal_type] ?? "Otro"}
                         {goal.description ? ` — ${goal.description}` : ""}
                       </span>
@@ -690,14 +690,14 @@ export default function StudentPortalPTView({
         <div className={`${card} overflow-hidden`}>
           <button
             onClick={() => setShowNotes((v) => !v)}
-            className="w-full px-4 py-3.5 flex items-center gap-3 hover:bg-white/5 transition-colors"
+            className="w-full px-4 py-3.5 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
           >
             <div className="p-2.5 rounded-xl bg-blue-500/10 shrink-0">
               <MessageSquare size={16} className="text-blue-400" />
             </div>
             <div className="flex-1 text-left">
-              <p className="text-sm font-bold text-white">Notas de tu entrenador</p>
-              <p className="text-xs text-violet-300/60">
+              <p className="text-sm font-bold text-slate-900 dark:text-white">Notas de tu entrenador</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500">
                 {sessionNotes.length > 0
                   ? `${Math.min(sessionNotes.length, 5)} nota${sessionNotes.length !== 1 ? "s" : ""} reciente${sessionNotes.length !== 1 ? "s" : ""}`
                   : "Sin notas aún"}
@@ -705,7 +705,7 @@ export default function StudentPortalPTView({
             </div>
             <ChevronRight
               size={16}
-              className={`text-violet-300/30 transition-transform ${showNotes ? "rotate-90" : ""}`}
+              className={`text-slate-400 dark:text-slate-600 transition-transform ${showNotes ? "rotate-90" : ""}`}
             />
           </button>
 
@@ -713,8 +713,8 @@ export default function StudentPortalPTView({
             <div className={`border-t ${cardBorder}`}>
               {sessionNotes.length === 0 ? (
                 <div className="px-4 py-8 text-center">
-                  <MessageSquare size={24} className="text-violet-300/20 mx-auto mb-2" />
-                  <p className="text-sm text-violet-300/40">Tu entrenador aún no dejó notas.</p>
+                  <MessageSquare size={24} className="text-slate-200 dark:text-slate-700 mx-auto mb-2" />
+                  <p className="text-sm text-slate-400 dark:text-slate-600">Tu entrenador aún no dejó notas.</p>
                 </div>
               ) : (
                 <div className={`divide-y ${cardDivider}`}>
@@ -726,7 +726,7 @@ export default function StudentPortalPTView({
                     return (
                       <div key={note.id} className="px-4 py-3.5">
                         <div className="flex items-center gap-2 mb-1.5">
-                          <span className="text-[10px] text-violet-300/40">
+                          <span className="text-[10px] text-slate-400 dark:text-slate-600">
                             {noteDate.toLocaleDateString("es-AR", { day: "numeric", month: "short" })}
                           </span>
                           {catConfig && (
@@ -735,7 +735,7 @@ export default function StudentPortalPTView({
                             </span>
                           )}
                         </div>
-                        <p className="text-sm text-violet-200 leading-relaxed">{note.content}</p>
+                        <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">{note.content}</p>
                       </div>
                     );
                   })}
@@ -749,14 +749,14 @@ export default function StudentPortalPTView({
         <div className={`${card} overflow-hidden`}>
           <button
             onClick={() => setShowHistory((v) => !v)}
-            className="w-full px-4 py-3.5 flex items-center gap-3 hover:bg-white/5 transition-colors"
+            className="w-full px-4 py-3.5 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
           >
             <div className="p-2.5 rounded-xl bg-violet-500/10 shrink-0">
               <History size={16} className="text-violet-500" />
             </div>
             <div className="flex-1 text-left">
-              <p className="text-sm font-bold text-white">Historial</p>
-              <p className="text-xs text-violet-300/60">
+              <p className="text-sm font-bold text-slate-900 dark:text-white">Historial</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500">
                 {recentSessions.length > 0
                   ? `Últimas ${recentSessions.length} sesiones`
                   : "Sin sesiones registradas"}
@@ -764,7 +764,7 @@ export default function StudentPortalPTView({
             </div>
             <ChevronRight
               size={16}
-              className={`text-violet-300/30 transition-transform ${showHistory ? "rotate-90" : ""}`}
+              className={`text-slate-400 dark:text-slate-600 transition-transform ${showHistory ? "rotate-90" : ""}`}
             />
           </button>
 
@@ -772,9 +772,9 @@ export default function StudentPortalPTView({
             <div className={`border-t ${cardBorder}`}>
               {recentSessions.length === 0 ? (
                 <div className="px-4 py-8 text-center">
-                  <CalendarDays size={24} className="text-violet-300/20 mx-auto mb-2" />
-                  <p className="text-sm text-violet-300/40">Aún no hay sesiones registradas.</p>
-                  <p className="text-xs text-violet-300/30 mt-0.5">
+                  <CalendarDays size={24} className="text-slate-200 dark:text-slate-700 mx-auto mb-2" />
+                  <p className="text-sm text-slate-400 dark:text-slate-600">Aún no hay sesiones registradas.</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-600 mt-0.5">
                     Cuando completes entrenamientos van a aparecer acá.
                   </p>
                 </div>
@@ -788,21 +788,21 @@ export default function StudentPortalPTView({
                     return (
                       <div key={session.id} className="px-4 py-3 flex items-center gap-3">
                         <div className={`shrink-0 w-8 h-8 rounded-xl flex items-center justify-center ${
-                          isCompleted ? "bg-emerald-500/10" : "bg-white/5"
+                          isCompleted ? "bg-emerald-500/10" : "bg-slate-100 dark:bg-slate-800"
                         }`}>
                           {isCompleted
                             ? <CheckCircle2 size={15} className="text-emerald-500" />
-                            : <Circle size={15} className="text-violet-300/30" />
+                            : <Circle size={15} className="text-slate-400 dark:text-slate-600" />
                           }
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold text-white truncate">{session.plan_name}</p>
-                          <p className="text-xs text-violet-300/50 capitalize">{dayName} {dateStr}</p>
+                          <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{session.plan_name}</p>
+                          <p className="text-xs text-slate-400 dark:text-slate-500 capitalize">{dayName} {dateStr}</p>
                         </div>
                         <span className={`shrink-0 text-xs font-bold px-2 py-0.5 rounded-lg ${
                           isCompleted
-                            ? "bg-emerald-500/10 text-emerald-400"
-                            : "bg-white/5 text-violet-300/40"
+                            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                            : "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500"
                         }`}>
                           {isCompleted ? "Completa" : "Parcial"}
                         </span>
