@@ -53,6 +53,23 @@ router.post('/:id/regenerate-code', async (req, res) => {
   }
 });
 
+router.post('/:id/set-custom-code', async (req, res) => {
+  try {
+    const { current_code, new_code } = req.body;
+    if (!current_code || !new_code) {
+      return res.status(400).json({ error: 'current_code and new_code are required' });
+    }
+    if (new_code.length < 4 || new_code.length > 8) {
+      return res.status(400).json({ error: 'El código debe tener entre 4 y 8 caracteres' });
+    }
+    await StudentService.setCustomCode(req.params.id, current_code, new_code);
+    res.json({ ok: true });
+  } catch (error: any) {
+    const status = error.message === 'Código actual incorrecto' ? 403 : 500;
+    res.status(status).json({ error: error.message });
+  }
+});
+
 router.delete('/:id', async (req, res) => {
   try {
     const gymId = req.query.gymId as string || '11111111-1111-1111-1111-111111111111';

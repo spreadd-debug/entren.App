@@ -79,6 +79,7 @@ var StudentService = {
         emergency_contact_name,
         emergency_contact_phone,
         access_code,
+        has_custom_code,
         created_at,
         updated_at
       `).eq("gym_id", resolvedGymId).order("nombre", { ascending: true });
@@ -107,6 +108,7 @@ var StudentService = {
         emergency_contact_name,
         emergency_contact_phone,
         access_code,
+        has_custom_code,
         created_at,
         updated_at
       `).eq("id", id).eq("gym_id", resolvedGymId).single();
@@ -155,6 +157,7 @@ var StudentService = {
         emergency_contact_name,
         emergency_contact_phone,
         access_code,
+        has_custom_code,
         created_at,
         updated_at
       `).single();
@@ -255,6 +258,7 @@ var StudentService = {
         emergency_contact_name,
         emergency_contact_phone,
         access_code,
+        has_custom_code,
         created_at,
         updated_at
       `).maybeSingle();
@@ -268,6 +272,16 @@ var StudentService = {
     const { error } = await supabase.from("students").update({ access_code: newCode }).eq("id", id).eq("gym_id", resolvedGymId);
     if (error) throw error;
     return newCode;
+  },
+  async setCustomCode(id, currentCode, newCode) {
+    const { data: student, error: fetchError } = await supabase.from("students").select("access_code").eq("id", id).single();
+    if (fetchError) throw fetchError;
+    if (!student) throw new Error("Alumno no encontrado");
+    if (student.access_code?.toUpperCase() !== currentCode.toUpperCase()) {
+      throw new Error("C\xF3digo actual incorrecto");
+    }
+    const { error } = await supabase.from("students").update({ access_code: newCode.toUpperCase(), has_custom_code: true }).eq("id", id);
+    if (error) throw error;
   },
   async delete(id, gymId) {
     const resolvedGymId = gymId || DEFAULT_GYM_ID;
@@ -320,6 +334,22 @@ router.post("/:id/regenerate-code", async (req, res) => {
     res.json({ access_code: newCode });
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+router.post("/:id/set-custom-code", async (req, res) => {
+  try {
+    const { current_code, new_code } = req.body;
+    if (!current_code || !new_code) {
+      return res.status(400).json({ error: "current_code and new_code are required" });
+    }
+    if (new_code.length < 4 || new_code.length > 8) {
+      return res.status(400).json({ error: "El c\xF3digo debe tener entre 4 y 8 caracteres" });
+    }
+    await StudentService.setCustomCode(req.params.id, current_code, new_code);
+    res.json({ ok: true });
+  } catch (error) {
+    const status = error.message === "C\xF3digo actual incorrecto" ? 403 : 500;
+    res.status(status).json({ error: error.message });
   }
 });
 router.delete("/:id", async (req, res) => {

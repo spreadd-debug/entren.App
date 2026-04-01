@@ -33,6 +33,7 @@ type StudentDbRow = {
   emergency_contact_name?: string | null;
   emergency_contact_phone?: string | null;
   access_code?: string | null;
+  has_custom_code?: boolean | null;
   created_at?: string;
   updated_at?: string;
 };
@@ -63,6 +64,7 @@ export const StudentService = {
         emergency_contact_name,
         emergency_contact_phone,
         access_code,
+        has_custom_code,
         created_at,
         updated_at
       `)
@@ -99,6 +101,7 @@ export const StudentService = {
         emergency_contact_name,
         emergency_contact_phone,
         access_code,
+        has_custom_code,
         created_at,
         updated_at
       `)
@@ -157,6 +160,7 @@ export const StudentService = {
         emergency_contact_name,
         emergency_contact_phone,
         access_code,
+        has_custom_code,
         created_at,
         updated_at
       `)
@@ -292,6 +296,7 @@ export const StudentService = {
         emergency_contact_name,
         emergency_contact_phone,
         access_code,
+        has_custom_code,
         created_at,
         updated_at
       `)
@@ -314,6 +319,29 @@ export const StudentService = {
 
     if (error) throw error;
     return newCode;
+  },
+
+  async setCustomCode(id: string, currentCode: string, newCode: string): Promise<void> {
+    // Verify current code matches
+    const { data: student, error: fetchError } = await supabase
+      .from('students')
+      .select('access_code')
+      .eq('id', id)
+      .single();
+
+    if (fetchError) throw fetchError;
+    if (!student) throw new Error('Alumno no encontrado');
+
+    if (student.access_code?.toUpperCase() !== currentCode.toUpperCase()) {
+      throw new Error('Código actual incorrecto');
+    }
+
+    const { error } = await supabase
+      .from('students')
+      .update({ access_code: newCode.toUpperCase(), has_custom_code: true })
+      .eq('id', id);
+
+    if (error) throw error;
   },
 
   async delete(id: string, gymId: string): Promise<void> {

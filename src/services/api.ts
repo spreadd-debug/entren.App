@@ -192,6 +192,14 @@ export const api = {
       await fetchJson(`${API_BASE}/students/${id}?gymId=${gymId}`, { method: 'DELETE' });
     },
 
+    async setCustomCode(id: string, currentCode: string, newCode: string): Promise<void> {
+      await fetchJson(`${API_BASE}/students/${id}/set-custom-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ current_code: currentCode, new_code: newCode }),
+      });
+    },
+
     async regenerateAccessCode(id: string, gymId: string = DEFAULT_GYM_ID): Promise<{ access_code: string }> {
       return fetchJson(`${API_BASE}/students/${id}/regenerate-code`, {
         method: 'POST',
