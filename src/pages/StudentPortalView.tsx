@@ -4,6 +4,9 @@ import { WorkoutPlanService } from "../services/WorkoutPlanService";
 import { WorkoutSessionService } from "../services/WorkoutSessionService";
 import { WorkoutRequestService } from "../services/WorkoutRequestService";
 import { NotificationService } from "../services/NotificationService";
+import { AnthropometryService } from "../services/pt/AnthropometryService";
+import { MeasurementsService } from "../services/pt/MeasurementsService";
+import { GoalsService } from "../services/pt/GoalsService";
 import { getWorkoutFreshness } from "../config/workoutConfig";
 import {
   Dumbbell,
@@ -22,11 +25,18 @@ import {
   RefreshCw,
   History,
   CalendarDays,
+  TrendingDown,
+  TrendingUp,
+  Minus,
+  Scale,
+  Target,
+  Ruler,
+  Activity,
 } from "lucide-react";
 import { formatDate } from "../utils/dateUtils";
 import { ExerciseVideoModal } from "../components/ExerciseVideoModal";
 import { useToast } from "../context/ToastContext";
-import { WorkoutOption, WorkoutSession, WorkoutSessionExercise, WorkoutUpdateRequest } from "../../shared/types";
+import { WorkoutOption, WorkoutSession, WorkoutSessionExercise, WorkoutUpdateRequest, ClientAnthropometry, ClientMeasurement, ClientGoal } from "../../shared/types";
 
 // Nombres de días en español (0=Dom, 1=Lun, ..., 6=Sáb)
 const DAY_NAMES = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
@@ -70,6 +80,13 @@ export default function StudentPortalView({
   }>>([]);
   const [showHistory, setShowHistory] = useState(false);
 
+  // ─── Progreso PT ───────────────────────────────────────────────────────────
+  const [anthropometry, setAnthropometry] = useState<ClientAnthropometry[]>([]);
+  const [measurements, setMeasurements] = useState<ClientMeasurement[]>([]);
+  const [goals, setGoals] = useState<ClientGoal[]>([]);
+  const [showProgress, setShowProgress] = useState(true);
+  const [showMeasurements, setShowMeasurements] = useState(false);
+
   // ─── Modal de video ────────────────────────────────────────────────────────
   const [videoModal, setVideoModal] = useState<{
     isOpen: boolean;
@@ -95,6 +112,18 @@ export default function StudentPortalView({
         if (data.todaySession) {
           setActiveSession(data.todaySession.session);
           setSessionItems(data.todaySession.items);
+        }
+
+        // Cargar datos de progreso para PT
+        if (data.student?.gym_type === 'personal_trainer') {
+          const [anthroData, measData, goalsData] = await Promise.all([
+            AnthropometryService.getByStudent(studentId),
+            MeasurementsService.getByStudent(studentId),
+            GoalsService.getByStudent(studentId),
+          ]);
+          setAnthropometry(anthroData);
+          setMeasurements(measData);
+          setGoals(goalsData);
         }
 
         // Auto-seleccionar según el día de la semana actual
@@ -333,6 +362,402 @@ export default function StudentPortalView({
           )}
         </div>
         )}
+
+        {/* ── Mi Progreso (solo PT) ─────────────────────────────────── */}
+        {isPT && anthropometry.length > 0 && (() => {
+          const latest = anthropometry[0];
+          const previous = anthropometry.length > 1 ? anthropometry[1] : null;
+          const weightDiff = previous?.weight_kg && latest.weight_kg
+            ? Math.round((latest.weight_kg - previous.weight_kg) * 10) / 10
+            : null;
+          const fatDiff = previous?.body_fat_pct && latest.body_fat_pct
+            ? Math.round((latest.body_fat_pct - previous.body_fat_pct) * 10) / 10
+            : null;
+          const muscleDiff = previous?.muscle_mass_kg && latest.muscle_mass_kg
+            ? Math.round((latest.muscle_mass_kg - previous.muscle_mass_kg) * 10) / 10
+            : null;
+
+          // Datos para el gráfico de peso (últimos 10, orden cronológico)
+          const chartData = anthropometry
+            .filter((a) => a.weight_kg !== null)
+            .slice(0, 10)
+            .reverse();
+          const weights = chartData.map((a) => a.weight_kg!);
+          const minW = Math.min(...weights) - 1;
+          const maxW = Math.max(...weights) + 1;
+          const range = maxW - minW || 1;
+
+          return (
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+              <button
+                onClick={() => setShowProgress((v) => !v)}
+                className="w-full px-4 py-3.5 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+              >
+                <div className="p-2.5 rounded-xl bg-emerald-500/10 shrink-0">
+                  <Activity size={16} className="text-emerald-500" />
+                </div>
+                <div className="flex-1 text-left">
+                  <p className="text-sm font-black text-slate-900 dark:text-white">Mi Progreso</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500">
+                    {anthropometry.length} medición{anthropometry.length !== 1 ? "es" : ""} registrada{anthropometry.length !== 1 ? "s" : ""}
+                  </p>
+                </div>
+                <ChevronRight
+                  size={16}
+                  className={`text-slate-300 dark:text-slate-600 transition-transform ${showProgress ? "rotate-90" : ""}`}
+                />
+              </button>
+
+              {showProgress && (
+                <div className="border-t border-slate-100 dark:border-slate-800 px-4 py-4 space-y-4">
+
+                  {/* Tarjetas resumen */}
+                  <div className="grid grid-cols-3 gap-2">
+                    {/* Peso */}
+                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 text-center">
+                      <Scale size={14} className="text-cyan-500 mx-auto mb-1" />
+                      <p className="text-lg font-black text-slate-900 dark:text-white leading-tight">
+                        {latest.weight_kg ?? "—"}
+                      </p>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">kg</p>
+                      {weightDiff !== null && (
+                        <div className={`flex items-center justify-center gap-0.5 mt-1 text-[10px] font-bold ${
+                          weightDiff < 0 ? "text-emerald-500" : weightDiff > 0 ? "text-rose-500" : "text-slate-400"
+                        }`}>
+                          {weightDiff < 0 ? <TrendingDown size={10} /> : weightDiff > 0 ? <TrendingUp size={10} /> : <Minus size={10} />}
+                          {weightDiff > 0 ? "+" : ""}{weightDiff} kg
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Grasa corporal */}
+                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 text-center">
+                      <Target size={14} className="text-amber-500 mx-auto mb-1" />
+                      <p className="text-lg font-black text-slate-900 dark:text-white leading-tight">
+                        {latest.body_fat_pct ?? "—"}
+                      </p>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">% grasa</p>
+                      {fatDiff !== null && (
+                        <div className={`flex items-center justify-center gap-0.5 mt-1 text-[10px] font-bold ${
+                          fatDiff < 0 ? "text-emerald-500" : fatDiff > 0 ? "text-rose-500" : "text-slate-400"
+                        }`}>
+                          {fatDiff < 0 ? <TrendingDown size={10} /> : fatDiff > 0 ? <TrendingUp size={10} /> : <Minus size={10} />}
+                          {fatDiff > 0 ? "+" : ""}{fatDiff}%
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Masa muscular */}
+                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 text-center">
+                      <Dumbbell size={14} className="text-violet-500 mx-auto mb-1" />
+                      <p className="text-lg font-black text-slate-900 dark:text-white leading-tight">
+                        {latest.muscle_mass_kg ?? "—"}
+                      </p>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">kg músculo</p>
+                      {muscleDiff !== null && (
+                        <div className={`flex items-center justify-center gap-0.5 mt-1 text-[10px] font-bold ${
+                          muscleDiff > 0 ? "text-emerald-500" : muscleDiff < 0 ? "text-rose-500" : "text-slate-400"
+                        }`}>
+                          {muscleDiff > 0 ? <TrendingUp size={10} /> : muscleDiff < 0 ? <TrendingDown size={10} /> : <Minus size={10} />}
+                          {muscleDiff > 0 ? "+" : ""}{muscleDiff} kg
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* BMI badge */}
+                  {latest.bmi && (
+                    <div className="flex items-center justify-center gap-2">
+                      <span className="text-xs text-slate-400 dark:text-slate-500">IMC:</span>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                        latest.bmi < 18.5 ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" :
+                        latest.bmi < 25 ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" :
+                        latest.bmi < 30 ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" :
+                        "bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                      }`}>
+                        {latest.bmi}
+                      </span>
+                      <span className="text-[10px] text-slate-400 dark:text-slate-600">
+                        {latest.bmi < 18.5 ? "Bajo peso" : latest.bmi < 25 ? "Normal" : latest.bmi < 30 ? "Sobrepeso" : "Obesidad"}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Gráfico de peso */}
+                  {chartData.length >= 2 && (
+                    <div>
+                      <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
+                        Evolución de peso
+                      </p>
+                      <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-3">
+                        <svg viewBox="0 0 300 120" className="w-full h-auto">
+                          {/* Líneas de referencia */}
+                          {[0, 0.25, 0.5, 0.75, 1].map((pct) => (
+                            <line
+                              key={pct}
+                              x1="30" y1={10 + (1 - pct) * 90}
+                              x2="290" y2={10 + (1 - pct) * 90}
+                              stroke="currentColor"
+                              strokeWidth="0.5"
+                              className="text-slate-200 dark:text-slate-700"
+                            />
+                          ))}
+                          {/* Labels Y */}
+                          {[0, 0.5, 1].map((pct) => (
+                            <text
+                              key={pct}
+                              x="27" y={10 + (1 - pct) * 90 + 3}
+                              textAnchor="end"
+                              className="fill-slate-400 dark:fill-slate-500"
+                              fontSize="8"
+                            >
+                              {Math.round(minW + pct * range)}
+                            </text>
+                          ))}
+                          {/* Área */}
+                          <path
+                            d={`M${chartData.map((_, i) => {
+                              const x = 30 + (i / (chartData.length - 1)) * 260;
+                              const y = 10 + (1 - (weights[i] - minW) / range) * 90;
+                              return `${x},${y}`;
+                            }).join(" L")} L${30 + 260},100 L30,100 Z`}
+                            className="fill-cyan-500/10"
+                          />
+                          {/* Línea */}
+                          <polyline
+                            points={chartData.map((_, i) => {
+                              const x = 30 + (i / (chartData.length - 1)) * 260;
+                              const y = 10 + (1 - (weights[i] - minW) / range) * 90;
+                              return `${x},${y}`;
+                            }).join(" ")}
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            className="text-cyan-500"
+                          />
+                          {/* Puntos */}
+                          {chartData.map((entry, i) => {
+                            const x = 30 + (i / (chartData.length - 1)) * 260;
+                            const y = 10 + (1 - (weights[i] - minW) / range) * 90;
+                            return (
+                              <g key={entry.id}>
+                                <circle cx={x} cy={y} r="3.5" className="fill-cyan-500" />
+                                <circle cx={x} cy={y} r="2" className="fill-white dark:fill-slate-800" />
+                                {/* Label en el último y primero */}
+                                {(i === 0 || i === chartData.length - 1) && (
+                                  <text
+                                    x={x} y={y - 8}
+                                    textAnchor="middle"
+                                    className="fill-slate-600 dark:fill-slate-300"
+                                    fontSize="8"
+                                    fontWeight="bold"
+                                  >
+                                    {weights[i]}
+                                  </text>
+                                )}
+                              </g>
+                            );
+                          })}
+                          {/* Labels X (fecha) */}
+                          {chartData.map((entry, i) => {
+                            if (chartData.length > 5 && i % 2 !== 0 && i !== chartData.length - 1) return null;
+                            const x = 30 + (i / (chartData.length - 1)) * 260;
+                            const d = new Date(entry.measured_at + "T12:00:00");
+                            return (
+                              <text
+                                key={entry.id + "_label"}
+                                x={x} y={112}
+                                textAnchor="middle"
+                                className="fill-slate-400 dark:fill-slate-500"
+                                fontSize="7"
+                              >
+                                {d.toLocaleDateString("es-AR", { day: "numeric", month: "short" })}
+                              </text>
+                            );
+                          })}
+                        </svg>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Última medición */}
+                  <p className="text-[10px] text-slate-400 dark:text-slate-600 text-center">
+                    Última medición: {new Date(latest.measured_at + "T12:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric" })}
+                  </p>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* ── Medidas corporales (solo PT) ────────────────────────────── */}
+        {isPT && measurements.length > 0 && (() => {
+          const latest = measurements[0];
+          const previous = measurements.length > 1 ? measurements[1] : null;
+
+          const measureFields: { key: keyof ClientMeasurement; label: string }[] = [
+            { key: "chest_cm", label: "Pecho" },
+            { key: "shoulders_cm", label: "Hombros" },
+            { key: "waist_cm", label: "Cintura" },
+            { key: "hips_cm", label: "Cadera" },
+            { key: "bicep_l_cm", label: "Bícep izq" },
+            { key: "bicep_r_cm", label: "Bícep der" },
+            { key: "thigh_l_cm", label: "Muslo izq" },
+            { key: "thigh_r_cm", label: "Muslo der" },
+            { key: "calf_l_cm", label: "Pantorrilla izq" },
+            { key: "calf_r_cm", label: "Pantorrilla der" },
+            { key: "neck_cm", label: "Cuello" },
+          ];
+
+          const filledFields = measureFields.filter((f) => latest[f.key] !== null);
+          if (filledFields.length === 0) return null;
+
+          return (
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+              <button
+                onClick={() => setShowMeasurements((v) => !v)}
+                className="w-full px-4 py-3.5 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+              >
+                <div className="p-2.5 rounded-xl bg-cyan-500/10 shrink-0">
+                  <Ruler size={16} className="text-cyan-500" />
+                </div>
+                <div className="flex-1 text-left">
+                  <p className="text-sm font-bold text-slate-900 dark:text-white">Medidas corporales</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500">
+                    {new Date(latest.measured_at + "T12:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "short" })}
+                    {previous ? ` vs ${new Date(previous.measured_at + "T12:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "short" })}` : ""}
+                  </p>
+                </div>
+                <ChevronRight
+                  size={16}
+                  className={`text-slate-300 dark:text-slate-600 transition-transform ${showMeasurements ? "rotate-90" : ""}`}
+                />
+              </button>
+
+              {showMeasurements && (
+                <div className="border-t border-slate-100 dark:border-slate-800">
+                  <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {filledFields.map((f) => {
+                      const val = latest[f.key] as number;
+                      const prevVal = previous ? (previous[f.key] as number | null) : null;
+                      const diff = prevVal ? Math.round((val - prevVal) * 10) / 10 : null;
+                      return (
+                        <div key={f.key} className="px-4 py-2.5 flex items-center justify-between">
+                          <span className="text-sm text-slate-600 dark:text-slate-400">{f.label}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-bold text-slate-900 dark:text-white">{val} cm</span>
+                            {diff !== null && diff !== 0 && (
+                              <span className={`flex items-center gap-0.5 text-[10px] font-bold ${
+                                diff < 0 ? "text-emerald-500" : "text-rose-500"
+                              }`}>
+                                {diff < 0 ? <TrendingDown size={9} /> : <TrendingUp size={9} />}
+                                {diff > 0 ? "+" : ""}{diff}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* ── Objetivos (solo PT) ─────────────────────────────────────── */}
+        {isPT && goals.length > 0 && (() => {
+          const activeGoals = goals.filter((g) => g.status === "active");
+          const achievedGoals = goals.filter((g) => g.status === "achieved");
+
+          const goalLabels: Record<string, string> = {
+            lose_weight: "Bajar de peso",
+            gain_muscle: "Ganar músculo",
+            rehab: "Rehabilitación",
+            flexibility: "Flexibilidad",
+            endurance: "Resistencia",
+            strength: "Fuerza",
+            general_fitness: "Fitness general",
+            other: "Otro",
+          };
+
+          const goalColors: Record<string, string> = {
+            lose_weight: "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400",
+            gain_muscle: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
+            rehab: "bg-rose-500/10 text-rose-600 dark:text-rose-400",
+            flexibility: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+            endurance: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+            strength: "bg-orange-500/10 text-orange-600 dark:text-orange-400",
+            general_fitness: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+            other: "bg-slate-500/10 text-slate-600 dark:text-slate-400",
+          };
+
+          return (
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-4 space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-amber-500/10 shrink-0">
+                  <Target size={16} className="text-amber-500" />
+                </div>
+                <div>
+                  <p className="text-sm font-black text-slate-900 dark:text-white">Mis objetivos</p>
+                  {achievedGoals.length > 0 && (
+                    <p className="text-xs text-emerald-500 font-medium">{achievedGoals.length} logrado{achievedGoals.length !== 1 ? "s" : ""} ✓</p>
+                  )}
+                </div>
+              </div>
+
+              {activeGoals.length > 0 && (
+                <div className="space-y-2">
+                  {activeGoals.map((goal) => (
+                    <div key={goal.id} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold mb-1 ${goalColors[goal.goal_type] ?? goalColors.other}`}>
+                            {goalLabels[goal.goal_type] ?? "Otro"}
+                          </span>
+                          {goal.description && (
+                            <p className="text-sm text-slate-700 dark:text-slate-300">{goal.description}</p>
+                          )}
+                          {goal.target_value && (
+                            <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Meta: {goal.target_value}</p>
+                          )}
+                        </div>
+                        {goal.target_date && (
+                          <span className="text-[10px] text-slate-400 dark:text-slate-500 shrink-0 mt-1">
+                            {new Date(goal.target_date + "T12:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "short" })}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {achievedGoals.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Logrados</p>
+                  {achievedGoals.map((goal) => (
+                    <div key={goal.id} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-500/5 border border-emerald-500/10">
+                      <Trophy size={12} className="text-emerald-500 shrink-0" />
+                      <span className="text-xs text-slate-600 dark:text-slate-400 truncate">
+                        {goalLabels[goal.goal_type] ?? "Otro"}
+                        {goal.description ? ` — ${goal.description}` : ""}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {activeGoals.length === 0 && achievedGoals.length === 0 && (
+                <p className="text-xs text-slate-400 dark:text-slate-500 text-center py-2">
+                  Tu entrenador aún no definió objetivos.
+                </p>
+              )}
+            </div>
+          );
+        })()}
 
         {/* ── Banner de rutina desactualizada ──────────────────────────── */}
         {routineFreshness && (routineFreshness.level === 'stale' || routineFreshness.level === 'outdated') && (
