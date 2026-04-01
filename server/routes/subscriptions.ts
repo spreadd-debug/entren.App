@@ -13,6 +13,29 @@ function getAdminClient() {
   return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
 }
 
+// ── DEBUG: check auth users (TEMPORARY — remove after debugging) ──────────────
+router.get('/debug-auth/:email', async (req, res) => {
+  try {
+    const admin = getAdminClient();
+    const { data, error } = await admin.auth.admin.listUsers();
+    if (error) return res.status(500).json({ error: error.message });
+    const match = data.users.filter(u => u.email === req.params.email);
+    res.json({
+      server_supabase_url: process.env.SUPABASE_URL?.slice(0, 30) + '...',
+      total_auth_users: data.users.length,
+      matching_users: match.map(u => ({
+        id: u.id,
+        email: u.email,
+        email_confirmed: u.email_confirmed_at,
+        created_at: u.created_at,
+        user_metadata: u.user_metadata,
+      })),
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Billing payments (fixed paths must come BEFORE /:gymId) ───────────────────
 
 // GET /api/subscriptions/billing?gymId=...
