@@ -66,7 +66,7 @@ const CheckInView: React.FC<CheckInViewProps> = ({ gymId }) => {
       localStorage.setItem('studentPortalId', student.id);
       setStep('success');
       setTimeout(() => {
-        window.location.href = window.location.pathname + '?student=1';
+        window.location.href = '/portal';
       }, 1500);
     } catch {
       setError('Error al registrar. Intentá de nuevo.');

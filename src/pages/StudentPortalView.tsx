@@ -7,6 +7,7 @@ import { NotificationService } from "../services/NotificationService";
 import { AnthropometryService } from "../services/pt/AnthropometryService";
 import { MeasurementsService } from "../services/pt/MeasurementsService";
 import { GoalsService } from "../services/pt/GoalsService";
+import { SessionNotesService } from "../services/pt/SessionNotesService";
 import { getWorkoutFreshness } from "../config/workoutConfig";
 import {
   Dumbbell,
@@ -36,7 +37,8 @@ import {
 import { formatDate } from "../utils/dateUtils";
 import { ExerciseVideoModal } from "../components/ExerciseVideoModal";
 import { useToast } from "../context/ToastContext";
-import { WorkoutOption, WorkoutSession, WorkoutSessionExercise, WorkoutUpdateRequest, ClientAnthropometry, ClientMeasurement, ClientGoal } from "../../shared/types";
+import { WorkoutOption, WorkoutSession, WorkoutSessionExercise, WorkoutUpdateRequest, ClientAnthropometry, ClientMeasurement, ClientGoal, SessionNote } from "../../shared/types";
+import StudentPortalPTView from "./StudentPortalPTView";
 
 // Nombres de días en español (0=Dom, 1=Lun, ..., 6=Sáb)
 const DAY_NAMES = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
@@ -87,6 +89,16 @@ export default function StudentPortalView({
   const [showProgress, setShowProgress] = useState(true);
   const [showMeasurements, setShowMeasurements] = useState(false);
 
+  // ─── PT extra data ─────────────────────────────────────────────────────────
+  const [sessionNotes, setSessionNotes] = useState<SessionNote[]>([]);
+  const [adherenceStats, setAdherenceStats] = useState<{
+    totalSessions: number;
+    completedSessions: number;
+    adherencePercent: number;
+    lastSessionDate: string | null;
+  } | null>(null);
+  const [todayExercises, setTodayExercises] = useState<any[]>([]);
+
   // ─── Modal de video ────────────────────────────────────────────────────────
   const [videoModal, setVideoModal] = useState<{
     isOpen: boolean;
@@ -116,14 +128,34 @@ export default function StudentPortalView({
 
         // Cargar datos de progreso para PT
         if (data.student?.gym_type === 'personal_trainer') {
-          const [anthroData, measData, goalsData] = await Promise.all([
+          const [anthroData, measData, goalsData, notesData, adherenceData] = await Promise.all([
             AnthropometryService.getByStudent(studentId),
             MeasurementsService.getByStudent(studentId),
             GoalsService.getByStudent(studentId),
+            SessionNotesService.getByStudent(studentId),
+            WorkoutSessionService.getAdherenceStats(studentId),
           ]);
           setAnthropometry(anthroData);
           setMeasurements(measData);
           setGoals(goalsData);
+          setSessionNotes(notesData);
+          setAdherenceStats(adherenceData);
+
+          // Load today's exercises for read-only display if no active session
+          if (!data.todaySession) {
+            const todayDay = new Date().getDay();
+            const todayOpt = data.options.find(
+              (o) => o.days_of_week && o.days_of_week.includes(todayDay)
+            ) ?? data.options[0];
+            if (todayOpt) {
+              try {
+                const exercises = await WorkoutPlanService.getExercises(todayOpt.workout_plan_id);
+                setTodayExercises(exercises);
+              } catch (e) {
+                console.error("Failed to load today's exercises:", e);
+              }
+            }
+          }
         }
 
         // Auto-seleccionar según el día de la semana actual
@@ -333,7 +365,28 @@ export default function StudentPortalView({
     );
   }
 
-  // ─── Render ───────────────────────────────────────────────────────────────
+  // ─── PT mode: dedicated read-only view ────────────────────────────────────
+
+  if (student?.gym_type === 'personal_trainer') {
+    return (
+      <StudentPortalPTView
+        student={student}
+        onLogout={onLogout}
+        options={options}
+        activeSession={activeSession}
+        sessionItems={sessionItems}
+        todayExercises={todayExercises}
+        recentSessions={recentSessions}
+        anthropometry={anthropometry}
+        measurements={measurements}
+        goals={goals}
+        sessionNotes={sessionNotes}
+        adherenceStats={adherenceStats}
+      />
+    );
+  }
+
+  // ─── Render (gym mode) ───────────────────────────────────────────────────
 
   return (
     <div className={`min-h-screen ${isPT ? 'bg-violet-950' : 'bg-slate-50 dark:bg-slate-950'}`}>

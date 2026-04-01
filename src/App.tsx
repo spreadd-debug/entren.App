@@ -81,7 +81,7 @@ export default function App() {
   const gymType = (supabaseUser?.user_metadata?.gym_type ?? 'gym') as GymType;
   const mustChangePassword = supabaseUser?.user_metadata?.must_change_password === true;
 
-  const isStudentPortalMode = window.location.search.includes("student=1");
+  const isStudentPortalMode = window.location.pathname === '/portal' || window.location.search.includes("student=1");
 
   // While checking session, show nothing (avoids flash of login screen)
   if (sessionLoading && !isSuperAdmin && !isDemo && !isGymTest) {
