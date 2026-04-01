@@ -36,10 +36,13 @@ router.post('/', async (req, res) => {
 
 router.put('/:id', async (req, res) => {
   try {
+    console.log('[PUT /students/:id] id:', req.params.id, 'body:', JSON.stringify(req.body));
     const student = await StudentService.update(req.params.id, req.body);
+    console.log('[PUT /students/:id] result:', JSON.stringify(student));
     res.json(student);
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    console.error('[PUT /students/:id] ERROR:', error.message, error);
+    res.status(500).json({ error: error.message, details: error.details ?? null });
   }
 });
 

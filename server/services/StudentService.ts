@@ -260,6 +260,8 @@ export const StudentService = {
     // Don't allow moving a student to a different gym
     delete payload.gym_id;
 
+    console.log('[StudentService.update] id:', id, 'gymId:', gymId, 'payload:', JSON.stringify(payload));
+
     if (Object.keys(payload).length === 0) {
       // Nothing to update — just return current student
       const current = await this.getById(id, gymId);
@@ -297,6 +299,7 @@ export const StudentService = {
       `)
       .maybeSingle();
 
+    console.log('[StudentService.update] supabase error:', error, 'data:', data);
     if (error) throw error;
     if (!data) throw new Error('No se encontró el alumno o no se pudo actualizar');
     return mapStudentRowToStudent(data as any);

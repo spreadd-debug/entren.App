@@ -768,9 +768,14 @@ function PTApp({ gymId, onLogout }: {
       }
     }
     try {
-      await api.students.update(id, { ...updates, gym_id: gymId });
+      const payload = { ...updates, gym_id: gymId };
+      console.log('[PT handleUpdateStudent] id:', id, 'payload:', payload);
+      const result = await api.students.update(id, payload);
+      console.log('[PT handleUpdateStudent] result:', result);
       setStudents(await api.students.getAll(gymId));
+      toast.success('Cambios guardados');
     } catch (error: any) {
+      console.error('[PT handleUpdateStudent] error:', error);
       toast.error(`No se pudo guardar los cambios: ${error?.message ?? 'Error desconocido'}`);
     }
   };
