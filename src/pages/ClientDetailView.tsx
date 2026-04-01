@@ -343,24 +343,31 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({
           </div>
 
           {/* Quick actions */}
-          <div className="grid grid-cols-2 gap-2.5 mt-5">
-            <a
-              href={`tel:${(student as any).telefono ?? ''}`}
-              className="flex items-center justify-center gap-2.5 py-3 rounded-xl bg-white/15 hover:bg-white/25 backdrop-blur-sm text-white border border-white/10 transition-all active:scale-[0.97]"
-            >
-              <Phone size={16} />
-              <span className="text-sm font-bold">Llamar</span>
-            </a>
-            <a
-              href={`https://wa.me/${((student as any).telefono ?? '').replace(/\D/g, '')}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2.5 py-3 rounded-xl bg-emerald-500/30 hover:bg-emerald-500/40 backdrop-blur-sm text-white border border-emerald-400/20 transition-all active:scale-[0.97]"
-            >
-              <MessageSquare size={16} />
-              <span className="text-sm font-bold">WhatsApp</span>
-            </a>
-          </div>
+          {(student as any).telefono ? (
+            <div className="grid grid-cols-2 gap-2.5 mt-5">
+              <a
+                href={`tel:${(student as any).telefono}`}
+                className="flex items-center justify-center gap-2.5 py-3 rounded-xl bg-white/15 hover:bg-white/25 backdrop-blur-sm text-white border border-white/10 transition-all active:scale-[0.97]"
+              >
+                <Phone size={16} />
+                <span className="text-sm font-bold">Llamar</span>
+              </a>
+              <a
+                href={`https://wa.me/${((student as any).telefono).replace(/\D/g, '')}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2.5 py-3 rounded-xl bg-emerald-500/30 hover:bg-emerald-500/40 backdrop-blur-sm text-white border border-emerald-400/20 transition-all active:scale-[0.97]"
+              >
+                <MessageSquare size={16} />
+                <span className="text-sm font-bold">WhatsApp</span>
+              </a>
+            </div>
+          ) : (
+            <div className="mt-4 flex items-center gap-2 px-3 py-2.5 rounded-xl bg-white/10 border border-white/10 backdrop-blur-sm">
+              <Phone size={14} className="text-white/40 shrink-0" />
+              <p className="text-xs text-white/50 font-medium">Sin telefono registrado — edita el cliente para agregar uno</p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -532,7 +539,15 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({
                 <h4 className="text-sm font-black text-violet-700 dark:text-violet-400">Acceso al Portal</h4>
               </div>
 
-              {accessCode ? (
+              {!(student as any).telefono ? (
+                <div className="flex items-start gap-3 py-2">
+                  <Phone size={16} className="text-violet-400/50 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-sm font-bold text-violet-600/70 dark:text-violet-400/60">Se necesita un telefono</p>
+                    <p className="text-xs text-violet-500/50 dark:text-violet-400/40 mt-0.5">Para que tu cliente pueda acceder al portal necesita tener un telefono cargado. Edita el cliente para agregarlo.</p>
+                  </div>
+                </div>
+              ) : accessCode ? (
                 <>
                   <div className="flex items-center gap-2.5">
                     <div className="flex-1 bg-white dark:bg-slate-900/60 border border-violet-200 dark:border-violet-500/20 rounded-xl px-4 py-3 flex items-center justify-between shadow-sm">
@@ -554,14 +569,12 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({
                   </div>
 
                   <div className="flex gap-2">
-                    {(student as any).telefono && (
-                      <button
-                        onClick={handleShareWhatsApp}
-                        className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-emerald-500/20 active:scale-[0.97]"
-                      >
-                        <Share2 size={13} /> Enviar por WhatsApp
-                      </button>
-                    )}
+                    <button
+                      onClick={handleShareWhatsApp}
+                      className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-emerald-500/20 active:scale-[0.97]"
+                    >
+                      <Share2 size={13} /> Enviar por WhatsApp
+                    </button>
                     <button
                       onClick={handleRegenerateCode}
                       disabled={regenerating}
