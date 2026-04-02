@@ -45,6 +45,7 @@ import {
 import { WellnessCheckInService } from "../services/pt/WellnessCheckInService";
 import { NutritionPlanService, NutritionPlanWithItems } from "../services/pt/NutritionPlanService";
 import { ProgressPhotosService } from "../services/pt/ProgressPhotosService";
+import { AnthropometryService } from "../services/pt/AnthropometryService";
 import { ProgressPhoto, PhotoAngle } from "../../shared/types";
 
 const DAY_NAMES = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
@@ -77,6 +78,7 @@ export interface StudentPortalPTViewProps {
   goals: ClientGoal[];
   sessionNotes: SessionNote[];
   adherenceStats: AdherenceStats | null;
+  onAnthropometryUpdate?: (data: ClientAnthropometry[]) => void;
 }
 
 // ─── Theme constants ───────────────────────────────────────────────────────────
@@ -206,6 +208,7 @@ export default function StudentPortalPTView({
   goals,
   sessionNotes,
   adherenceStats,
+  onAnthropometryUpdate,
 }: StudentPortalPTViewProps) {
   // Secondary cards state — all collapsed by default
   const [showNotes, setShowNotes] = useState(false);
@@ -320,6 +323,35 @@ export default function StudentPortalPTView({
       setWellnessOpen(false);
     } catch { /* ignore */ }
     setWellnessSaving(false);
+  };
+
+  // ─── Weight registration ──────────────────────────────────────────────────────
+  const [weightOpen, setWeightOpen] = useState(false);
+  const [weightInput, setWeightInput] = useState('');
+  const [weightSaving, setWeightSaving] = useState(false);
+
+  const handleWeightSave = async () => {
+    const val = parseFloat(weightInput.replace(',', '.'));
+    if (!student?.id || !student?.gym_id || isNaN(val) || val < 20 || val > 350) return;
+    setWeightSaving(true);
+    try {
+      // Use last known height for BMI auto-calc
+      const lastHeight = anthropometry.find(a => a.height_cm)?.height_cm ?? null;
+      await AnthropometryService.create({
+        gym_id: student.gym_id,
+        student_id: student.id,
+        measured_at: new Date().toISOString().split('T')[0],
+        weight_kg: val,
+        height_cm: lastHeight,
+        notes: 'Registrado por el alumno',
+      });
+      // Refresh parent data
+      const updated = await AnthropometryService.getByStudent(student.id);
+      onAnthropometryUpdate?.(updated);
+      setWeightOpen(false);
+      setWeightInput('');
+    } catch { /* ignore */ }
+    setWeightSaving(false);
   };
 
   const studentName =
@@ -552,6 +584,101 @@ export default function StudentPortalPTView({
                     }</>
                   )}
                 </span>
+              </div>
+            )}
+
+            {/* Weight registration inline */}
+            {!weightOpen ? (
+              <button
+                onClick={() => { setWeightOpen(true); setWeightInput(heroValue?.toString() ?? ''); }}
+                className="relative mt-3 flex items-center gap-2 px-3 py-2 rounded-xl bg-white/60 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-500 dark:text-slate-400 hover:border-violet-400 hover:text-violet-500 transition-colors"
+              >
+                <Scale size={14} />
+                Registrar peso
+              </button>
+            ) : (
+              <div className="relative mt-3 flex items-center gap-2">
+                <div className="flex items-center gap-1.5 flex-1">
+                  <Scale size={14} className="text-violet-500 shrink-0" />
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    step="0.1"
+                    min="20"
+                    max="350"
+                    value={weightInput}
+                    onChange={(e) => setWeightInput(e.target.value)}
+                    placeholder="Ej: 70.5"
+                    autoFocus
+                    className="w-24 px-3 py-2 rounded-xl border border-violet-300 dark:border-violet-500/50 bg-white dark:bg-slate-800 text-sm font-bold text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500/40"
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleWeightSave(); if (e.key === 'Escape') setWeightOpen(false); }}
+                  />
+                  <span className="text-xs text-slate-400">kg</span>
+                </div>
+                <button
+                  onClick={handleWeightSave}
+                  disabled={weightSaving || !weightInput}
+                  className="px-4 py-2 rounded-xl bg-violet-500 text-white text-xs font-bold hover:bg-violet-600 active:scale-[0.97] transition-all disabled:opacity-50"
+                >
+                  {weightSaving ? '...' : 'Guardar'}
+                </button>
+                <button
+                  onClick={() => setWeightOpen(false)}
+                  className="p-2 text-slate-400 hover:text-slate-600"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Empty state: no anthropometry data at all — invite to register weight */}
+        {heroValue === null && (
+          <div className="relative -mx-4 px-4 pt-4 pb-3 mb-2 bg-gradient-to-b from-violet-500/[0.05] to-transparent dark:from-violet-500/[0.08] dark:to-transparent">
+            {!weightOpen ? (
+              <div className="text-center space-y-2">
+                <Scale size={28} className="text-violet-300 dark:text-violet-600 mx-auto" />
+                <p className="text-sm font-bold text-slate-700 dark:text-slate-300">Registrá tu peso</p>
+                <p className="text-xs text-slate-400 dark:text-slate-500">Así podés ver tu progreso y tu entrenador también.</p>
+                <button
+                  onClick={() => setWeightOpen(true)}
+                  className="mt-1 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-violet-500 text-white text-sm font-bold hover:bg-violet-600 active:scale-[0.97] transition-all shadow-sm shadow-violet-500/20"
+                >
+                  <Scale size={15} />
+                  Registrar peso
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 justify-center">
+                <Scale size={14} className="text-violet-500 shrink-0" />
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  step="0.1"
+                  min="20"
+                  max="350"
+                  value={weightInput}
+                  onChange={(e) => setWeightInput(e.target.value)}
+                  placeholder="Ej: 70.5"
+                  autoFocus
+                  className="w-24 px-3 py-2 rounded-xl border border-violet-300 dark:border-violet-500/50 bg-white dark:bg-slate-800 text-sm font-bold text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500/40"
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleWeightSave(); if (e.key === 'Escape') setWeightOpen(false); }}
+                />
+                <span className="text-xs text-slate-400">kg</span>
+                <button
+                  onClick={handleWeightSave}
+                  disabled={weightSaving || !weightInput}
+                  className="px-4 py-2 rounded-xl bg-violet-500 text-white text-xs font-bold hover:bg-violet-600 active:scale-[0.97] transition-all disabled:opacity-50"
+                >
+                  {weightSaving ? '...' : 'Guardar'}
+                </button>
+                <button
+                  onClick={() => setWeightOpen(false)}
+                  className="p-2 text-slate-400 hover:text-slate-600"
+                >
+                  <X size={14} />
+                </button>
               </div>
             )}
           </div>

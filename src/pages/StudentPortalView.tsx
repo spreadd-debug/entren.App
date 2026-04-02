@@ -382,6 +382,7 @@ export default function StudentPortalView({
         goals={goals}
         sessionNotes={sessionNotes}
         adherenceStats={adherenceStats}
+        onAnthropometryUpdate={setAnthropometry}
       />
     );
   }
