@@ -5,213 +5,127 @@ import { ClientMeasurement } from '../../../shared/types';
 interface BodyZone {
   id: keyof ClientMeasurement;
   label: string;
-  path: string;
+  // Simple rect bands that get clipped to body shape
+  y: number;
+  height: number;
+  // For L/R zones, specify side
+  side?: 'left' | 'right';
   labelX: number;
   labelY: number;
 }
 
-// ─── Anatomically proportioned body on a 200×500 viewBox ────────────────────
-// Proportions: head ~12%, torso ~30%, legs ~38%, neck+shoulders fill the rest
-// Center line at x=100, symmetric left-right
-
-const BODY_ZONES: BodyZone[] = [
-  {
-    id: 'neck_cm',
-    label: 'Cuello',
-    // Cylindrical neck
-    path: `M 91,62 C 91,58 93,56 96,55 L 104,55 C 107,56 109,58 109,62
-           L 109,72 C 107,74 104,75 100,75 C 96,75 93,74 91,72 Z`,
-    labelX: 100, labelY: 65,
-  },
-  {
-    id: 'shoulders_cm',
-    label: 'Hombros',
-    // Wide shoulder band with trapezius shape
-    path: `M 56,80 C 62,75 75,73 91,75 L 109,75 C 125,73 138,75 144,80
-           L 146,90 C 140,86 128,84 113,85 L 87,85 C 72,84 60,86 54,90 Z`,
-    labelX: 100, labelY: 82,
-  },
-  {
-    id: 'chest_cm',
-    label: 'Pecho',
-    // Pectoral area with slight roundness
-    path: `M 55,91 C 60,87 72,85 87,86 L 113,86 C 128,85 140,87 145,91
-           L 143,115 C 138,120 125,122 113,121 L 87,121 C 75,122 62,120 57,115 Z`,
-    labelX: 100, labelY: 103,
-  },
-  {
-    id: 'waist_cm',
-    label: 'Cintura',
-    // Narrower waist (V-taper)
-    path: `M 62,138 C 68,134 80,132 92,132 L 108,132 C 120,132 132,134 138,138
-           L 136,155 C 130,152 120,150 108,150 L 92,150 C 80,150 70,152 64,155 Z`,
-    labelX: 100, labelY: 144,
-  },
-  {
-    id: 'hips_cm',
-    label: 'Cadera',
-    // Wider hip area with pelvic curve
-    path: `M 63,158 C 68,154 80,152 92,152 L 108,152 C 120,152 132,154 137,158
-           L 140,178 C 138,185 132,190 124,192 L 100,194 L 76,192 C 68,190 62,185 60,178 Z`,
-    labelX: 100, labelY: 174,
-  },
-  {
-    id: 'bicep_l_cm',
-    label: 'Bíceps Izq',
-    // Left upper arm with muscle bulge
-    path: `M 50,92 C 53,88 55,87 55,90 L 54,91
-           L 52,108 C 50,115 48,120 47,124
-           L 42,140 C 41,143 43,143 45,140
-           L 50,124 C 52,118 54,112 55,106
-           L 56,92 Z`,
-    labelX: 48, labelY: 110,
-  },
-  {
-    id: 'bicep_r_cm',
-    label: 'Bíceps Der',
-    // Right upper arm with muscle bulge
-    path: `M 150,92 C 147,88 145,87 145,90 L 146,91
-           L 148,108 C 150,115 152,120 153,124
-           L 158,140 C 159,143 157,143 155,140
-           L 150,124 C 148,118 146,112 145,106
-           L 144,92 Z`,
-    labelX: 152, labelY: 110,
-  },
-  {
-    id: 'thigh_l_cm',
-    label: 'Muslo Izq',
-    // Left thigh - tapers from hip to knee
-    path: `M 72,196 C 68,194 64,188 62,182
-           L 66,220 C 68,240 70,255 73,268
-           L 78,280 C 80,282 82,282 84,280
-           L 88,268 C 90,255 92,240 93,220
-           L 96,196 C 92,198 84,199 78,198 Z`,
-    labelX: 79, labelY: 235,
-  },
-  {
-    id: 'thigh_r_cm',
-    label: 'Muslo Der',
-    // Right thigh
-    path: `M 128,196 C 132,194 136,188 138,182
-           L 134,220 C 132,240 130,255 127,268
-           L 122,280 C 120,282 118,282 116,280
-           L 112,268 C 110,255 108,240 107,220
-           L 104,196 C 108,198 116,199 122,198 Z`,
-    labelX: 121, labelY: 235,
-  },
-  {
-    id: 'calf_l_cm',
-    label: 'Gemelo Izq',
-    // Left calf with gastrocnemius bulge
-    path: `M 74,290 C 72,286 72,284 73,282
-           L 83,282 C 85,284 86,286 85,290
-           L 84,310 C 83,325 82,335 80,348
-           L 79,360 C 78,362 77,362 76,360
-           L 74,348 C 72,335 71,325 71,310 Z`,
-    labelX: 78, labelY: 320,
-  },
-  {
-    id: 'calf_r_cm',
-    label: 'Gemelo Der',
-    // Right calf
-    path: `M 126,290 C 128,286 128,284 127,282
-           L 117,282 C 115,284 114,286 115,290
-           L 116,310 C 117,325 118,335 120,348
-           L 121,360 C 122,362 123,362 124,360
-           L 126,348 C 128,335 129,325 129,310 Z`,
-    labelX: 122, labelY: 320,
-  },
-];
-
-// Full body silhouette — anatomically proportioned
+// ─── Body silhouette path (200×420 viewBox, centered at x=100) ──────────────
 const BODY_OUTLINE = `
-  M 100,4
-  C 88,4 82,12 82,24
-  C 82,36 86,46 92,52
-  L 92,55
-  C 88,56 86,60 86,65
-  L 86,72
-  C 86,76 88,78 92,80
-  C 80,78 68,76 58,80
-  C 46,85 42,92 40,100
-  L 36,125
-  C 34,135 34,142 36,148
-  L 38,152
-  C 40,156 42,158 44,156
-  L 48,144
-  C 50,138 52,130 54,124
-  L 56,116
-  L 58,122
-  C 60,130 61,136 62,142
-  L 62,155
-  C 62,162 60,170 60,178
-  C 60,186 62,192 66,196
+  M 100,8
+  C 89,8 84,16 84,26
+  C 84,36 88,44 93,50
+  L 93,54
+  C 90,55 88,58 88,63
+  L 88,70
+  C 86,74 90,77 94,78
+
+  C 82,78 68,78 58,82
+  C 46,88 42,96 40,106
+  L 36,130
+  C 34,138 35,144 38,148
+  C 40,152 43,150 46,146
+  L 52,132
+  C 54,126 56,118 58,110
+
+  L 60,118
+  C 61,128 62,138 62,148
+  L 62,162
+  C 60,172 60,180 62,190
+  L 64,198
+
   L 66,220
-  C 68,242 70,258 74,272
-  L 74,280
-  C 72,284 70,290 70,298
-  L 70,312
-  C 70,328 72,340 74,352
-  L 76,368
-  C 77,378 78,386 80,392
-  L 82,398
-  C 84,404 86,410 88,412
-  C 90,414 92,414 94,412
-  C 96,410 96,406 94,402
-  L 90,390
-  C 86,380 84,370 82,358
-  L 80,340
-  C 78,328 78,316 78,304
-  L 78,292
-  C 80,286 82,284 84,282
-  L 88,272
-  C 90,264 93,248 94,232
-  L 96,200
+  C 68,242 70,260 74,278
+  C 72,284 70,292 70,300
+  L 70,320
+  C 70,334 72,346 76,362
+  C 78,374 80,386 82,396
+
+  L 86,408
+  C 88,412 92,412 94,408
+  C 96,404 94,400 92,396
+  L 86,380
+  C 82,366 80,352 80,338
+  L 80,310
+  C 80,298 82,290 84,284
+  L 88,274
+  C 92,258 94,242 96,220
+  L 98,200
+
   L 100,198
-  L 104,200
-  L 106,232
-  C 107,248 110,264 112,272
-  L 116,282
-  C 118,284 120,286 122,292
-  L 122,304
-  C 122,316 122,328 120,340
-  L 118,358
-  C 116,370 114,380 110,390
-  L 106,402
-  C 104,406 104,410 106,412
-  C 108,414 110,414 112,412
-  C 114,410 116,404 118,398
-  L 120,392
-  C 122,386 123,378 124,368
-  L 126,352
-  C 128,340 130,328 130,312
-  L 130,298
-  C 130,290 128,284 126,280
-  L 126,272
-  C 130,258 132,242 134,220
-  L 134,196
-  C 138,192 140,186 140,178
-  C 140,170 138,162 138,155
-  L 138,142
-  C 139,136 140,130 142,122
-  L 144,116
-  L 146,124
-  C 148,130 150,138 152,144
-  L 156,156
-  C 158,158 160,156 162,152
-  L 164,148
-  C 166,142 166,135 164,125
-  L 160,100
-  C 158,92 154,85 142,80
-  C 132,76 120,78 108,80
-  C 112,78 114,76 114,72
-  L 114,65
-  C 114,60 112,56 108,55
-  L 108,52
-  C 114,46 118,36 118,24
-  C 118,12 112,4 100,4
+
+  L 102,200
+  L 104,220
+  C 106,242 108,258 112,274
+  L 116,284
+  C 118,290 120,298 120,310
+  L 120,338
+  C 120,352 118,366 114,380
+  L 108,396
+  C 106,400 104,404 106,408
+  C 108,412 112,412 114,408
+
+  L 118,396
+  C 120,386 122,374 124,362
+  C 128,346 130,334 130,320
+  L 130,300
+  C 130,292 128,284 126,278
+  C 130,260 132,242 134,220
+
+  L 136,198
+  C 138,190 140,180 138,162
+  L 138,148
+  C 139,138 140,128 142,118
+  L 142,110
+
+  C 144,118 146,126 148,132
+  L 154,146
+  C 157,150 160,152 162,148
+  C 165,144 166,138 164,130
+  L 160,106
+  C 158,96 154,88 142,82
+  C 132,78 118,78 106,78
+
+  C 110,77 114,74 112,70
+  L 112,63
+  C 112,58 110,55 107,54
+  L 107,50
+  C 112,44 116,36 116,26
+  C 116,16 111,8 100,8
   Z
 `;
+
+// Zone definitions using horizontal bands (clipped to body)
+const BODY_ZONES: BodyZone[] = [
+  { id: 'neck_cm', label: 'Cuello', y: 54, height: 24, labelX: 100, labelY: 66 },
+  { id: 'shoulders_cm', label: 'Hombros', y: 78, height: 16, labelX: 100, labelY: 86 },
+  { id: 'chest_cm', label: 'Pecho', y: 94, height: 30, labelX: 100, labelY: 109 },
+  { id: 'waist_cm', label: 'Cintura', y: 124, height: 28, labelX: 100, labelY: 138 },
+  { id: 'hips_cm', label: 'Cadera', y: 152, height: 46, labelX: 100, labelY: 175 },
+
+  // Arms — use side-limited rects
+  { id: 'bicep_l_cm', label: 'Bíc. Izq', y: 88, height: 52, side: 'left', labelX: 48, labelY: 114 },
+  { id: 'bicep_r_cm', label: 'Bíc. Der', y: 88, height: 52, side: 'right', labelX: 152, labelY: 114 },
+
+  // Legs — left
+  { id: 'thigh_l_cm', label: 'Muslo Izq', y: 198, height: 82, side: 'left', labelX: 82, labelY: 240 },
+  { id: 'thigh_r_cm', label: 'Muslo Der', y: 198, height: 82, side: 'right', labelX: 118, labelY: 240 },
+
+  // Calves
+  { id: 'calf_l_cm', label: 'Gem. Izq', y: 290, height: 72, side: 'left', labelX: 76, labelY: 326 },
+  { id: 'calf_r_cm', label: 'Gem. Der', y: 290, height: 72, side: 'right', labelX: 124, labelY: 326 },
+];
+
+function getZoneRect(zone: BodyZone): { x: number; y: number; width: number; height: number } {
+  if (zone.side === 'left') return { x: 0, y: zone.y, width: 100, height: zone.height };
+  if (zone.side === 'right') return { x: 100, y: zone.y, width: 100, height: zone.height };
+  // For torso zones, exclude arm area
+  return { x: 55, y: zone.y, width: 90, height: zone.height };
+}
 
 interface InteractiveBodyMapProps {
   latest: ClientMeasurement | null;
@@ -291,109 +205,115 @@ export const InteractiveBodyMap: React.FC<InteractiveBodyMapProps> = ({ latest, 
       {/* SVG Body */}
       <div className="flex justify-center">
         <svg
-          viewBox="25 0 150 420"
-          className="w-full max-w-[300px] h-auto"
-          style={{ filter: 'drop-shadow(0 0 24px rgba(139, 92, 246, 0.12))' }}
+          viewBox="20 0 160 420"
+          className="w-full max-w-[280px] h-auto"
+          style={{ filter: 'drop-shadow(0 0 20px rgba(139, 92, 246, 0.1))' }}
         >
           <defs>
             <linearGradient id="bodyGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.25" />
-              <stop offset="50%" stopColor="#7c3aed" stopOpacity="0.18" />
-              <stop offset="100%" stopColor="#6366f1" stopOpacity="0.12" />
+              <stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.15" />
+              <stop offset="100%" stopColor="#6366f1" stopOpacity="0.08" />
             </linearGradient>
             <linearGradient id="zoneActive" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.75" />
-              <stop offset="100%" stopColor="#a78bfa" stopOpacity="0.55" />
+              <stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.7" />
+              <stop offset="100%" stopColor="#a78bfa" stopOpacity="0.5" />
             </linearGradient>
             <linearGradient id="zoneData" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.5" />
-              <stop offset="100%" stopColor="#7c3aed" stopOpacity="0.32" />
+              <stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.4" />
+              <stop offset="100%" stopColor="#7c3aed" stopOpacity="0.25" />
             </linearGradient>
-            <filter id="bodyGlow">
-              <feGaussianBlur stdDeviation="2.5" result="blur" />
-              <feComposite in="SourceGraphic" in2="blur" operator="over" />
-            </filter>
+
+            {/* Clip to body silhouette */}
+            <clipPath id="bodyClip">
+              <path d={BODY_OUTLINE} />
+            </clipPath>
+
             <filter id="zoneGlow">
-              <feGaussianBlur stdDeviation="4" result="blur" />
-              <feFlood floodColor="#8b5cf6" floodOpacity="0.5" result="color" />
+              <feGaussianBlur stdDeviation="3" result="blur" />
+              <feFlood floodColor="#8b5cf6" floodOpacity="0.4" result="color" />
               <feComposite in="color" in2="blur" operator="in" result="shadow" />
               <feComposite in="SourceGraphic" in2="shadow" operator="over" />
             </filter>
           </defs>
 
-          {/* Body silhouette */}
+          {/* Body silhouette background */}
           <path
             d={BODY_OUTLINE}
             fill="url(#bodyGrad)"
             stroke="#8b5cf6"
-            strokeWidth="1"
-            strokeOpacity="0.35"
+            strokeWidth="1.2"
+            strokeOpacity="0.3"
             strokeLinejoin="round"
-            filter="url(#bodyGlow)"
           />
 
-          {/* Center line hint */}
-          <line x1="100" y1="80" x2="100" y2="195" stroke="#8b5cf6" strokeOpacity="0.08" strokeWidth="0.5" strokeDasharray="4 4" />
+          {/* Zones clipped to body */}
+          <g clipPath="url(#bodyClip)">
+            {BODY_ZONES.map((zone) => {
+              const isActive = activeZone === zone.id;
+              const value = getValue(zone.id);
+              const hasData = value != null;
+              const rect = getZoneRect(zone);
 
-          {/* Interactive zones */}
-          {BODY_ZONES.map((zone) => {
-            const isActive = activeZone === zone.id;
-            const value = getValue(zone.id);
-            const hasData = value != null;
-
-            return (
-              <g key={zone.id}>
-                <path
-                  d={zone.path}
+              return (
+                <rect
+                  key={zone.id}
+                  x={rect.x}
+                  y={rect.y}
+                  width={rect.width}
+                  height={rect.height}
                   fill={
                     isActive ? 'url(#zoneActive)'
                     : hasData ? 'url(#zoneData)'
-                    : 'rgba(139, 92, 246, 0.06)'
+                    : 'rgba(139, 92, 246, 0.04)'
                   }
                   stroke="#8b5cf6"
-                  strokeWidth={isActive ? 1.2 : 0.6}
-                  strokeOpacity={isActive ? 0.9 : hasData ? 0.4 : 0.15}
-                  strokeLinejoin="round"
+                  strokeWidth={isActive ? 1 : 0.4}
+                  strokeOpacity={isActive ? 0.8 : hasData ? 0.3 : 0.1}
                   filter={isActive ? 'url(#zoneGlow)' : undefined}
-                  className="cursor-pointer"
+                  className="cursor-pointer transition-all duration-150"
                   onClick={() => setActiveZone(isActive ? null : zone.id as string)}
                   style={{ pointerEvents: 'all' }}
                 />
+              );
+            })}
+          </g>
 
-                {/* Value label */}
-                {hasData && (
-                  <text
-                    x={zone.labelX}
-                    y={zone.labelY}
-                    textAnchor="middle"
-                    dominantBaseline="central"
-                    className="pointer-events-none select-none"
-                    fill="white"
-                    fontSize={isActive ? '9' : '7'}
-                    fontWeight="800"
-                    opacity={isActive ? 1 : 0.85}
-                  >
-                    {value}
-                  </text>
-                )}
-                {!hasData && isActive && (
-                  <text
-                    x={zone.labelX}
-                    y={zone.labelY}
-                    textAnchor="middle"
-                    dominantBaseline="central"
-                    className="pointer-events-none select-none"
-                    fill="white"
-                    fontSize="7"
-                    fontWeight="700"
-                    opacity="0.6"
-                  >
-                    –
-                  </text>
-                )}
-              </g>
+          {/* Value labels (on top, not clipped) */}
+          {BODY_ZONES.map((zone) => {
+            const isActive = activeZone === zone.id;
+            const value = getValue(zone.id);
+
+            if (value == null) return null;
+            return (
+              <text
+                key={`label-${zone.id}`}
+                x={zone.labelX}
+                y={zone.labelY}
+                textAnchor="middle"
+                dominantBaseline="central"
+                className="pointer-events-none select-none"
+                fill="white"
+                fontSize={isActive ? '10' : '8'}
+                fontWeight="800"
+                style={{
+                  textShadow: '0 1px 3px rgba(0,0,0,0.3)',
+                  opacity: isActive ? 1 : 0.9,
+                }}
+              >
+                {value}
+              </text>
             );
           })}
+
+          {/* Body outline on top for clean edge */}
+          <path
+            d={BODY_OUTLINE}
+            fill="none"
+            stroke="#8b5cf6"
+            strokeWidth="1"
+            strokeOpacity="0.25"
+            strokeLinejoin="round"
+          />
         </svg>
       </div>
 
