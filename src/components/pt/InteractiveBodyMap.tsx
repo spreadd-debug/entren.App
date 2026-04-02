@@ -100,31 +100,36 @@ const BODY_OUTLINE = `
 `;
 
 // Zone definitions using horizontal bands (clipped to body)
+// Body outline key Y coords: neck 54-78, shoulders 78-94, torso 94-198, legs 198-362
+// Body X: center=100, torso ~60-140, arms outside that, legs ~66-134
 const BODY_ZONES: BodyZone[] = [
-  { id: 'neck_cm', label: 'Cuello', y: 54, height: 24, labelX: 100, labelY: 66 },
-  { id: 'shoulders_cm', label: 'Hombros', y: 78, height: 16, labelX: 100, labelY: 86 },
-  { id: 'chest_cm', label: 'Pecho', y: 94, height: 30, labelX: 100, labelY: 109 },
+  // Torso center zones (x=58 to x=142, leaving arms for bicep zones)
+  { id: 'neck_cm', label: 'Cuello', y: 50, height: 28, labelX: 100, labelY: 64 },
+  { id: 'shoulders_cm', label: 'Hombros', y: 78, height: 18, labelX: 100, labelY: 87 },
+  { id: 'chest_cm', label: 'Pecho', y: 96, height: 28, labelX: 100, labelY: 110 },
   { id: 'waist_cm', label: 'Cintura', y: 124, height: 28, labelX: 100, labelY: 138 },
-  { id: 'hips_cm', label: 'Cadera', y: 152, height: 46, labelX: 100, labelY: 175 },
+  { id: 'hips_cm', label: 'Cadera', y: 152, height: 48, labelX: 100, labelY: 176 },
 
-  // Arms — use side-limited rects
-  { id: 'bicep_l_cm', label: 'Bíc. Izq', y: 88, height: 52, side: 'left', labelX: 48, labelY: 114 },
-  { id: 'bicep_r_cm', label: 'Bíc. Der', y: 88, height: 52, side: 'right', labelX: 152, labelY: 114 },
+  // Arms — left of x=58, right of x=142
+  { id: 'bicep_l_cm', label: 'Bíc. Izq', y: 78, height: 68, side: 'left', labelX: 44, labelY: 112 },
+  { id: 'bicep_r_cm', label: 'Bíc. Der', y: 78, height: 68, side: 'right', labelX: 156, labelY: 112 },
 
-  // Legs — left
-  { id: 'thigh_l_cm', label: 'Muslo Izq', y: 198, height: 82, side: 'left', labelX: 82, labelY: 240 },
-  { id: 'thigh_r_cm', label: 'Muslo Der', y: 198, height: 82, side: 'right', labelX: 118, labelY: 240 },
+  // Legs — split at center x=100
+  { id: 'thigh_l_cm', label: 'Muslo Izq', y: 200, height: 84, side: 'left', labelX: 82, labelY: 242 },
+  { id: 'thigh_r_cm', label: 'Muslo Der', y: 200, height: 84, side: 'right', labelX: 118, labelY: 242 },
 
-  // Calves
-  { id: 'calf_l_cm', label: 'Gem. Izq', y: 290, height: 72, side: 'left', labelX: 76, labelY: 326 },
-  { id: 'calf_r_cm', label: 'Gem. Der', y: 290, height: 72, side: 'right', labelX: 124, labelY: 326 },
+  // Calves — y=284 to y=370
+  { id: 'calf_l_cm', label: 'Gem. Izq', y: 284, height: 86, side: 'left', labelX: 76, labelY: 327 },
+  { id: 'calf_r_cm', label: 'Gem. Der', y: 284, height: 86, side: 'right', labelX: 124, labelY: 327 },
 ];
 
 function getZoneRect(zone: BodyZone): { x: number; y: number; width: number; height: number } {
   if (zone.side === 'left') return { x: 0, y: zone.y, width: 100, height: zone.height };
   if (zone.side === 'right') return { x: 100, y: zone.y, width: 100, height: zone.height };
-  // For torso zones, exclude arm area
-  return { x: 55, y: zone.y, width: 90, height: zone.height };
+  // Shoulders use full width so they extend to the actual shoulder area
+  if (zone.id === 'shoulders_cm' || zone.id === 'neck_cm') return { x: 0, y: zone.y, width: 200, height: zone.height };
+  // Other torso zones: center only, leaving arm sides for bicep zones
+  return { x: 58, y: zone.y, width: 84, height: zone.height };
 }
 
 interface InteractiveBodyMapProps {
