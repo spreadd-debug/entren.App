@@ -153,37 +153,14 @@ export const ProgressPhotosPanel: React.FC<ProgressPhotosPanelProps> = ({ studen
         </div>
       )}
 
-      {/* Comparator view */}
-      {compareMode && (
+      {/* Compare selection hint */}
+      {compareMode && !(compareA && compareB) && (
         <Card className="p-3 border-violet-200 dark:border-violet-500/30">
-          {compareA && compareB ? (
-            <div>
-              <div className="grid grid-cols-2 gap-2">
-                {[compareA, compareB].map((photo, i) => (
-                  <div key={photo.id} className="space-y-1">
-                    <p className="text-[9px] font-bold text-center text-slate-400 uppercase">
-                      {i === 0 ? 'Antes' : 'Después'}
-                    </p>
-                    <img
-                      src={photo.photo_url}
-                      alt={ANGLE_LABELS[photo.angle]}
-                      className="w-full aspect-[3/4] object-cover rounded-xl"
-                    />
-                    <p className="text-[10px] text-slate-500 text-center">
-                      {new Date(photo.photo_date).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: '2-digit' })}
-                      {' · '}{ANGLE_LABELS[photo.angle]}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <p className="text-xs text-slate-400 text-center py-4">
-              {!compareA
-                ? 'Seleccioná la primera foto (antes)'
-                : 'Seleccioná la segunda foto (después)'}
-            </p>
-          )}
+          <p className="text-xs text-slate-400 text-center py-2">
+            {!compareA
+              ? 'Seleccioná la primera foto (antes)'
+              : 'Ahora seleccioná la segunda foto (después)'}
+          </p>
         </Card>
       )}
 
@@ -342,6 +319,69 @@ export const ProgressPhotosPanel: React.FC<ProgressPhotosPanelProps> = ({ studen
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Fullscreen comparator */}
+      {compareA && compareB && (
+        <div className="fixed inset-0 z-50 bg-black flex flex-col animate-[fadeIn_0.3s_ease-out]">
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 py-3 bg-black/80">
+            <h3 className="text-white text-sm font-bold">Comparativa</h3>
+            <button
+              onClick={() => { setCompareA(null); setCompareB(null); setCompareMode(false); }}
+              className="p-2 rounded-full bg-white/10 text-white hover:bg-white/20"
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          {/* Photos side by side */}
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex-1 grid grid-cols-2 gap-[2px] bg-black">
+              {[compareA, compareB].map((photo, i) => (
+                <div key={photo.id} className="relative flex flex-col h-full">
+                  {/* Label */}
+                  <div className={`py-2 text-center ${
+                    i === 0 ? 'bg-violet-500/20' : 'bg-emerald-500/20'
+                  }`}>
+                    <p className={`text-xs font-black uppercase tracking-wider ${
+                      i === 0 ? 'text-violet-400' : 'text-emerald-400'
+                    }`}>
+                      {i === 0 ? 'Antes' : 'Después'}
+                    </p>
+                    <p className="text-[10px] text-white/50">
+                      {new Date(photo.photo_date).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: '2-digit' })}
+                    </p>
+                  </div>
+                  {/* Photo */}
+                  <div className="flex-1 overflow-hidden">
+                    <img
+                      src={photo.photo_url}
+                      alt={ANGLE_LABELS[photo.angle]}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  {/* Angle badge */}
+                  <div className="absolute bottom-2 left-1/2 -translate-x-1/2">
+                    <span className="text-[9px] font-bold bg-black/60 text-white px-2.5 py-1 rounded-full">
+                      {ANGLE_LABELS[photo.angle]}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Bottom action */}
+          <div className="px-4 py-4 bg-black/80">
+            <button
+              onClick={() => { setCompareA(null); setCompareB(null); }}
+              className="w-full py-2.5 rounded-xl bg-white/10 text-white text-sm font-bold hover:bg-white/20 transition-colors"
+            >
+              Elegir otras fotos
+            </button>
+          </div>
         </div>
       )}
 
