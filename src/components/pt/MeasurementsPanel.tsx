@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, Trash2, ArrowDown, ArrowUp, Minus as MinusIcon } from 'lucide-react';
+import { Plus, Trash2, ArrowDown, ArrowUp, Minus as MinusIcon, AlertTriangle, User, List } from 'lucide-react';
 import { Card, Button, Input } from '../UI';
 import { MeasurementsService } from '../../services/pt/MeasurementsService';
 import { ClientMeasurement } from '../../../shared/types';
 import { useToast } from '../../context/ToastContext';
+import { InteractiveBodyMap } from './InteractiveBodyMap';
 
 interface MeasurementsPanelProps {
   studentId: string;
@@ -31,10 +32,63 @@ const EMPTY_FORM: Record<string, string> = {
   calf_l_cm: '', calf_r_cm: '', neck_cm: '', notes: '',
 };
 
+// Reasonable ranges per measurement (cm)
+const RANGES: Record<string, { min: number; max: number; warnMin: number; warnMax: number }> = {
+  chest_cm:      { min: 50, max: 180, warnMin: 60, warnMax: 160 },
+  waist_cm:      { min: 40, max: 180, warnMin: 50, warnMax: 150 },
+  hips_cm:       { min: 50, max: 180, warnMin: 60, warnMax: 160 },
+  shoulders_cm:  { min: 70, max: 200, warnMin: 80, warnMax: 170 },
+  bicep_l_cm:    { min: 15, max: 70, warnMin: 20, warnMax: 60 },
+  bicep_r_cm:    { min: 15, max: 70, warnMin: 20, warnMax: 60 },
+  thigh_l_cm:    { min: 30, max: 100, warnMin: 35, warnMax: 90 },
+  thigh_r_cm:    { min: 30, max: 100, warnMin: 35, warnMax: 90 },
+  calf_l_cm:     { min: 20, max: 70, warnMin: 25, warnMax: 60 },
+  calf_r_cm:     { min: 20, max: 70, warnMin: 25, warnMax: 60 },
+  neck_cm:       { min: 25, max: 65, warnMin: 28, warnMax: 55 },
+};
+
+function validateMeasurements(form: Record<string, string>): { errors: string[]; warnings: string[] } {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  for (const f of FIELDS) {
+    const val = form[f.key] ? Number(form[f.key]) : null;
+    if (val == null) continue;
+    const range = RANGES[f.key];
+    if (!range) continue;
+    if (val < range.min || val > range.max) {
+      errors.push(`${f.label} fuera de rango (${range.min}–${range.max} cm)`);
+    } else if (val < range.warnMin || val > range.warnMax) {
+      warnings.push(`${f.label}: ${val} cm parece inusual, verificá el dato`);
+    }
+  }
+
+  // Check L/R asymmetry
+  const pairs: [string, string, string][] = [
+    ['bicep_l_cm', 'bicep_r_cm', 'Bíceps'],
+    ['thigh_l_cm', 'thigh_r_cm', 'Muslos'],
+    ['calf_l_cm', 'calf_r_cm', 'Gemelos'],
+  ];
+  for (const [l, r, label] of pairs) {
+    const lv = form[l] ? Number(form[l]) : null;
+    const rv = form[r] ? Number(form[r]) : null;
+    if (lv != null && rv != null) {
+      const diff = Math.abs(lv - rv);
+      const avg = (lv + rv) / 2;
+      if (avg > 0 && diff / avg > 0.15) {
+        warnings.push(`${label}: diferencia izq/der de ${diff.toFixed(1)} cm (>${Math.round(diff / avg * 100)}%), verificá`);
+      }
+    }
+  }
+
+  return { errors, warnings };
+}
+
 export const MeasurementsPanel: React.FC<MeasurementsPanelProps> = ({ studentId, gymId }) => {
   const toast = useToast();
   const [entries, setEntries] = useState<ClientMeasurement[]>([]);
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState<'body' | 'list'>('body');
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
@@ -49,11 +103,39 @@ export const MeasurementsPanel: React.FC<MeasurementsPanelProps> = ({ studentId,
 
   useEffect(() => { load(); }, [studentId]);
 
+  const validation = validateMeasurements(form);
+
+  const openForm = () => {
+    if (entries.length > 0) {
+      const last = entries[0];
+      const prefilled: Record<string, string> = {
+        measured_at: new Date().toISOString().split('T')[0],
+        notes: '',
+      };
+      FIELDS.forEach(f => {
+        const v = last[f.key] as number | null;
+        prefilled[f.key] = v != null ? String(v) : '';
+      });
+      setForm(prefilled);
+    } else {
+      setForm(EMPTY_FORM);
+    }
+    setShowForm(true);
+  };
+
   const handleSave = async () => {
     const hasValue = FIELDS.some(f => form[f.key] !== '');
     if (!hasValue) {
       toast.error('Ingresá al menos una medición');
       return;
+    }
+    if (validation.errors.length > 0) {
+      toast.error(validation.errors[0]);
+      return;
+    }
+    if (validation.warnings.length > 0) {
+      const ok = window.confirm(`Atención:\n• ${validation.warnings.join('\n• ')}\n\n¿Guardar de todas formas?`);
+      if (!ok) return;
     }
     setSaving(true);
     try {
@@ -92,8 +174,51 @@ export const MeasurementsPanel: React.FC<MeasurementsPanelProps> = ({ studentId,
 
   return (
     <div className="space-y-4">
-      {/* Latest comparison cards */}
+      {/* View toggle */}
       {entries.length > 0 && (
+        <div className="flex items-center justify-between">
+          <h4 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+            {viewMode === 'body' ? 'Mapa corporal' : 'Mediciones'}
+          </h4>
+          <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 rounded-xl p-0.5">
+            <button
+              onClick={() => setViewMode('body')}
+              className={`p-1.5 rounded-lg transition-all ${
+                viewMode === 'body'
+                  ? 'bg-violet-500 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+              }`}
+              title="Mapa corporal"
+            >
+              <User size={14} />
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className={`p-1.5 rounded-lg transition-all ${
+                viewMode === 'list'
+                  ? 'bg-violet-500 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+              }`}
+              title="Vista lista"
+            >
+              <List size={14} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Body map view */}
+      {entries.length > 0 && viewMode === 'body' && (
+        <Card className="p-4">
+          <InteractiveBodyMap
+            latest={entries[0]}
+            previous={entries.length > 1 ? entries[1] : null}
+          />
+        </Card>
+      )}
+
+      {/* List view (original cards) */}
+      {entries.length > 0 && viewMode === 'list' && (
         <div className="grid grid-cols-2 gap-2">
           {FIELDS.map(f => {
             const val = entries[0]?.[f.key] as number | null;
@@ -122,13 +247,18 @@ export const MeasurementsPanel: React.FC<MeasurementsPanelProps> = ({ studentId,
 
       {/* Add / Form */}
       {!showForm ? (
-        <Button variant="outline" fullWidth onClick={() => setShowForm(true)}>
+        <Button variant="outline" fullWidth onClick={openForm}>
           <Plus size={15} className="inline mr-1" />
           Nueva medición corporal
         </Button>
       ) : (
         <Card className="p-4 space-y-3 border-violet-200 dark:border-violet-500/30">
           <h4 className="text-xs font-black text-violet-500 uppercase tracking-wider">Nueva medición corporal</h4>
+          {entries.length > 0 && (
+            <p className="text-[10px] text-slate-400 dark:text-slate-500 -mt-1">
+              Precargado con datos de la medición anterior. Modificá lo que cambió.
+            </p>
+          )}
           <Input type="date" value={form.measured_at} onChange={e => setForm({ ...form, measured_at: e.target.value })} />
           <div className="grid grid-cols-2 gap-3">
             {FIELDS.map(f => (
@@ -142,6 +272,21 @@ export const MeasurementsPanel: React.FC<MeasurementsPanelProps> = ({ studentId,
               />
             ))}
           </div>
+          {/* Validation feedback */}
+          {(validation.errors.length > 0 || validation.warnings.length > 0) && (
+            <div className="space-y-1">
+              {validation.errors.map((e, i) => (
+                <p key={`e${i}`} className="text-[11px] text-rose-500 font-medium flex items-center gap-1">
+                  <AlertTriangle size={12} /> {e}
+                </p>
+              ))}
+              {validation.warnings.map((w, i) => (
+                <p key={`w${i}`} className="text-[11px] text-amber-500 font-medium flex items-center gap-1">
+                  <AlertTriangle size={12} /> {w}
+                </p>
+              ))}
+            </div>
+          )}
           <textarea
             className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white text-sm"
             rows={2}
@@ -153,7 +298,7 @@ export const MeasurementsPanel: React.FC<MeasurementsPanelProps> = ({ studentId,
             <Button variant="outline" fullWidth onClick={() => { setShowForm(false); setForm(EMPTY_FORM); }}>
               Cancelar
             </Button>
-            <Button variant="secondary" fullWidth onClick={handleSave} disabled={saving}>
+            <Button variant="secondary" fullWidth onClick={handleSave} disabled={saving || validation.errors.length > 0}>
               {saving ? 'Guardando...' : 'Guardar'}
             </Button>
           </div>

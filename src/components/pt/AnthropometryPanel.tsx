@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, Trash2, TrendingDown, TrendingUp, Minus } from 'lucide-react';
+import { Plus, Trash2, TrendingDown, TrendingUp, Minus, AlertTriangle } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { Card, Button, Input } from '../UI';
 import { AnthropometryService } from '../../services/pt/AnthropometryService';
@@ -20,6 +20,40 @@ const EMPTY_FORM = {
   notes: '',
 };
 
+/** Validate anthropometry and return warnings/errors */
+function validateAnthropometry(form: typeof EMPTY_FORM): { errors: string[]; warnings: string[] } {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  const height = form.height_cm ? Number(form.height_cm) : null;
+  const weight = form.weight_kg ? Number(form.weight_kg) : null;
+  const fat = form.body_fat_pct ? Number(form.body_fat_pct) : null;
+  const muscle = form.muscle_mass_kg ? Number(form.muscle_mass_kg) : null;
+
+  if (height != null) {
+    if (height < 50 || height > 250) errors.push('Altura fuera de rango (50–250 cm)');
+  }
+  if (weight != null) {
+    if (weight < 20 || weight > 350) errors.push('Peso fuera de rango (20–350 kg)');
+  }
+  if (fat != null) {
+    if (fat < 2 || fat > 70) errors.push('% Grasa fuera de rango (2–70%)');
+    else if (fat > 50) warnings.push('% Grasa muy alto (>50%), verificá el dato');
+    else if (fat < 5) warnings.push('% Grasa muy bajo (<5%), verificá el dato');
+  }
+  if (muscle != null && weight != null) {
+    if (muscle > weight) errors.push('Masa muscular no puede superar el peso total');
+    else if (muscle > weight * 0.65) warnings.push('Masa muscular muy alta respecto al peso, verificá el dato');
+  }
+  if (fat != null && muscle != null && weight != null) {
+    const fatKg = weight * fat / 100;
+    if (fatKg + muscle > weight * 1.05) {
+      errors.push(`Grasa (${fatKg.toFixed(1)} kg) + Músculo (${muscle} kg) superan el peso total (${weight} kg)`);
+    }
+  }
+
+  return { errors, warnings };
+}
+
 export const AnthropometryPanel: React.FC<AnthropometryPanelProps> = ({ studentId, gymId }) => {
   const toast = useToast();
   const [entries, setEntries] = useState<ClientAnthropometry[]>([]);
@@ -39,10 +73,37 @@ export const AnthropometryPanel: React.FC<AnthropometryPanelProps> = ({ studentI
 
   useEffect(() => { load(); }, [studentId]);
 
+  const validation = validateAnthropometry(form);
+
+  const openForm = () => {
+    if (entries.length > 0) {
+      const last = entries[0];
+      setForm({
+        measured_at: new Date().toISOString().split('T')[0],
+        height_cm: last.height_cm != null ? String(last.height_cm) : '',
+        weight_kg: last.weight_kg != null ? String(last.weight_kg) : '',
+        body_fat_pct: last.body_fat_pct != null ? String(last.body_fat_pct) : '',
+        muscle_mass_kg: last.muscle_mass_kg != null ? String(last.muscle_mass_kg) : '',
+        notes: '',
+      });
+    } else {
+      setForm(EMPTY_FORM);
+    }
+    setShowForm(true);
+  };
+
   const handleSave = async () => {
     if (!form.weight_kg && !form.height_cm && !form.body_fat_pct && !form.muscle_mass_kg) {
       toast.error('Ingresá al menos un dato');
       return;
+    }
+    if (validation.errors.length > 0) {
+      toast.error(validation.errors[0]);
+      return;
+    }
+    if (validation.warnings.length > 0) {
+      const ok = window.confirm(`Atención:\n• ${validation.warnings.join('\n• ')}\n\n¿Guardar de todas formas?`);
+      if (!ok) return;
     }
     setSaving(true);
     try {
@@ -194,13 +255,18 @@ export const AnthropometryPanel: React.FC<AnthropometryPanelProps> = ({ studentI
 
       {/* Add Button / Form */}
       {!showForm ? (
-        <Button variant="outline" fullWidth onClick={() => setShowForm(true)}>
+        <Button variant="outline" fullWidth onClick={openForm}>
           <Plus size={15} className="inline mr-1" />
           Nueva medición
         </Button>
       ) : (
         <Card className="p-4 space-y-3 border-violet-200 dark:border-violet-500/30">
           <h4 className="text-xs font-black text-violet-500 uppercase tracking-wider">Nueva medición</h4>
+          {entries.length > 0 && (
+            <p className="text-[10px] text-slate-400 dark:text-slate-500 -mt-1">
+              Precargado con datos de la medición anterior. Modificá lo que cambió.
+            </p>
+          )}
           <Input type="date" value={form.measured_at} onChange={e => setForm({ ...form, measured_at: e.target.value })} />
           <div className="grid grid-cols-2 gap-3">
             <Input type="number" step="0.1" placeholder="Altura (cm)" value={form.height_cm} onChange={e => setForm({ ...form, height_cm: e.target.value })} />
@@ -208,6 +274,21 @@ export const AnthropometryPanel: React.FC<AnthropometryPanelProps> = ({ studentI
             <Input type="number" step="0.1" placeholder="% Grasa" value={form.body_fat_pct} onChange={e => setForm({ ...form, body_fat_pct: e.target.value })} />
             <Input type="number" step="0.1" placeholder="Masa muscular (kg)" value={form.muscle_mass_kg} onChange={e => setForm({ ...form, muscle_mass_kg: e.target.value })} />
           </div>
+          {/* Validation feedback */}
+          {(validation.errors.length > 0 || validation.warnings.length > 0) && (
+            <div className="space-y-1">
+              {validation.errors.map((e, i) => (
+                <p key={`e${i}`} className="text-[11px] text-rose-500 font-medium flex items-center gap-1">
+                  <AlertTriangle size={12} /> {e}
+                </p>
+              ))}
+              {validation.warnings.map((w, i) => (
+                <p key={`w${i}`} className="text-[11px] text-amber-500 font-medium flex items-center gap-1">
+                  <AlertTriangle size={12} /> {w}
+                </p>
+              ))}
+            </div>
+          )}
           <textarea
             className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white text-sm"
             rows={2}
@@ -219,7 +300,7 @@ export const AnthropometryPanel: React.FC<AnthropometryPanelProps> = ({ studentI
             <Button variant="outline" fullWidth onClick={() => { setShowForm(false); setForm(EMPTY_FORM); }}>
               Cancelar
             </Button>
-            <Button variant="secondary" fullWidth onClick={handleSave} disabled={saving}>
+            <Button variant="secondary" fullWidth onClick={handleSave} disabled={saving || validation.errors.length > 0}>
               {saving ? 'Guardando...' : 'Guardar'}
             </Button>
           </div>

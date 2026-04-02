@@ -261,6 +261,7 @@ export default function PTCalendarView({ gymId, students }: PTCalendarViewProps)
           gymId={gymId}
           defaultDay={addModalDay}
           editing={editingShift}
+          students={students}
           onClose={() => { setShowAddModal(false); setAddModalDay(null); setEditingShift(null); }}
           onSaved={() => { setShowAddModal(false); setAddModalDay(null); setEditingShift(null); loadShifts(); }}
         />
@@ -419,46 +420,81 @@ function DayColumn({ day, shifts, isToday, onAddClick, onDeleteShift, deletingId
 
 // ── ShiftFormModal ───────────────────────────────────────────────────────────
 
-function ShiftFormModal({ gymId, defaultDay, editing, onClose, onSaved }: {
+function ShiftFormModal({ gymId, defaultDay, editing, students, onClose, onSaved }: {
   gymId: string;
   defaultDay: number | null;
   editing: ShiftWithStudents | null;
+  students: Student[];
   onClose: () => void;
   onSaved: () => void;
 }) {
   const toast = useToast();
   const [saving, setSaving] = useState(false);
+  const [studentSearch, setStudentSearch] = useState('');
+  const [isGroup, setIsGroup] = useState(editing ? editing.capacity > 1 : false);
   const [form, setForm] = useState({
     name: editing?.name ?? '',
     day_of_week: editing?.day_of_week ?? defaultDay ?? 1,
     start_time: editing?.start_time?.slice(0, 5) ?? '09:00',
     end_time: editing?.end_time?.slice(0, 5) ?? '10:00',
     capacity: editing?.capacity ?? 1,
+    studentId: editing?.enrolledStudents?.[0]?.id ?? '',
+  });
+
+  const getStudentName = (id: string) => {
+    const s = students.find(st => st.id === id);
+    if (!s) return '';
+    return `${(s as any).nombre ?? ''} ${(s as any).apellido ?? ''}`.trim();
+  };
+
+  // Auto-generate name when student is selected (only for new shifts)
+  const selectStudent = (id: string) => {
+    const name = getStudentName(id);
+    setForm(f => ({
+      ...f,
+      studentId: id,
+      name: !editing && name ? `Sesión con ${name}` : f.name,
+    }));
+    setStudentSearch('');
+  };
+
+  const filteredStudents = students.filter(s => {
+    if (!studentSearch.trim()) return true;
+    const name = `${(s as any).nombre ?? ''} ${(s as any).apellido ?? ''}`.toLowerCase();
+    return name.includes(studentSearch.toLowerCase());
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name.trim()) return;
+    const finalName = form.name.trim() || (form.studentId ? `Sesión con ${getStudentName(form.studentId)}` : '');
+    if (!finalName) {
+      toast.error('Seleccioná un alumno o escribí un nombre');
+      return;
+    }
     setSaving(true);
     try {
       if (editing) {
         await ShiftService.updateShift(editing.id, gymId, {
-          name: form.name.trim(),
+          name: finalName,
           day_of_week: form.day_of_week,
           start_time: form.start_time,
           end_time: form.end_time,
-          capacity: form.capacity,
+          capacity: isGroup ? form.capacity : 1,
         });
         toast.success('Turno actualizado');
       } else {
-        await ShiftService.createShift({
+        const newShift = await ShiftService.createShift({
           gym_id: gymId,
-          name: form.name.trim(),
+          name: finalName,
           day_of_week: form.day_of_week,
           start_time: form.start_time,
           end_time: form.end_time,
-          capacity: form.capacity,
+          capacity: isGroup ? form.capacity : 1,
         });
+        // Auto-assign selected student
+        if (form.studentId) {
+          await ShiftService.assignStudent(newShift.id, form.studentId);
+        }
         toast.success('Turno creado');
       }
       onSaved();
@@ -469,13 +505,15 @@ function ShiftFormModal({ gymId, defaultDay, editing, onClose, onSaved }: {
     }
   };
 
+  const selectedStudentName = form.studentId ? getStudentName(form.studentId) : '';
+
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/40 backdrop-blur-sm p-0 md:p-4" onClick={onClose}>
       <div
-        className="bg-white dark:bg-slate-900 w-full md:max-w-sm md:rounded-2xl rounded-t-2xl shadow-2xl border border-slate-200 dark:border-slate-800"
+        className="bg-white dark:bg-slate-900 w-full md:max-w-sm md:rounded-2xl rounded-t-2xl shadow-2xl border border-slate-200 dark:border-slate-800 max-h-[85vh] flex flex-col"
         onClick={e => e.stopPropagation()}
       >
-        <div className="px-5 pt-5 pb-3 flex items-center justify-between border-b border-slate-100 dark:border-slate-800">
+        <div className="px-5 pt-5 pb-3 flex items-center justify-between border-b border-slate-100 dark:border-slate-800 shrink-0">
           <h3 className="text-sm font-black text-slate-900 dark:text-white">
             {editing ? 'Editar turno' : 'Nuevo turno'}
           </h3>
@@ -484,18 +522,74 @@ function ShiftFormModal({ gymId, defaultDay, editing, onClose, onSaved }: {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
-          {/* Name */}
+        <form onSubmit={handleSubmit} className="p-5 space-y-4 overflow-y-auto">
+          {/* Student selector (only for new shifts) */}
+          {!editing && (
+            <div>
+              <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Alumno</label>
+              {form.studentId ? (
+                <div className="mt-1 flex items-center gap-2 px-3 py-2.5 rounded-xl bg-violet-500/10 border border-violet-500/20">
+                  <div className="w-7 h-7 rounded-full bg-violet-500/20 flex items-center justify-center shrink-0">
+                    <span className="text-[10px] font-bold text-violet-500">{getInitials(selectedStudentName)}</span>
+                  </div>
+                  <span className="text-sm font-bold text-violet-600 dark:text-violet-400 flex-1 truncate">{selectedStudentName}</span>
+                  <button
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, studentId: '', name: '' }))}
+                    className="p-1 rounded-lg text-violet-400 hover:bg-violet-500/20"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ) : (
+                <div className="mt-1">
+                  <div className="relative">
+                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Buscar alumno..."
+                      value={studentSearch}
+                      onChange={e => setStudentSearch(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500/30"
+                      autoFocus
+                    />
+                  </div>
+                  <div className="mt-1 max-h-32 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                    {filteredStudents.length === 0 ? (
+                      <p className="text-xs text-slate-400 text-center py-3">Sin resultados</p>
+                    ) : (
+                      filteredStudents.map(s => {
+                        const name = `${(s as any).nombre ?? ''} ${(s as any).apellido ?? ''}`.trim() || 'Sin nombre';
+                        return (
+                          <button
+                            key={s.id}
+                            type="button"
+                            onClick={() => selectStudent(s.id)}
+                            className="w-full flex items-center gap-2 px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-left"
+                          >
+                            <div className="w-6 h-6 rounded-full bg-violet-500/15 flex items-center justify-center shrink-0">
+                              <span className="text-[9px] font-bold text-violet-500">{getInitials(name)}</span>
+                            </div>
+                            <span className="text-xs font-medium text-slate-700 dark:text-slate-300 truncate">{name}</span>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Name (auto-filled from student, but editable) */}
           <div>
-            <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Nombre</label>
+            <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Nombre del turno</label>
             <input
               type="text"
-              placeholder="Ej: Sesión con Juan"
+              placeholder={form.studentId ? `Sesión con ${selectedStudentName}` : 'Ej: Sesión con Juan'}
               value={form.name}
               onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
               className="w-full mt-1 px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500/50"
-              required
-              autoFocus
             />
           </div>
 
@@ -542,22 +636,36 @@ function ShiftFormModal({ gymId, defaultDay, editing, onClose, onSaved }: {
             </div>
           </div>
 
-          {/* Capacity */}
+          {/* Group toggle + Capacity */}
           <div>
-            <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Capacidad</label>
-            <input
-              type="number"
-              min={1}
-              max={50}
-              value={form.capacity}
-              onChange={e => setForm(f => ({ ...f, capacity: Number(e.target.value) }))}
-              className="w-full mt-1 px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500/30"
-            />
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isGroup}
+                onChange={e => {
+                  setIsGroup(e.target.checked);
+                  if (!e.target.checked) setForm(f => ({ ...f, capacity: 1 }));
+                }}
+                className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-violet-500 focus:ring-violet-500/30"
+              />
+              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Sesión grupal</span>
+            </label>
+            {isGroup && (
+              <input
+                type="number"
+                min={2}
+                max={50}
+                value={form.capacity}
+                onChange={e => setForm(f => ({ ...f, capacity: Math.max(2, Number(e.target.value)) }))}
+                placeholder="Capacidad"
+                className="w-full mt-2 px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500/30"
+              />
+            )}
           </div>
 
           <button
             type="submit"
-            disabled={saving || !form.name.trim()}
+            disabled={saving || (!form.name.trim() && !form.studentId)}
             className="w-full py-3 rounded-xl bg-violet-500 hover:bg-violet-400 text-white font-bold text-sm transition-all shadow-lg shadow-violet-500/25 disabled:opacity-50 active:scale-[0.97]"
           >
             {saving ? 'Guardando...' : editing ? 'Guardar cambios' : 'Crear turno'}

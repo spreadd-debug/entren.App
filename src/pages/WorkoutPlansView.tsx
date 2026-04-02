@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import {
   Dumbbell,
   Plus,
@@ -12,6 +12,7 @@ import {
   Bell,
   AlertTriangle,
   CheckCircle2,
+  Search,
 } from "lucide-react";
 import { Card, Button, Input } from "../components/UI";
 import { WorkoutPlanService, LibraryExercise } from "../services/WorkoutPlanService";
@@ -43,6 +44,153 @@ const MUSCLE_GROUPS = [
 ];
 
 type Tab = "plans" | "library" | "students";
+
+// ─── Reusable Exercise Picker (group dropdown + search) ─────────────────────
+
+function ExercisePicker({
+  libraryExercises,
+  muscleGroup,
+  onMuscleGroupChange,
+  selectedId,
+  onSelect,
+}: {
+  libraryExercises: LibraryExercise[];
+  muscleGroup: string;
+  onMuscleGroupChange: (g: string) => void;
+  selectedId: string;
+  onSelect: (id: string) => void;
+}) {
+  const [search, setSearch] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
+
+  const filtered = useMemo(() => {
+    let results = libraryExercises;
+    if (muscleGroup) {
+      results = results.filter((ex) => ex.muscle_group === muscleGroup);
+    }
+    if (search.trim()) {
+      const q = search.toLowerCase().trim();
+      results = results.filter((ex) =>
+        ex.name.toLowerCase().includes(q) ||
+        (ex.muscle_group ?? "").toLowerCase().includes(q)
+      );
+    }
+    return results;
+  }, [libraryExercises, muscleGroup, search]);
+
+  const selectedExercise = libraryExercises.find((ex) => ex.id === selectedId);
+
+  const handleSelect = (id: string) => {
+    onSelect(id);
+    setSearch("");
+    setIsOpen(false);
+  };
+
+  return (
+    <div className="space-y-2">
+      {/* Step 1: muscle group dropdown */}
+      <div className="relative">
+        <ChevronDown
+          size={16}
+          className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+        />
+        <select
+          className="w-full px-4 h-12 rounded-2xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white appearance-none pr-10 font-medium"
+          value={muscleGroup}
+          onChange={(e) => {
+            onMuscleGroupChange(e.target.value);
+            onSelect("");
+            setSearch("");
+          }}
+        >
+          <option value="">Todos los grupos musculares</option>
+          {MUSCLE_GROUPS.filter((g) =>
+            libraryExercises.some((ex) => ex.muscle_group === g)
+          ).map((g) => (
+            <option key={g} value={g}>
+              {g}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Step 2: search + results */}
+      <div className="relative">
+        <Search
+          size={16}
+          className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+        />
+        <input
+          type="text"
+          placeholder={selectedExercise ? selectedExercise.name : "Buscar ejercicio por nombre..."}
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setIsOpen(true);
+          }}
+          onFocus={() => setIsOpen(true)}
+          className={`w-full pl-11 pr-4 h-12 rounded-2xl border font-medium text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 ${
+            selectedExercise
+              ? "border-indigo-200 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/20 text-slate-900 dark:text-white placeholder:text-indigo-500 dark:placeholder:text-indigo-400"
+              : "border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400"
+          }`}
+        />
+        {selectedExercise && !search && (
+          <button
+            type="button"
+            onClick={() => { onSelect(""); setSearch(""); }}
+            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200 dark:hover:bg-slate-600"
+          >
+            <span className="text-xs font-bold">✕</span>
+          </button>
+        )}
+      </div>
+
+      {/* Dropdown results */}
+      {isOpen && search.trim() === "" && !selectedExercise && filtered.length > 0 && (
+        <div className="max-h-48 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg">
+          {filtered.map((ex) => (
+            <button
+              key={ex.id}
+              type="button"
+              onClick={() => handleSelect(ex.id)}
+              className="w-full text-left px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors flex items-center justify-between"
+            >
+              <span className="text-sm font-medium text-slate-900 dark:text-white truncate">{ex.name}</span>
+              {!muscleGroup && ex.muscle_group && (
+                <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase shrink-0 ml-2">
+                  {ex.muscle_group}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {isOpen && search.trim() !== "" && (
+        <div className="max-h-48 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg">
+          {filtered.length === 0 ? (
+            <p className="text-sm text-slate-400 text-center py-4">Sin resultados para "{search}"</p>
+          ) : (
+            filtered.map((ex) => (
+              <button
+                key={ex.id}
+                type="button"
+                onClick={() => handleSelect(ex.id)}
+                className="w-full text-left px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors flex items-center justify-between"
+              >
+                <span className="text-sm font-medium text-slate-900 dark:text-white truncate">{ex.name}</span>
+                <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase shrink-0 ml-2">
+                  {ex.muscle_group ?? ""}
+                </span>
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function WorkoutPlansView({ gymId }: { gymId: string }) {
   const toast = useToast();
@@ -649,59 +797,20 @@ export default function WorkoutPlansView({ gymId }: { gymId: string }) {
                       Agregar ejercicio
                     </p>
 
-                    {/* Library picker — step 1: muscle group */}
+                    {/* Library picker — muscle group filter + search */}
                     {libraryExercises.length > 0 && (
-                      <div className="space-y-2">
-                        <div className="relative">
-                          <ChevronDown
-                            size={16}
-                            className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
-                          />
-                          <select
-                            className="w-full px-4 h-12 rounded-2xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white appearance-none pr-10 font-medium"
-                            value={filterMuscleGroup}
-                            onChange={(e) => {
-                              setFilterMuscleGroup(e.target.value);
-                              setSelectedLibraryId("");
-                              setExerciseName("");
-                              setVideoUrl("");
-                            }}
-                          >
-                            <option value="">1. Elegir grupo muscular</option>
-                            {MUSCLE_GROUPS.filter((g) =>
-                              libraryExercises.some((ex) => ex.muscle_group === g)
-                            ).map((g) => (
-                              <option key={g} value={g}>
-                                {g}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        {/* Step 2: exercise filtered by group */}
-                        {filterMuscleGroup && (
-                          <div className="relative">
-                            <ChevronDown
-                              size={16}
-                              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
-                            />
-                            <select
-                              className="w-full px-4 h-12 rounded-2xl border border-indigo-200 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/20 text-slate-900 dark:text-white appearance-none pr-10 font-medium"
-                              value={selectedLibraryId}
-                              onChange={(e) => handleLibrarySelect(e.target.value)}
-                            >
-                              <option value="">2. Elegir ejercicio</option>
-                              {libraryExercises
-                                .filter((ex) => ex.muscle_group === filterMuscleGroup)
-                                .map((ex) => (
-                                  <option key={ex.id} value={ex.id}>
-                                    {ex.name}
-                                  </option>
-                                ))}
-                            </select>
-                          </div>
-                        )}
-                      </div>
+                      <ExercisePicker
+                        libraryExercises={libraryExercises}
+                        muscleGroup={filterMuscleGroup}
+                        onMuscleGroupChange={(g) => {
+                          setFilterMuscleGroup(g);
+                          setSelectedLibraryId("");
+                          setExerciseName("");
+                          setVideoUrl("");
+                        }}
+                        selectedId={selectedLibraryId}
+                        onSelect={(id) => handleLibrarySelect(id)}
+                      />
                     )}
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -749,58 +858,20 @@ export default function WorkoutPlansView({ gymId }: { gymId: string }) {
                         >
                           {editingExerciseId === exercise.id ? (
                             <div className="space-y-3">
-                              {/* Edit library picker — step 1: muscle group */}
+                              {/* Edit library picker — muscle group filter + search */}
                               {libraryExercises.length > 0 && (
-                                <div className="space-y-2">
-                                  <div className="relative">
-                                    <ChevronDown
-                                      size={16}
-                                      className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
-                                    />
-                                    <select
-                                      className="w-full px-4 h-12 rounded-2xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white appearance-none pr-10 font-medium"
-                                      value={editFilterMuscleGroup}
-                                      onChange={(e) => {
-                                        setEditFilterMuscleGroup(e.target.value);
-                                        setEditLibraryId("");
-                                        setEditExerciseName("");
-                                        setEditVideoUrl("");
-                                      }}
-                                    >
-                                      <option value="">1. Elegir grupo muscular</option>
-                                      {MUSCLE_GROUPS.filter((g) =>
-                                        libraryExercises.some((ex) => ex.muscle_group === g)
-                                      ).map((g) => (
-                                        <option key={g} value={g}>
-                                          {g}
-                                        </option>
-                                      ))}
-                                    </select>
-                                  </div>
-
-                                  {editFilterMuscleGroup && (
-                                    <div className="relative">
-                                      <ChevronDown
-                                        size={16}
-                                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
-                                      />
-                                      <select
-                                        className="w-full px-4 h-12 rounded-2xl border border-indigo-200 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/20 text-slate-900 dark:text-white appearance-none pr-10 font-medium"
-                                        value={editLibraryId}
-                                        onChange={(e) => handleEditLibrarySelect(e.target.value)}
-                                      >
-                                        <option value="">2. Elegir ejercicio</option>
-                                        {libraryExercises
-                                          .filter((ex) => ex.muscle_group === editFilterMuscleGroup)
-                                          .map((ex) => (
-                                            <option key={ex.id} value={ex.id}>
-                                              {ex.name}
-                                            </option>
-                                          ))}
-                                      </select>
-                                    </div>
-                                  )}
-                                </div>
+                                <ExercisePicker
+                                  libraryExercises={libraryExercises}
+                                  muscleGroup={editFilterMuscleGroup}
+                                  onMuscleGroupChange={(g) => {
+                                    setEditFilterMuscleGroup(g);
+                                    setEditLibraryId("");
+                                    setEditExerciseName("");
+                                    setEditVideoUrl("");
+                                  }}
+                                  selectedId={editLibraryId}
+                                  onSelect={(id) => handleEditLibrarySelect(id)}
+                                />
                               )}
 
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
