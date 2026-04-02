@@ -211,6 +211,7 @@ export default function StudentPortalPTView({
   onAnthropometryUpdate,
 }: StudentPortalPTViewProps) {
   // Secondary cards state — all collapsed by default
+  const [showRoutine, setShowRoutine] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
   const [showMeasurements, setShowMeasurements] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -450,6 +451,24 @@ export default function StudentPortalPTView({
   const maxW = weights.length > 0 ? Math.max(...weights) + 1 : 1;
   const wRange = maxW - minW || 1;
 
+  // ─── Session / constancy data (for zona 2) ────────────────────────────────
+  const weekSessions = recentSessions.filter(s => {
+    const d = new Date(s.session_date + "T12:00:00");
+    const now = new Date();
+    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    return d >= weekAgo && s.completed_at;
+  }).length;
+
+  const completedSessions = adherenceStats?.completedSessions ?? 0;
+  const totalSessions = adherenceStats?.totalSessions ?? 0;
+  const weeklyGoal = options.length; // approximate: how many days/week they have routines
+
+  const lastSession = recentSessions.find(s => s.completed_at) ?? null;
+  const lastSessionDate = lastSession
+    ? new Date(lastSession.session_date + "T12:00:00")
+    : null;
+  const lastSessionVol = lastSession?.total_volume ? Number(lastSession.total_volume) : 0;
+
   // Secondary metric diffs
   const weightDiff = previous?.weight_kg && latest?.weight_kg
     ? Math.round((latest.weight_kg - previous.weight_kg) * 10) / 10
@@ -685,102 +704,82 @@ export default function StudentPortalPTView({
         )}
 
         {/* ═══════════════════════════════════════════════════════════════════
-            ZONA 2 — RUTINA DEL DÍA (CTA principal)
-            Card prominente con borde violeta. Destaca visualmente.
+            ZONA 2 — PRÓXIMA SESIÓN + CONSTANCIA
+            Cuándo entrena + racha. Reemplaza la rutina del día.
         ═══════════════════════════════════════════════════════════════════ */}
         <div className={`relative overflow-hidden rounded-2xl bg-gradient-to-r from-violet-500/[0.04] to-white dark:from-violet-500/[0.08] dark:to-slate-900 border border-slate-200 dark:border-slate-800 shadow-md shadow-violet-500/10 dark:shadow-violet-500/5`}>
           {/* Left accent bar */}
           <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-violet-500 to-purple-600 rounded-l-2xl" />
-          <div className={`px-4 pt-4 pb-3 flex items-center gap-3`}>
-            <div className="p-2.5 rounded-xl bg-violet-500/15 shrink-0">
-              <Dumbbell size={18} className="text-violet-500" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <h2 className="text-base font-black text-slate-900 dark:text-white">Tu rutina de hoy</h2>
-              {todayOption && (
-                <p className="text-sm font-semibold text-violet-500 dark:text-violet-400">
-                  {todayOption.plan_name}
-                </p>
-              )}
-            </div>
-            {sessionCompleted && (
-              <span className="shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                <CheckCircle2 size={12} /> Hecho
-              </span>
-            )}
-          </div>
 
-          {options.length === 0 ? (
-            <div className="px-4 pb-4 pt-1">
-              <p className="text-sm text-slate-400 dark:text-slate-500">Tu entrenador aún no asignó una rutina. ¡Ya llega!</p>
-            </div>
-          ) : !todayOption ? (
-            <div className="px-4 pb-4 pt-1 flex items-center gap-2">
-              <Coffee size={16} className="text-slate-400 dark:text-slate-500 shrink-0" />
-              <p className="text-sm text-slate-400 dark:text-slate-500">Hoy es día de descanso. ¡Descansá bien!</p>
-            </div>
-          ) : exercisesToShow.length === 0 ? (
-            <div className="px-4 pb-4 pt-1">
-              <p className="text-sm text-slate-400 dark:text-slate-500">No hay ejercicios cargados aún.</p>
+          {completedSessions === 0 ? (
+            /* Estado C — No sessions yet (new user) */
+            <div className="px-4 py-5 flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-violet-500/15 shrink-0">
+                <Dumbbell size={18} className="text-violet-500" />
+              </div>
+              <div>
+                <p className="text-sm font-black text-slate-900 dark:text-white">Tu primera sesión te espera</p>
+                <p className="text-xs text-slate-400 dark:text-slate-500">¡Arranquemos!</p>
+              </div>
             </div>
           ) : (
-            <>
-              <div className={`divide-y ${cardDivider} border-t ${cardBorder}`}>
-                {exercisesToShow.map((item: any, idx: number) => (
-                  <div
-                    key={item.id ?? idx}
-                    className="px-4 py-3 flex items-center gap-3"
-                  >
-                    <div className="shrink-0 w-7 h-7 rounded-lg bg-violet-500/10 flex items-center justify-center">
-                      <span className="text-xs font-black text-violet-400">{idx + 1}</span>
+            /* Estado B — Has sessions (constancy + last session summary) */
+            <div className="px-4 py-4 space-y-3">
+              {/* Constancy headline */}
+              <div className="flex items-center gap-3">
+                <div className="shrink-0 w-10 h-10 rounded-xl bg-gradient-to-br from-orange-400 to-amber-500 flex items-center justify-center shadow-sm shadow-orange-500/20">
+                  <Flame size={18} className="text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  {weekSessions > 0 ? (
+                    <p className="text-base font-black text-slate-900 dark:text-white">
+                      {weekSessions} sesion{weekSessions !== 1 ? "es" : ""} esta semana
+                    </p>
+                  ) : (
+                    <p className="text-base font-black text-slate-900 dark:text-white">
+                      {completedSessions} sesion{completedSessions !== 1 ? "es" : ""} completada{completedSessions !== 1 ? "s" : ""}
+                    </p>
+                  )}
+                  {/* Progress bar */}
+                  {weeklyGoal > 0 && weekSessions > 0 && (
+                    <div className="flex items-center gap-2 mt-1">
+                      <div className="flex-1 h-2 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-orange-400 to-amber-500 transition-all duration-700"
+                          style={{ width: `${Math.min(100, Math.round((weekSessions / weeklyGoal) * 100))}%` }}
+                        />
+                      </div>
+                      <span className="text-[10px] font-bold text-slate-400 shrink-0">
+                        {weekSessions} de {weeklyGoal}
+                      </span>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-bold truncate ${
-                        item.completed
-                          ? "text-slate-400 dark:text-slate-600 line-through"
-                          : "text-slate-900 dark:text-white"
-                      }`}>
-                        {item.exercise_name}
-                      </p>
-                      <p className="text-xs text-slate-400 dark:text-slate-500">
-                        {[
-                          item.sets && `${item.sets} series`,
-                          item.reps && `${item.reps} reps`,
-                          item.weight,
-                        ].filter(Boolean).join(" · ") || "Sin datos"}
-                      </p>
-                      {item.notes && (
-                        <p className="text-xs text-slate-400 dark:text-slate-600 italic mt-0.5">{item.notes}</p>
+                  )}
+                  {weekSessions === 0 && (
+                    <p className="text-xs text-slate-400 dark:text-slate-500">¡Seguí así!</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Last session summary */}
+              {lastSession && lastSessionDate && (
+                <div className={`flex items-center gap-3 px-3 py-2.5 rounded-xl ${subtleBg}`}>
+                  <CalendarDays size={14} className="text-violet-400 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-slate-700 dark:text-slate-300 truncate">
+                      Última sesión: {lastSessionDate.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "short" })}
+                    </p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-[10px] text-slate-400 truncate">{lastSession.plan_name}</span>
+                      {lastSessionVol > 0 && (
+                        <span className="text-[10px] font-bold text-violet-500 shrink-0">
+                          {lastSessionVol >= 1000 ? `${(lastSessionVol / 1000).toFixed(1)}t` : `${Math.round(lastSessionVol)}kg`} vol. total
+                        </span>
                       )}
                     </div>
-                    {item.video_url && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setVideoModal({
-                            isOpen: true,
-                            exerciseName: item.exercise_name,
-                            videoUrl: item.video_url!,
-                          })
-                        }
-                        className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20 hover:bg-violet-500/20 text-xs font-bold border transition-colors"
-                      >
-                        <Image size={13} />
-                        Ver
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-              {sessionCompleted && (
-                <div className="px-4 pb-4 pt-2">
-                  <div className="flex items-center justify-center gap-2 py-3 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-sm font-bold">
-                    <Trophy size={15} />
-                    ¡Entrenamiento completado!
                   </div>
                 </div>
               )}
-            </>
+            </div>
           )}
         </div>
 
@@ -1154,76 +1153,101 @@ export default function StudentPortalPTView({
         )}
 
         {/* ═══════════════════════════════════════════════════════════════════
-            ZONA 5 — CONSTANCIA (framing positivo)
-            Rachas y logros, nunca 0% deprimente.
-        ═══════════════════════════════════════════════════════════════════ */}
-        {adherenceStats && (() => {
-          const { totalSessions, completedSessions } = adherenceStats;
-          if (totalSessions === 0 && completedSessions === 0) return null;
-
-          // Positive framing
-          if (completedSessions === 0) {
-            return (
-              <div className={`${card} px-4 py-3 flex items-center gap-3`}>
-                <Flame size={18} className="text-slate-300 dark:text-slate-600 shrink-0" />
-                <p className="text-sm text-slate-400 dark:text-slate-500">
-                  Tu primera sesión te espera. ¡Arranquemos!
-                </p>
-              </div>
-            );
-          }
-
-          // Has sessions — positive framing
-          const weekSessions = recentSessions.filter(s => {
-            const d = new Date(s.session_date + "T12:00:00");
-            const now = new Date();
-            const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-            return d >= weekAgo && s.completed_at;
-          }).length;
-
-          return (
-            <div className={`${card} px-4 py-3 flex items-center gap-3`}>
-              <div className="shrink-0 w-10 h-10 rounded-xl bg-gradient-to-br from-orange-400 to-amber-500 flex items-center justify-center shadow-sm shadow-orange-500/20">
-                <Flame size={18} className="text-white" />
-              </div>
-              <div className="flex-1 min-w-0">
-                {weekSessions > 0 ? (
-                  <>
-                    <p className="text-sm font-black text-slate-900 dark:text-white">
-                      {weekSessions} sesion{weekSessions !== 1 ? "es" : ""} esta semana
-                    </p>
-                    <p className="text-xs text-slate-400 dark:text-slate-500">
-                      {completedSessions} de {totalSessions} completadas en total
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <p className="text-sm font-bold text-slate-900 dark:text-white">
-                      {completedSessions} sesion{completedSessions !== 1 ? "es" : ""} completada{completedSessions !== 1 ? "s" : ""}
-                    </p>
-                    <p className="text-xs text-slate-400 dark:text-slate-500">
-                      ¡Seguí así!
-                    </p>
-                  </>
-                )}
-                {/* Wide progress bar below text */}
-                <div className="mt-2 h-2 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-orange-400 to-amber-500 transition-all duration-700"
-                    style={{ width: `${Math.min(100, adherencePercent)}%` }}
-                  />
-                </div>
-              </div>
-            </div>
-          );
-        })()}
-
-        {/* ═══════════════════════════════════════════════════════════════════
-            ZONA 6 — CARDS SECUNDARIOS (colapsados por defecto)
+            ZONA 5 — CARDS SECUNDARIOS (colapsados por defecto)
             Una línea cada uno. Expandibles.
         ═══════════════════════════════════════════════════════════════════ */}
         <div className="space-y-1.5 pt-1">
           <p className="text-[10px] font-bold text-slate-400 dark:text-slate-600 uppercase tracking-wider px-1 mb-1">Más info</p>
+
+          {/* ── Rutina de hoy (movido desde zona 2) ──────────────────────── */}
+          {todayOption && (
+            <div className={`${cardSecondary} overflow-hidden`}>
+              <button
+                onClick={() => setShowRoutine((v) => !v)}
+                className="w-full px-3 py-2.5 flex items-center gap-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+              >
+                <Dumbbell size={13} className="text-violet-500 shrink-0" />
+                <span className="flex-1 text-left text-[13px] font-semibold text-slate-700 dark:text-slate-300 truncate">
+                  Rutina de hoy · {todayOption.plan_name}
+                </span>
+                {sessionCompleted && (
+                  <span className="text-[10px] font-bold text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded-md mr-1">
+                    Hecho
+                  </span>
+                )}
+                <ChevronRight
+                  size={14}
+                  className={`text-slate-400 dark:text-slate-600 transition-transform ${showRoutine ? "rotate-90" : ""}`}
+                />
+              </button>
+
+              {showRoutine && (
+                <div className={`border-t ${cardBorder}`}>
+                  {exercisesToShow.length === 0 ? (
+                    <div className="px-4 py-4 text-center">
+                      <p className="text-sm text-slate-400 dark:text-slate-500">No hay ejercicios cargados aún.</p>
+                    </div>
+                  ) : (
+                    <div className={`divide-y ${cardDivider}`}>
+                      {exercisesToShow.map((item: any, idx: number) => (
+                        <div
+                          key={item.id ?? idx}
+                          className="px-4 py-2.5 flex items-center gap-3"
+                        >
+                          <div className="shrink-0 w-6 h-6 rounded-lg bg-violet-500/10 flex items-center justify-center">
+                            <span className="text-[10px] font-black text-violet-400">{idx + 1}</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-sm font-bold truncate ${
+                              item.completed
+                                ? "text-slate-400 dark:text-slate-600 line-through"
+                                : "text-slate-900 dark:text-white"
+                            }`}>
+                              {item.exercise_name}
+                            </p>
+                            <p className="text-xs text-slate-400 dark:text-slate-500">
+                              {[
+                                item.sets && `${item.sets} series`,
+                                item.reps && `${item.reps} reps`,
+                                item.weight,
+                              ].filter(Boolean).join(" · ") || "Sin datos"}
+                            </p>
+                            {item.notes && (
+                              <p className="text-xs text-slate-400 dark:text-slate-600 italic mt-0.5">{item.notes}</p>
+                            )}
+                          </div>
+                          {item.video_url && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setVideoModal({
+                                  isOpen: true,
+                                  exerciseName: item.exercise_name,
+                                  videoUrl: item.video_url!,
+                                })
+                              }
+                              className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20 hover:bg-violet-500/20 text-xs font-bold border transition-colors"
+                            >
+                              <Image size={13} />
+                              Ver
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      {sessionCompleted && (
+                        <div className="px-4 py-3">
+                          <div className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-sm font-bold">
+                            <Trophy size={15} />
+                            ¡Entrenamiento completado!
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* ── Notas del entrenador ──────────────────────────────────────── */}
           <div className={`${cardSecondary} overflow-hidden`}>
@@ -1672,7 +1696,7 @@ export default function StudentPortalPTView({
           )}
 
         </div>
-        {/* END ZONA 6 */}
+        {/* END ZONA 5 */}
 
         <div className="h-4" />
       </div>
