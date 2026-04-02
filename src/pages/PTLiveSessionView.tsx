@@ -7,6 +7,7 @@ import {
 import { Student, WorkoutOption, SessionSet } from '../../shared/types';
 import { PTSessionService, PTSessionFull, PTSessionExercise } from '../services/pt/PTSessionService';
 import { WorkoutPlanService } from '../services/WorkoutPlanService';
+import { AIAnalysisService } from '../services/pt/AIAnalysisService';
 import { useToast } from '../context/ToastContext';
 
 interface PTLiveSessionViewProps {
@@ -205,13 +206,19 @@ export const PTLiveSessionView: React.FC<PTLiveSessionViewProps> = ({
     try {
       await PTSessionService.completeSession(session.session.id, ptNotes || undefined);
       toast.success('Sesión completada');
+
+      // Fire AI analysis in background (don't block completion)
+      AIAnalysisService.requestAnalysis(gymId, student.id, session.session.id)
+        .then(() => toast.success('Analisis IA generado'))
+        .catch(() => {}); // Silently fail — AI is a bonus
+
       onComplete();
     } catch (err: any) {
       toast.error('Error al completar: ' + (err?.message ?? ''));
     } finally {
       setCompleting(false);
     }
-  }, [session, ptNotes, toast, onComplete]);
+  }, [session, ptNotes, toast, onComplete, gymId, student.id]);
 
   // ─── Compute stats ─────────────────────────────────────────────────────
 

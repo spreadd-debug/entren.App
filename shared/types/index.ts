@@ -430,3 +430,38 @@ export interface GymBillingPayment {
   recorded_by: string | null;
   created_at: string;
 }
+
+// ─── Smart Planning System ─────────────────────────────────────────────────
+
+export type AlertSeverity = 'info' | 'warning' | 'danger' | 'success';
+export type AlertCategory = 'progression' | 'volume' | 'wellness' | 'body' | 'attendance';
+
+export interface StudentAlert {
+  id: string;
+  category: AlertCategory;
+  severity: AlertSeverity;
+  message: string;
+  detail?: string;
+  data: Record<string, any>;
+}
+
+export type SemaphoreColor = 'green' | 'yellow' | 'red';
+
+export interface StudentSemaphore {
+  color: SemaphoreColor;
+  statusText: string;
+  alerts: StudentAlert[];
+  priorityScore: number;
+}
+
+export interface AIAnalysis {
+  id: string;
+  gym_id: string;
+  student_id: string;
+  session_id: string | null;
+  analysis_type: 'post_session' | 'weekly_review';
+  content: string;
+  model_used: string;
+  tokens_used: number;
+  created_at: string;
+}

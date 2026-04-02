@@ -3,7 +3,7 @@ import {
   ArrowLeft, Phone, Edit2, MessageSquare, Trash2, Save, X,
   Dumbbell, PlayCircle, Bell, Plus, CheckCircle2, HeartPulse,
   Ruler, Target, FileText, Activity, KeyRound, Copy, Check, RefreshCw, Share2,
-  TrendingUp, Calendar, Clock, Apple, Camera,
+  TrendingUp, Calendar, Clock, Apple, Camera, ClipboardList,
 } from 'lucide-react';
 import { Card, StatusBadge, Button, Input } from '../components/UI';
 import { useNavigate } from 'react-router-dom';
@@ -23,6 +23,7 @@ import { SessionNotesPanel } from '../components/pt/SessionNotesPanel';
 import { WellnessCheckInPanel } from '../components/pt/WellnessCheckInPanel';
 import { NutritionPlanPanel } from '../components/pt/NutritionPlanPanel';
 import { ProgressPhotosPanel } from '../components/pt/ProgressPhotosPanel';
+import { StudentSummaryCard } from '../components/pt/StudentSummaryCard';
 
 const DAY_NAMES_SHORT = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
@@ -474,16 +475,32 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({
             </div>
           )}
 
-          {/* Start training session */}
+          {/* Session action buttons */}
           {workoutOptions.length > 0 && (
-            <button
-              onClick={() => navigate(`/clients/${student.id}/session`)}
-              className="w-full py-4 bg-violet-500 hover:bg-violet-600 active:bg-violet-700 text-white rounded-2xl font-black text-base transition-all shadow-lg shadow-violet-500/20 active:scale-[0.98] flex items-center justify-center gap-2.5"
-            >
-              <PlayCircle size={20} />
-              Iniciar Sesión de Entrenamiento
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => navigate(`/clients/${student.id}/prepare`)}
+                className="flex-1 py-4 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/20 rounded-2xl font-bold text-sm transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+              >
+                <ClipboardList size={18} />
+                Preparar sesion
+              </button>
+              <button
+                onClick={() => navigate(`/clients/${student.id}/session`)}
+                className="flex-1 py-4 bg-violet-500 hover:bg-violet-600 active:bg-violet-700 text-white rounded-2xl font-black text-sm transition-all shadow-lg shadow-violet-500/20 active:scale-[0.98] flex items-center justify-center gap-2"
+              >
+                <PlayCircle size={18} />
+                Iniciar Sesion
+              </button>
+            </div>
           )}
+
+          {/* Smart Summary */}
+          <StudentSummaryCard
+            studentId={student.id}
+            gymId={gymId}
+            studentName={clientName}
+          />
 
           {/* Info cards grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

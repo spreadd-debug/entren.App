@@ -1,14 +1,18 @@
 import React, { useMemo, useState } from 'react';
-import { Search, Filter, MessageSquare, CreditCard, ChevronRight, UserPlus, Users } from 'lucide-react';
+import { Search, Filter, MessageSquare, CreditCard, ChevronRight, UserPlus, Users, ArrowUpDown } from 'lucide-react';
 import { Card, Input, StatusBadge, Button, BillingBadge } from '../components/UI';
-import { Student } from '../../shared/types';
+import { SemaphoreBadge } from '../components/pt/SemaphoreBadge';
+import { Student, StudentSemaphore } from '../../shared/types';
 import { formatDate } from '../utils/dateUtils';
+
+type SortMode = 'priority' | 'name';
 
 interface StudentsViewProps {
   students: Student[];
   onSelectStudent: (student: Student) => void;
   onNavigate: (view: string) => void;
   gymType?: 'gym' | 'personal_trainer';
+  semaphores?: Map<string, StudentSemaphore>;
 }
 
 const isValidDate = (value: unknown) => {
@@ -17,9 +21,10 @@ const isValidDate = (value: unknown) => {
   return !isNaN(date.getTime());
 };
 
-export const StudentsView: React.FC<StudentsViewProps> = ({ students, onSelectStudent, onNavigate, gymType = 'gym' }) => {
+export const StudentsView: React.FC<StudentsViewProps> = ({ students, onSelectStudent, onNavigate, gymType = 'gym', semaphores }) => {
   const isPT = gymType === 'personal_trainer';
   const [searchTerm, setSearchTerm] = useState('');
+  const [sortMode, setSortMode] = useState<SortMode>(isPT && semaphores ? 'priority' : 'name');
 
   const safeStudents = Array.isArray(students) ? students : [];
 
@@ -55,9 +60,16 @@ export const StudentsView: React.FC<StudentsViewProps> = ({ students, onSelectSt
     });
   }, [safeStudents]);
 
-  const filteredStudents = normalizedStudents.filter((s: any) =>
-    s.displayName.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredStudents = normalizedStudents
+    .filter((s: any) => s.displayName.toLowerCase().includes(searchTerm.toLowerCase()))
+    .sort((a: any, b: any) => {
+      if (isPT && semaphores && sortMode === 'priority') {
+        const aPriority = semaphores.get(a.id)?.priorityScore ?? 0;
+        const bPriority = semaphores.get(b.id)?.priorityScore ?? 0;
+        if (bPriority !== aPriority) return bPriority - aPriority;
+      }
+      return a.displayName.localeCompare(b.displayName);
+    });
 
   return (
     <div className="space-y-4">
@@ -71,6 +83,17 @@ export const StudentsView: React.FC<StudentsViewProps> = ({ students, onSelectSt
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
+        {isPT && semaphores && (
+          <Button
+            variant="outline"
+            size="icon"
+            className="shrink-0"
+            onClick={() => setSortMode((m) => m === 'priority' ? 'name' : 'priority')}
+            title={sortMode === 'priority' ? 'Ordenar por nombre' : 'Ordenar por prioridad'}
+          >
+            <ArrowUpDown size={20} />
+          </Button>
+        )}
         <Button variant="outline" size="icon" className="shrink-0">
           <Filter size={20} />
         </Button>
@@ -95,8 +118,15 @@ export const StudentsView: React.FC<StudentsViewProps> = ({ students, onSelectSt
           >
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-700 flex items-center justify-center font-bold text-slate-600 dark:text-slate-300 text-lg">
-                  {student.firstLetter}
+                <div className="relative">
+                  <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-700 flex items-center justify-center font-bold text-slate-600 dark:text-slate-300 text-lg">
+                    {student.firstLetter}
+                  </div>
+                  {isPT && semaphores?.has(student.id) && (
+                    <span className="absolute -top-0.5 -right-0.5">
+                      <SemaphoreBadge color={semaphores.get(student.id)!.color} />
+                    </span>
+                  )}
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
@@ -110,7 +140,13 @@ export const StudentsView: React.FC<StudentsViewProps> = ({ students, onSelectSt
                       />
                     )}
                   </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">{student.planDisplay}</p>
+                  {isPT && semaphores?.has(student.id) ? (
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-snug line-clamp-1">
+                      {semaphores.get(student.id)!.statusText}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">{student.planDisplay}</p>
+                  )}
                 </div>
               </div>
 

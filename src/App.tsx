@@ -24,6 +24,7 @@ import WorkoutPlansView from "./pages/WorkoutPlansView";
 import PTCalendarView from './pages/PTCalendarView';
 import PTLiveSessionView from './pages/PTLiveSessionView';
 import PTPaymentsView from './pages/PTPaymentsView';
+import PreSessionDashboardView from './pages/PreSessionDashboardView';
 import { ShiftsView } from './pages/ShiftsView';
 import CheckInView from './pages/CheckInView';
 import { SuperAdminApp } from './pages/SuperAdminApp';
@@ -44,9 +45,11 @@ import {
   AutomationStatus,
   GymSubscription,
   GymType,
+  StudentSemaphore,
 } from '../shared/types';
 
 import { api } from './services/api';
+import { AlertEngineService } from './services/pt/AlertEngineService';
 
 export default function App() {
 
@@ -699,6 +702,7 @@ function PTApp({ gymId, onLogout }: {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [gymSubscription, setGymSubscription] = useState<GymSubscription | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [semaphores, setSemaphores] = useState<Map<string, StudentSemaphore>>(new Map());
 
   useEffect(() => {
     const fetchData = async () => {
@@ -719,6 +723,14 @@ function PTApp({ gymId, onLogout }: {
     };
     fetchData();
   }, []);
+
+  // Compute semaphores for all students after they load
+  useEffect(() => {
+    if (!students.length) return;
+    AlertEngineService.getSemaphoresForStudents(students, gymId)
+      .then(setSemaphores)
+      .catch(() => {});
+  }, [students, gymId]);
 
   const handleNavigate = (view: string) => {
     navigate(viewToPath(view, { pt: true }));
@@ -869,7 +881,7 @@ function PTApp({ gymId, onLogout }: {
           } />
           <Route path="/clients" element={
             loadingEl ?? (
-              <StudentsView onSelectStudent={handleSelectStudent} students={students} onNavigate={handleNavigate} gymType="personal_trainer" />
+              <StudentsView onSelectStudent={handleSelectStudent} students={students} onNavigate={handleNavigate} gymType="personal_trainer" semaphores={semaphores} />
             )
           } />
           <Route path="/clients/new" element={
@@ -883,6 +895,25 @@ function PTApp({ gymId, onLogout }: {
             )
           } />
           <Route path="/clients/:studentId" element={<PTStudentDetailRoute />} />
+          <Route path="/clients/:studentId/prepare" element={
+            (() => {
+              const PTPrepareRoute = () => {
+                const { studentId } = useParams<{ studentId: string }>();
+                const student = students.find((s: any) => s.id === studentId) ?? null;
+                if (isLoading) return loadingEl;
+                if (!student) return <Navigate to="/clients" replace />;
+                return (
+                  <PreSessionDashboardView
+                    student={student}
+                    gymId={gymId}
+                    onBack={() => navigate(`/clients/${studentId}`)}
+                    onStartSession={() => navigate(`/clients/${studentId}/session`)}
+                  />
+                );
+              };
+              return <PTPrepareRoute />;
+            })()
+          } />
           <Route path="/clients/:studentId/session" element={
             (() => {
               const PTSessionRoute = () => {
