@@ -3,7 +3,7 @@ import {
   ArrowLeft, Phone, Edit2, MessageSquare, Trash2, Save, X,
   Dumbbell, PlayCircle, Bell, Plus, CheckCircle2, HeartPulse,
   Ruler, Target, FileText, Activity, KeyRound, Copy, Check, RefreshCw, Share2,
-  TrendingUp, Calendar, Clock, Apple,
+  TrendingUp, Calendar, Clock, Apple, Camera,
 } from 'lucide-react';
 import { Card, StatusBadge, Button, Input } from '../components/UI';
 import { useNavigate } from 'react-router-dom';
@@ -22,10 +22,11 @@ import { GoalsPanel } from '../components/pt/GoalsPanel';
 import { SessionNotesPanel } from '../components/pt/SessionNotesPanel';
 import { WellnessCheckInPanel } from '../components/pt/WellnessCheckInPanel';
 import { NutritionPlanPanel } from '../components/pt/NutritionPlanPanel';
+import { ProgressPhotosPanel } from '../components/pt/ProgressPhotosPanel';
 
 const DAY_NAMES_SHORT = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
-type Tab = 'overview' | 'anthropometry' | 'measurements' | 'goals' | 'notes' | 'nutrition' | 'wellness' | 'workouts';
+type Tab = 'overview' | 'anthropometry' | 'measurements' | 'goals' | 'notes' | 'nutrition' | 'wellness' | 'photos' | 'workouts';
 
 const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: 'overview', label: 'General', icon: Activity },
@@ -35,6 +36,7 @@ const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: 'notes', label: 'Notas', icon: FileText },
   { id: 'nutrition', label: 'Nutrición', icon: Apple },
   { id: 'wellness', label: 'Bienestar', icon: HeartPulse },
+  { id: 'photos', label: 'Fotos', icon: Camera },
   { id: 'workouts', label: 'Rutinas', icon: Dumbbell },
 ];
 
@@ -651,6 +653,10 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({
 
       {activeTab === 'wellness' && (
         <WellnessCheckInPanel studentId={student.id} gymId={gymId} />
+      )}
+
+      {activeTab === 'photos' && (
+        <ProgressPhotosPanel studentId={student.id} gymId={gymId} />
       )}
 
       {activeTab === 'workouts' && (

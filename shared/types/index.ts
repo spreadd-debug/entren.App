@@ -354,6 +354,22 @@ export interface WellnessCheckIn {
   created_at: string;
 }
 
+// ─── Progress Photos ────────────────────────────────────────────────────────
+
+export type PhotoAngle = 'front' | 'side_left' | 'side_right' | 'back';
+
+export interface ProgressPhoto {
+  id: string;
+  gym_id: string;
+  student_id: string;
+  photo_date: string;
+  storage_path: string;
+  photo_url: string;
+  angle: PhotoAngle;
+  notes: string | null;
+  created_at: string;
+}
+
 // ─── Gym Subscription ────────────────────────────────────────────────────────
 
 export type GymSubscriptionStatus = 'trial' | 'active' | 'past_due' | 'suspended' | 'cancelled';
