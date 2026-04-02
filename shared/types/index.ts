@@ -370,6 +370,26 @@ export interface ProgressPhoto {
   created_at: string;
 }
 
+// ─── PT Shift Payments ─────────────────────────────────────────────────────
+
+export type ShiftPaymentStatus = 'paid' | 'unpaid';
+
+export interface PTShiftPayment {
+  id: string;
+  gym_id: string;
+  shift_id: string;
+  student_id: string;
+  payment_date: string;      // "YYYY-MM-DD" — actual date of the shift
+  amount: number;
+  payment_method: PaymentMethod;
+  status: ShiftPaymentStatus;
+  notes: string | null;
+  created_at: string;
+  // Joined fields (optional)
+  student?: { nombre: string; apellido: string };
+  shift?: { name: string; start_time: string; end_time: string };
+}
+
 // ─── Gym Subscription ────────────────────────────────────────────────────────
 
 export type GymSubscriptionStatus = 'trial' | 'active' | 'past_due' | 'suspended' | 'cancelled';

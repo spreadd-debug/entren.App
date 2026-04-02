@@ -319,7 +319,6 @@ export const NutritionPlanPanel: React.FC<NutritionPlanPanelProps> = ({ studentI
           {/* Meals grouped */}
           {MEAL_LABELS.map((meal) => {
             const items = activePlan.items.filter(i => i.meal_label === meal);
-            if (items.length === 0 && !expandedMeals.has(meal)) return null;
             const expanded = expandedMeals.has(meal);
 
             return (

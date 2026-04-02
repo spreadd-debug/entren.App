@@ -4,6 +4,7 @@ import {
   Users,
   CalendarDays,
   Dumbbell,
+  DollarSign,
   Settings,
   Plus,
   Zap,
@@ -30,6 +31,7 @@ export const PTShell: React.FC<PTShellProps> = ({
     { id: 'dashboard', label: 'Inicio',   icon: LayoutDashboard },
     { id: 'students',  label: 'Clientes', icon: Users },
     { id: 'calendar',  label: 'Agenda',   icon: CalendarDays },
+    { id: 'payments',  label: 'Cobros',   icon: DollarSign },
     { id: 'workouts',  label: 'Rutinas',  icon: Dumbbell },
     { id: 'settings',  label: 'Ajustes',  icon: Settings },
   ];
