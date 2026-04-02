@@ -11,11 +11,9 @@ import {
   CalendarDays,
   TrendingDown,
   TrendingUp,
-  Minus,
   Scale,
   Target,
   Ruler,
-  Activity,
   MessageSquare,
   Flame,
   Coffee,
@@ -25,8 +23,6 @@ import {
   Heart,
   Camera,
   X,
-  Maximize2,
-  Trash2,
 } from "lucide-react";
 import { ExerciseVideoModal } from "../components/ExerciseVideoModal";
 import {
@@ -46,6 +42,7 @@ import { WellnessCheckInService } from "../services/pt/WellnessCheckInService";
 import { NutritionPlanService, NutritionPlanWithItems } from "../services/pt/NutritionPlanService";
 import { ProgressPhotosService } from "../services/pt/ProgressPhotosService";
 import { AnthropometryService } from "../services/pt/AnthropometryService";
+import EvolutionSection from "../components/pt/EvolutionSection";
 import { ProgressPhoto, PhotoAngle } from "../../shared/types";
 
 const DAY_NAMES = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
@@ -239,8 +236,6 @@ export default function StudentPortalPTView({
   const [compareA, setCompareA] = useState<ProgressPhoto | null>(null);
   const [compareB, setCompareB] = useState<ProgressPhoto | null>(null);
 
-  // Evolution chart expanded
-  const [showEvolutionChart, setShowEvolutionChart] = useState(false);
 
   const handleCompareSelect = (photo: ProgressPhoto) => {
     if (!compareA) {
@@ -437,20 +432,6 @@ export default function StudentPortalPTView({
       })()
     : null;
 
-  // ─── Adherence data ───────────────────────────────────────────────────────────
-
-  const adherencePercent = adherenceStats?.adherencePercent ?? 0;
-
-  // Weight chart data for evolution section
-  const chartData = anthropometry
-    .filter((a) => a.weight_kg !== null)
-    .slice(0, 10)
-    .reverse();
-  const weights = chartData.map((a) => a.weight_kg!);
-  const minW = weights.length > 0 ? Math.min(...weights) - 1 : 0;
-  const maxW = weights.length > 0 ? Math.max(...weights) + 1 : 1;
-  const wRange = maxW - minW || 1;
-
   // ─── Session / constancy data (for zona 2) ────────────────────────────────
   const weekSessions = recentSessions.filter(s => {
     const d = new Date(s.session_date + "T12:00:00");
@@ -469,21 +450,6 @@ export default function StudentPortalPTView({
     : null;
   const lastSessionVol = lastSession?.total_volume ? Number(lastSession.total_volume) : 0;
 
-  // Secondary metric diffs
-  const weightDiff = previous?.weight_kg && latest?.weight_kg
-    ? Math.round((latest.weight_kg - previous.weight_kg) * 10) / 10
-    : null;
-  const fatDiff = previous?.body_fat_pct && latest?.body_fat_pct
-    ? Math.round((latest.body_fat_pct - previous.body_fat_pct) * 10) / 10
-    : null;
-  const muscleDiff = previous?.muscle_mass_kg && latest?.muscle_mass_kg
-    ? Math.round((latest.muscle_mass_kg - previous.muscle_mass_kg) * 10) / 10
-    : null;
-
-  // Latest photo for thumbnail
-  const latestPhoto = photos.length > 0
-    ? photos.reduce((a, b) => a.photo_date > b.photo_date ? a : b)
-    : null;
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
@@ -880,277 +846,16 @@ export default function StudentPortalPTView({
 
         {/* ═══════════════════════════════════════════════════════════════════
             ZONA 4 — TU EVOLUCIÓN
-            Métricas secundarias + mini gráfico + foto de progreso thumbnail.
+            Componente dedicado: métricas + sparkline + PR + fotos antes/después.
         ═══════════════════════════════════════════════════════════════════ */}
-        {latest && (
-          <div className={`${card} overflow-hidden shadow-md shadow-slate-900/[0.04] dark:shadow-black/20`}>
-            <div className="px-4 pt-4 pb-3">
-              <p className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3">Tu evolución</p>
-
-              {/* Compact metric cards */}
-              <div className="grid grid-cols-3 gap-2">
-                {(() => {
-                  const weightBg = weightDiff === null || weightDiff === 0
-                    ? subtleBg
-                    : weightDiff < 0
-                      ? "bg-emerald-500/[0.07] dark:bg-emerald-500/[0.12]"
-                      : "bg-rose-500/[0.07] dark:bg-rose-500/[0.12]";
-                  return (
-                    <div className={`p-2.5 rounded-xl ${weightBg} text-center`}>
-                      <p className="text-base font-black text-slate-900 dark:text-white leading-tight">{latest.weight_kg ?? "—"}</p>
-                      <p className="text-[10px] text-slate-400 dark:text-slate-600">kg</p>
-                      {weightDiff !== null && weightDiff !== 0 && (
-                        <div className={`flex items-center justify-center gap-0.5 mt-0.5 text-[10px] font-bold ${
-                          weightDiff < 0 ? "text-emerald-500" : "text-rose-500"
-                        }`}>
-                          {weightDiff < 0 ? <TrendingDown size={9} /> : <TrendingUp size={9} />}
-                          {weightDiff > 0 ? "+" : ""}{weightDiff}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
-
-                {(() => {
-                  const fatBg = fatDiff === null || fatDiff === 0
-                    ? subtleBg
-                    : fatDiff < 0
-                      ? "bg-emerald-500/[0.07] dark:bg-emerald-500/[0.12]"
-                      : "bg-rose-500/[0.07] dark:bg-rose-500/[0.12]";
-                  return (
-                    <div className={`p-2.5 rounded-xl ${fatBg} text-center`}>
-                      <p className="text-base font-black text-slate-900 dark:text-white leading-tight">{latest.body_fat_pct ?? "—"}</p>
-                      <p className="text-[10px] text-slate-400 dark:text-slate-600">% grasa</p>
-                      {fatDiff !== null && fatDiff !== 0 && (
-                        <div className={`flex items-center justify-center gap-0.5 mt-0.5 text-[10px] font-bold ${
-                          fatDiff < 0 ? "text-emerald-500" : "text-rose-500"
-                        }`}>
-                          {fatDiff < 0 ? <TrendingDown size={9} /> : <TrendingUp size={9} />}
-                          {fatDiff > 0 ? "+" : ""}{fatDiff}%
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
-
-                {(() => {
-                  const muscleBg = muscleDiff === null || muscleDiff === 0
-                    ? subtleBg
-                    : muscleDiff > 0
-                      ? "bg-emerald-500/[0.07] dark:bg-emerald-500/[0.12]"
-                      : "bg-rose-500/[0.07] dark:bg-rose-500/[0.12]";
-                  return (
-                    <div className={`p-2.5 rounded-xl ${muscleBg} text-center`}>
-                      <p className="text-base font-black text-slate-900 dark:text-white leading-tight">{latest.muscle_mass_kg ?? "—"}</p>
-                      <p className="text-[10px] text-slate-400 dark:text-slate-600">kg músc.</p>
-                      {muscleDiff !== null && muscleDiff !== 0 && (
-                        <div className={`flex items-center justify-center gap-0.5 mt-0.5 text-[10px] font-bold ${
-                          muscleDiff > 0 ? "text-emerald-500" : "text-rose-500"
-                        }`}>
-                          {muscleDiff > 0 ? <TrendingUp size={9} /> : <TrendingDown size={9} />}
-                          {muscleDiff > 0 ? "+" : ""}{muscleDiff}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
-              </div>
-
-              {/* IMC inline */}
-              {latest.bmi && (
-                <div className="flex items-center justify-center gap-2 mt-2">
-                  <span className="text-[10px] text-slate-400">IMC</span>
-                  <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
-                    latest.bmi < 18.5 ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" :
-                    latest.bmi < 25 ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" :
-                    latest.bmi < 30 ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" :
-                    "bg-rose-500/10 text-rose-600 dark:text-rose-400"
-                  }`}>
-                    {latest.bmi} {latest.bmi < 18.5 ? "Bajo peso" : latest.bmi < 25 ? "Normal" : latest.bmi < 30 ? "Sobrepeso" : "Obesidad"}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* Mini evolution chart (clickable to expand) */}
-            {chartData.length >= 2 && (
-              <div className={`border-t ${cardBorder}`}>
-                <button
-                  onClick={() => setShowEvolutionChart(v => !v)}
-                  className="w-full px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
-                >
-                  {!showEvolutionChart ? (
-                    <div className="flex items-center gap-3">
-                      <div className="flex-1 overflow-hidden">
-                        <svg viewBox={`0 0 200 40`} className="w-full h-8">
-                          <polyline
-                            points={chartData.map((_, i) => {
-                              const x = (i / (chartData.length - 1)) * 200;
-                              const y = 38 - ((weights[i] - minW) / wRange) * 34;
-                              return `${x},${y}`;
-                            }).join(" ")}
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            className="text-violet-400"
-                          />
-                          {chartData.map((_, i) => {
-                            const x = (i / (chartData.length - 1)) * 200;
-                            const y = 38 - ((weights[i] - minW) / wRange) * 34;
-                            return <circle key={i} cx={x} cy={y} r="2" className="fill-violet-500" />;
-                          })}
-                        </svg>
-                      </div>
-                      <ChevronRight size={14} className="text-slate-400 shrink-0" />
-                    </div>
-                  ) : (
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Evolución de peso</p>
-                        <ChevronRight size={14} className="text-slate-400 rotate-90" />
-                      </div>
-                      <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-3">
-                        <svg viewBox="0 0 300 120" className="w-full h-auto">
-                          {[0, 0.25, 0.5, 0.75, 1].map((pct) => (
-                            <line
-                              key={pct}
-                              x1="30" y1={10 + (1 - pct) * 90}
-                              x2="290" y2={10 + (1 - pct) * 90}
-                              stroke="currentColor"
-                              strokeWidth="0.5"
-                              className="text-slate-200 dark:text-slate-700"
-                            />
-                          ))}
-                          {[0, 0.5, 1].map((pct) => (
-                            <text
-                              key={pct}
-                              x="27" y={10 + (1 - pct) * 90 + 3}
-                              textAnchor="end"
-                              className="fill-slate-400 dark:fill-slate-500"
-                              fontSize="8"
-                            >
-                              {Math.round(minW + pct * wRange)}
-                            </text>
-                          ))}
-                          <path
-                            d={`M${chartData.map((_, i) => {
-                              const x = 30 + (i / (chartData.length - 1)) * 260;
-                              const y = 10 + (1 - (weights[i] - minW) / wRange) * 90;
-                              return `${x},${y}`;
-                            }).join(" L")} L${30 + 260},100 L30,100 Z`}
-                            className="fill-violet-500/10"
-                          />
-                          <polyline
-                            points={chartData.map((_, i) => {
-                              const x = 30 + (i / (chartData.length - 1)) * 260;
-                              const y = 10 + (1 - (weights[i] - minW) / wRange) * 90;
-                              return `${x},${y}`;
-                            }).join(" ")}
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            className="text-violet-400"
-                          />
-                          {chartData.map((entry, i) => {
-                            const x = 30 + (i / (chartData.length - 1)) * 260;
-                            const y = 10 + (1 - (weights[i] - minW) / wRange) * 90;
-                            return (
-                              <g key={entry.id}>
-                                <circle cx={x} cy={y} r="3.5" className="fill-violet-500" />
-                                <circle cx={x} cy={y} r="2" className="fill-white dark:fill-slate-800" />
-                                {(i === 0 || i === chartData.length - 1) && (
-                                  <text
-                                    x={x} y={y - 8}
-                                    textAnchor="middle"
-                                    className="fill-slate-600 dark:fill-slate-300"
-                                    fontSize="8"
-                                    fontWeight="bold"
-                                  >
-                                    {weights[i]}
-                                  </text>
-                                )}
-                              </g>
-                            );
-                          })}
-                          {chartData.map((entry, i) => {
-                            if (chartData.length > 5 && i % 2 !== 0 && i !== chartData.length - 1) return null;
-                            const x = 30 + (i / (chartData.length - 1)) * 260;
-                            const d = new Date(entry.measured_at + "T12:00:00");
-                            return (
-                              <text
-                                key={entry.id + "_label"}
-                                x={x} y={112}
-                                textAnchor="middle"
-                                className="fill-slate-400 dark:fill-slate-500"
-                                fontSize="7"
-                              >
-                                {d.toLocaleDateString("es-AR", { day: "numeric", month: "short" })}
-                              </text>
-                            );
-                          })}
-                        </svg>
-                      </div>
-                    </div>
-                  )}
-                </button>
-              </div>
-            )}
-
-            {/* Progress photo thumbnail */}
-            {latestPhoto && (() => {
-              const secondPhoto = photos.length >= 2
-                ? photos.filter(p => p.id !== latestPhoto.id).reduce((a, b) => a.photo_date > b.photo_date ? a : b)
-                : null;
-              return (
-                <div className={`border-t ${cardBorder} px-4 py-3`}>
-                  <div className="flex items-center gap-4">
-                    {/* Photo stack */}
-                    <div
-                      className="relative shrink-0 cursor-pointer"
-                      onClick={() => setFullscreenPhoto(latestPhoto)}
-                      style={{ width: 56, height: 72 }}
-                    >
-                      {/* Second photo peeking behind */}
-                      {secondPhoto && (
-                        <div className="absolute top-0.5 left-1.5 w-full h-full rounded-xl overflow-hidden ring-1 ring-slate-200/50 dark:ring-slate-700/50 opacity-60 rotate-3">
-                          <img
-                            src={secondPhoto.photo_url}
-                            alt=""
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                      )}
-                      {/* Main photo */}
-                      <div className="relative w-full h-full rounded-xl overflow-hidden shadow-lg shadow-slate-900/10 dark:shadow-black/30 ring-1 ring-white/80 dark:ring-slate-700 -rotate-1">
-                        <img
-                          src={latestPhoto.photo_url}
-                          alt={ANGLE_LABELS[latestPhoto.angle]}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold text-slate-900 dark:text-white">Última foto</p>
-                      <p className="text-[10px] text-slate-400">
-                        {new Date(latestPhoto.photo_date).toLocaleDateString("es-AR", { day: "numeric", month: "short" })}
-                        {" · "}{ANGLE_LABELS[latestPhoto.angle]}
-                      </p>
-                    </div>
-                    <span className="text-[10px] text-slate-400">{photos.length} foto{photos.length !== 1 ? "s" : ""}</span>
-                  </div>
-                </div>
-              );
-            })()}
-
-            <p className="text-[10px] text-slate-400 dark:text-slate-600 text-center pb-3">
-              Última medición: {new Date(latest.measured_at + "T12:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric" })}
-            </p>
-          </div>
-        )}
+        <EvolutionSection
+          studentId={student?.id}
+          anthropometry={anthropometry}
+          goals={goals}
+          photos={photos}
+          onPhotoClick={(photo) => setFullscreenPhoto(photo)}
+          onCompareClick={() => { setCompareMode(true); setCompareA(null); setCompareB(null); }}
+        />
 
         {/* ═══════════════════════════════════════════════════════════════════
             ZONA 5 — CARDS SECUNDARIOS (colapsados por defecto)
