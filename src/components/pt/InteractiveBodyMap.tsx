@@ -10,14 +10,14 @@ interface MeasurementZone {
   fields: { key: keyof ClientMeasurement; label: string }[];
 }
 
-const ZONE_MAP: MeasurementZone[] = [
+// Anterior (front) muscle → measurement mapping
+const ANTERIOR_MAP: MeasurementZone[] = [
   { muscle: 'neck', label: 'Cuello', fields: [{ key: 'neck_cm', label: 'Cuello' }] },
   { muscle: 'trapezius', label: 'Hombros', fields: [{ key: 'shoulders_cm', label: 'Hombros' }] },
   { muscle: 'front-deltoids', label: 'Hombros', fields: [{ key: 'shoulders_cm', label: 'Hombros' }] },
   { muscle: 'chest', label: 'Pecho', fields: [{ key: 'chest_cm', label: 'Pecho' }] },
   { muscle: 'abs', label: 'Cintura', fields: [{ key: 'waist_cm', label: 'Cintura' }] },
   { muscle: 'obliques', label: 'Cintura', fields: [{ key: 'waist_cm', label: 'Cintura' }] },
-  { muscle: 'gluteal', label: 'Cadera', fields: [{ key: 'hips_cm', label: 'Cadera' }] },
   { muscle: 'adductor', label: 'Cadera', fields: [{ key: 'hips_cm', label: 'Cadera' }] },
   {
     muscle: 'biceps', label: 'Bíceps',
@@ -42,8 +42,41 @@ const ZONE_MAP: MeasurementZone[] = [
   },
 ];
 
+// Posterior (back) muscle → measurement mapping
+const POSTERIOR_MAP: MeasurementZone[] = [
+  { muscle: 'trapezius', label: 'Hombros', fields: [{ key: 'shoulders_cm', label: 'Hombros' }] },
+  { muscle: 'back-deltoids', label: 'Hombros', fields: [{ key: 'shoulders_cm', label: 'Hombros' }] },
+  { muscle: 'upper-back', label: 'Pecho', fields: [{ key: 'chest_cm', label: 'Pecho' }] },
+  { muscle: 'lower-back', label: 'Cintura', fields: [{ key: 'waist_cm', label: 'Cintura' }] },
+  { muscle: 'gluteal', label: 'Cadera', fields: [{ key: 'hips_cm', label: 'Cadera' }] },
+  {
+    muscle: 'triceps', label: 'Bíceps',
+    fields: [
+      { key: 'bicep_l_cm', label: 'Izquierdo' },
+      { key: 'bicep_r_cm', label: 'Derecho' },
+    ],
+  },
+  {
+    muscle: 'hamstring', label: 'Muslos',
+    fields: [
+      { key: 'thigh_l_cm', label: 'Izquierdo' },
+      { key: 'thigh_r_cm', label: 'Derecho' },
+    ],
+  },
+  {
+    muscle: 'calves', label: 'Gemelos',
+    fields: [
+      { key: 'calf_l_cm', label: 'Izquierdo' },
+      { key: 'calf_r_cm', label: 'Derecho' },
+    ],
+  },
+];
+
+// All zones combined for lookup
+const ALL_ZONES = [...ANTERIOR_MAP, ...POSTERIOR_MAP];
+
 // Unique zones for the summary chips (deduplicated by label)
-const UNIQUE_ZONES = ZONE_MAP.filter((z, i, arr) =>
+const UNIQUE_ZONES = ALL_ZONES.filter((z, i, arr) =>
   arr.findIndex(x => x.label === z.label) === i
 );
 
@@ -68,17 +101,17 @@ export const InteractiveBodyMap: React.FC<InteractiveBodyMapProps> = ({ latest, 
     return Math.round((curr - prev) * 10) / 10;
   };
 
-  // Build data array for the model — highlight muscles that have measurement data
-  const modelData = ZONE_MAP
-    .filter(zone => zone.fields.some(f => getValue(f.key) != null))
-    .map(zone => ({
-      name: zone.label,
-      muscles: [zone.muscle],
-      frequency: activeZone?.label === zone.label ? 2 : 1,
-    }));
+  const buildModelData = (zoneMap: MeasurementZone[]) =>
+    zoneMap
+      .filter(zone => zone.fields.some(f => getValue(f.key) != null))
+      .map(zone => ({
+        name: zone.label,
+        muscles: [zone.muscle],
+        frequency: activeZone?.label === zone.label ? 2 : 1,
+      }));
 
   const handleClick = useCallback(({ muscle }: { muscle: string }) => {
-    const zone = ZONE_MAP.find(z => z.muscle === muscle);
+    const zone = ALL_ZONES.find(z => z.muscle === muscle);
     if (!zone) return;
     setActiveZone(prev => prev?.label === zone.label ? null : zone);
   }, []);
@@ -139,12 +172,24 @@ export const InteractiveBodyMap: React.FC<InteractiveBodyMapProps> = ({ latest, 
         )}
       </div>
 
-      {/* Body Model */}
-      <div className="flex justify-center">
-        <div style={{ maxWidth: 260 }}>
+      {/* Body Models — Front & Back side by side */}
+      <div className="flex justify-center gap-2">
+        <div className="flex-1 text-center">
+          <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Frente</p>
           <Model
             type="anterior"
-            data={modelData}
+            data={buildModelData(ANTERIOR_MAP)}
+            onClick={handleClick}
+            bodyColor="#e2e0f0"
+            highlightedColors={['#a78bfa', '#8b5cf6']}
+            style={{ width: '100%' }}
+          />
+        </div>
+        <div className="flex-1 text-center">
+          <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Espalda</p>
+          <Model
+            type="posterior"
+            data={buildModelData(POSTERIOR_MAP)}
             onClick={handleClick}
             bodyColor="#e2e0f0"
             highlightedColors={['#a78bfa', '#8b5cf6']}
