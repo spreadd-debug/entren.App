@@ -188,6 +188,13 @@ export interface WorkoutSession {
   session_date: string;   // "YYYY-MM-DD"
   completed_at: string | null;
   created_at: string;
+  // PT session tracking fields
+  started_at: string | null;
+  finished_at: string | null;
+  duration_minutes: number | null;
+  total_volume: number | null;
+  pt_notes: string | null;
+  status: 'in_progress' | 'completed';
 }
 
 /** Estado de un ejercicio dentro de una sesión (checklist) */
@@ -206,6 +213,20 @@ export interface WorkoutSessionExercise {
   notes: string | null;
   video_url: string | null;
   exercise_order: number;
+}
+
+/** Registro de una serie dentro de un ejercicio de sesión */
+export interface SessionSet {
+  id: string;
+  session_exercise_id: string;
+  set_number: number;
+  weight_kg: number | null;
+  reps_done: number | null;
+  rpe: number | null;
+  rir: number | null;
+  completed: boolean;
+  notes: string | null;
+  created_at: string;
 }
 
 /** Solicitud del alumno para que el profe actualice su rutina */
@@ -280,6 +301,56 @@ export interface SessionNote {
   note_date: string;
   content: string;
   category: NoteCategory | null;
+  created_at: string;
+}
+
+// ─── Nutrition Plans ────────────────────────────────────────────────────────
+
+export type NutritionPlanStatus = 'active' | 'archived';
+export type MealLabel = 'Desayuno' | 'Almuerzo' | 'Merienda' | 'Cena' | 'Snack';
+
+export interface NutritionPlan {
+  id: string;
+  gym_id: string;
+  student_id: string;
+  title: string;
+  description: string | null;
+  calories_target: number | null;
+  protein_g: number | null;
+  carbs_g: number | null;
+  fat_g: number | null;
+  status: NutritionPlanStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NutritionItem {
+  id: string;
+  plan_id: string;
+  meal_label: MealLabel;
+  food_name: string;
+  portion: string | null;
+  calories: number | null;
+  protein_g: number | null;
+  carbs_g: number | null;
+  fat_g: number | null;
+  notes: string | null;
+  item_order: number;
+  created_at: string;
+}
+
+// ─── Wellness Check-in ──────────────────────────────────────────────────────
+
+export interface WellnessCheckIn {
+  id: string;
+  gym_id: string;
+  student_id: string;
+  checkin_date: string;    // "YYYY-MM-DD"
+  energy: number;          // 1-5
+  sleep_quality: number;   // 1-5
+  mood: number;            // 1-5
+  soreness: number;        // 1-5
+  notes: string | null;
   created_at: string;
 }
 

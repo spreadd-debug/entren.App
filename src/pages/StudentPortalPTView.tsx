@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dumbbell,
   Image,
@@ -19,6 +19,10 @@ import {
   MessageSquare,
   Flame,
   Coffee,
+  Moon,
+  Smile,
+  AlertTriangle,
+  Heart,
 } from "lucide-react";
 import { ExerciseVideoModal } from "../components/ExerciseVideoModal";
 import {
@@ -30,7 +34,12 @@ import {
   ClientGoal,
   SessionNote,
   NoteCategory,
+  WellnessCheckIn,
+  NutritionItem,
+  MealLabel,
 } from "../../shared/types";
+import { WellnessCheckInService } from "../services/pt/WellnessCheckInService";
+import { NutritionPlanService, NutritionPlanWithItems } from "../services/pt/NutritionPlanService";
 
 const DAY_NAMES = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 
@@ -53,6 +62,9 @@ export interface StudentPortalPTViewProps {
     session_date: string;
     completed_at: string | null;
     plan_name: string;
+    duration_minutes?: number | null;
+    total_volume?: number | null;
+    pt_notes?: string | null;
   }>;
   anthropometry: ClientAnthropometry[];
   measurements: ClientMeasurement[];
@@ -107,6 +119,40 @@ const goalColors: Record<string, string> = {
   other: "bg-slate-500/10 text-slate-600 dark:text-slate-400",
 };
 
+// ─── Wellness Slider ──────────────────────────────────────────────────────────
+
+function WellnessSlider({ label, emojis, value, onChange }: {
+  label: string;
+  emojis: string[];
+  value: number;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <div>
+      <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">{label}</p>
+      <div className="flex items-center justify-between gap-1">
+        {emojis.map((emoji, i) => {
+          const v = i + 1;
+          const selected = value === v;
+          return (
+            <button
+              key={v}
+              onClick={() => onChange(v)}
+              className={`flex-1 py-2 rounded-xl text-center text-lg transition-all ${
+                selected
+                  ? 'bg-violet-500/20 ring-2 ring-violet-500 scale-110'
+                  : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700'
+              }`}
+            >
+              {emoji}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── Component ─────────────────────────────────────────────────────────────────
 
 export default function StudentPortalPTView({
@@ -132,6 +178,52 @@ export default function StudentPortalPTView({
     exerciseName: string;
     videoUrl: string;
   }>({ isOpen: false, exerciseName: "", videoUrl: "" });
+
+  // Nutrition state
+  const [nutritionPlan, setNutritionPlan] = useState<NutritionPlanWithItems | null>(null);
+  const [nutritionOpen, setNutritionOpen] = useState(false);
+  const [nutritionLoaded, setNutritionLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!student?.id) return;
+    NutritionPlanService.getActivePlan(student.id)
+      .then(setNutritionPlan)
+      .catch(() => {})
+      .finally(() => setNutritionLoaded(true));
+  }, [student?.id]);
+
+  // Wellness check-in state
+  const [wellnessOpen, setWellnessOpen] = useState(false);
+  const [wellnessToday, setWellnessToday] = useState<WellnessCheckIn | null>(null);
+  const [wellnessForm, setWellnessForm] = useState({ energy: 3, sleep_quality: 3, mood: 3, soreness: 1, notes: '' });
+  const [wellnessSaving, setWellnessSaving] = useState(false);
+  const [wellnessLoaded, setWellnessLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!student?.id) return;
+    WellnessCheckInService.getToday(student.id)
+      .then((ci) => {
+        setWellnessToday(ci);
+        if (ci) setWellnessForm({ energy: ci.energy, sleep_quality: ci.sleep_quality, mood: ci.mood, soreness: ci.soreness, notes: ci.notes ?? '' });
+      })
+      .catch(() => {})
+      .finally(() => setWellnessLoaded(true));
+  }, [student?.id]);
+
+  const handleWellnessSave = async () => {
+    if (!student?.id || !student?.gym_id) return;
+    setWellnessSaving(true);
+    try {
+      const saved = await WellnessCheckInService.saveToday({
+        gym_id: student.gym_id,
+        student_id: student.id,
+        ...wellnessForm,
+      });
+      setWellnessToday(saved);
+      setWellnessOpen(false);
+    } catch { /* ignore */ }
+    setWellnessSaving(false);
+  };
 
   const studentName =
     student?.name ??
@@ -745,6 +837,182 @@ export default function StudentPortalPTView({
           )}
         </div>
 
+        {/* ── Plan Nutricional ──────────────────────────────────────────── */}
+        {nutritionLoaded && nutritionPlan && (
+          <div className={`${card} overflow-hidden`}>
+            <button
+              onClick={() => setNutritionOpen((v) => !v)}
+              className="w-full px-4 py-3.5 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+            >
+              <div className="p-2.5 rounded-xl bg-violet-500/10 shrink-0">
+                <Coffee size={16} className="text-violet-500" />
+              </div>
+              <div className="flex-1 text-left">
+                <p className="text-sm font-bold text-slate-900 dark:text-white">{nutritionPlan.title}</p>
+                <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
+                  {nutritionPlan.calories_target ? `${nutritionPlan.calories_target} kcal` : 'Plan nutricional'}
+                  {nutritionPlan.protein_g ? ` · ${nutritionPlan.protein_g}g P` : ''}
+                </p>
+              </div>
+              <ChevronRight
+                size={16}
+                className={`text-slate-400 dark:text-slate-600 transition-transform ${nutritionOpen ? "rotate-90" : ""}`}
+              />
+            </button>
+
+            {nutritionOpen && (
+              <div className="px-4 pb-4 space-y-3">
+                {/* Macro targets */}
+                {(nutritionPlan.calories_target || nutritionPlan.protein_g || nutritionPlan.carbs_g || nutritionPlan.fat_g) && (
+                  <div className="grid grid-cols-4 gap-2">
+                    {nutritionPlan.calories_target && (
+                      <div className="text-center p-2 rounded-xl bg-orange-500/10">
+                        <p className="text-xs font-bold text-slate-900 dark:text-white">{nutritionPlan.calories_target}</p>
+                        <p className="text-[10px] text-orange-500">kcal</p>
+                      </div>
+                    )}
+                    {nutritionPlan.protein_g && (
+                      <div className="text-center p-2 rounded-xl bg-rose-500/10">
+                        <p className="text-xs font-bold text-slate-900 dark:text-white">{nutritionPlan.protein_g}g</p>
+                        <p className="text-[10px] text-rose-500">proteína</p>
+                      </div>
+                    )}
+                    {nutritionPlan.carbs_g && (
+                      <div className="text-center p-2 rounded-xl bg-amber-500/10">
+                        <p className="text-xs font-bold text-slate-900 dark:text-white">{nutritionPlan.carbs_g}g</p>
+                        <p className="text-[10px] text-amber-500">carbos</p>
+                      </div>
+                    )}
+                    {nutritionPlan.fat_g && (
+                      <div className="text-center p-2 rounded-xl bg-cyan-500/10">
+                        <p className="text-xs font-bold text-slate-900 dark:text-white">{nutritionPlan.fat_g}g</p>
+                        <p className="text-[10px] text-cyan-500">grasas</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {nutritionPlan.description && (
+                  <p className="text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 rounded-xl p-3">
+                    {nutritionPlan.description}
+                  </p>
+                )}
+
+                {/* Meals */}
+                {(['Desayuno', 'Almuerzo', 'Merienda', 'Cena', 'Snack'] as const).map((meal) => {
+                  const items = nutritionPlan.items.filter((i) => i.meal_label === meal);
+                  if (items.length === 0) return null;
+                  const mealEmoji: Record<string, string> = { Desayuno: '🌅', Almuerzo: '🍽️', Merienda: '☕', Cena: '🌙', Snack: '🍎' };
+                  return (
+                    <div key={meal}>
+                      <p className="text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5">
+                        {mealEmoji[meal]} {meal}
+                      </p>
+                      <div className="space-y-1">
+                        {items.map((item) => (
+                          <div key={item.id} className="bg-slate-50 dark:bg-slate-800 rounded-xl px-3 py-2">
+                            <p className="text-sm text-slate-900 dark:text-white font-medium">{item.food_name}</p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              {item.portion && <span className="text-[10px] text-slate-400">{item.portion}</span>}
+                              {item.calories && <span className="text-[10px] text-orange-500 font-medium">{item.calories} kcal</span>}
+                              {item.protein_g && <span className="text-[10px] text-rose-500 font-medium">{item.protein_g}g P</span>}
+                            </div>
+                            {item.notes && <p className="text-[10px] text-slate-400 mt-0.5">{item.notes}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Check-in de Bienestar ─────────────────────────────────────── */}
+        {wellnessLoaded && (
+          <div className={`${card} overflow-hidden`}>
+            <button
+              onClick={() => setWellnessOpen((v) => !v)}
+              className="w-full px-4 py-3.5 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+            >
+              <div className="p-2.5 rounded-xl bg-violet-500/10 shrink-0">
+                <Heart size={16} className="text-violet-500" />
+              </div>
+              <div className="flex-1 text-left">
+                <p className="text-sm font-bold text-slate-900 dark:text-white">
+                  {wellnessToday ? 'Check-in de hoy' : '¿Cómo te sentís hoy?'}
+                </p>
+                {wellnessToday && (
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
+                    {['😴','😑','😐','😊','⚡'][wellnessToday.energy - 1]}{' '}
+                    {['😫','😕','😐','😌','😴'][wellnessToday.sleep_quality - 1]}{' '}
+                    {['😢','😟','😐','🙂','😄'][wellnessToday.mood - 1]}{' '}
+                    {['✅','🟡','😐','😣','🔴'][wellnessToday.soreness - 1]}
+                    {' · Tocá para editar'}
+                  </p>
+                )}
+              </div>
+              <ChevronRight
+                size={16}
+                className={`text-slate-400 dark:text-slate-600 transition-transform ${wellnessOpen ? "rotate-90" : ""}`}
+              />
+            </button>
+
+            {wellnessOpen && (
+              <div className="px-4 pb-4 space-y-4">
+                {/* Energy */}
+                <WellnessSlider
+                  label="Energía"
+                  emojis={['😴','😑','😐','😊','⚡']}
+                  value={wellnessForm.energy}
+                  onChange={(v) => setWellnessForm((f) => ({ ...f, energy: v }))}
+                />
+                {/* Sleep */}
+                <WellnessSlider
+                  label="Sueño"
+                  emojis={['😫','😕','😐','😌','😴']}
+                  value={wellnessForm.sleep_quality}
+                  onChange={(v) => setWellnessForm((f) => ({ ...f, sleep_quality: v }))}
+                />
+                {/* Mood */}
+                <WellnessSlider
+                  label="Ánimo"
+                  emojis={['😢','😟','😐','🙂','😄']}
+                  value={wellnessForm.mood}
+                  onChange={(v) => setWellnessForm((f) => ({ ...f, mood: v }))}
+                />
+                {/* Soreness */}
+                <WellnessSlider
+                  label="Dolor muscular"
+                  emojis={['✅','🟡','😐','😣','🔴']}
+                  value={wellnessForm.soreness}
+                  onChange={(v) => setWellnessForm((f) => ({ ...f, soreness: v }))}
+                />
+                {/* Notes */}
+                <div>
+                  <label className="text-xs text-slate-500 dark:text-slate-400 mb-1 block">Nota (opcional)</label>
+                  <textarea
+                    value={wellnessForm.notes}
+                    onChange={(e) => setWellnessForm((f) => ({ ...f, notes: e.target.value }))}
+                    placeholder="Dormí mal, me duele la rodilla..."
+                    rows={2}
+                    className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500/40 resize-none"
+                  />
+                </div>
+                {/* Save button */}
+                <button
+                  onClick={handleWellnessSave}
+                  disabled={wellnessSaving}
+                  className="w-full py-3 bg-violet-500 hover:bg-violet-600 active:bg-violet-700 text-white rounded-xl font-bold text-sm transition-all active:scale-[0.98] disabled:opacity-50"
+                >
+                  {wellnessSaving ? 'Guardando...' : wellnessToday ? 'Actualizar check-in' : 'Guardar check-in'}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ── Historial de sesiones ─────────────────────────────────────── */}
         <div className={`${card} overflow-hidden`}>
           <button
@@ -785,27 +1053,50 @@ export default function StudentPortalPTView({
                     const isCompleted = !!session.completed_at;
                     const dayName = date.toLocaleDateString("es-AR", { weekday: "short" });
                     const dateStr = date.toLocaleDateString("es-AR", { day: "numeric", month: "short" });
+                    const vol = session.total_volume ? Number(session.total_volume) : 0;
+                    const dur = session.duration_minutes ?? 0;
                     return (
-                      <div key={session.id} className="px-4 py-3 flex items-center gap-3">
-                        <div className={`shrink-0 w-8 h-8 rounded-xl flex items-center justify-center ${
-                          isCompleted ? "bg-emerald-500/10" : "bg-slate-100 dark:bg-slate-800"
-                        }`}>
-                          {isCompleted
-                            ? <CheckCircle2 size={15} className="text-emerald-500" />
-                            : <Circle size={15} className="text-slate-400 dark:text-slate-600" />
-                          }
+                      <div key={session.id} className="px-4 py-3 space-y-1.5">
+                        <div className="flex items-center gap-3">
+                          <div className={`shrink-0 w-8 h-8 rounded-xl flex items-center justify-center ${
+                            isCompleted ? "bg-emerald-500/10" : "bg-slate-100 dark:bg-slate-800"
+                          }`}>
+                            {isCompleted
+                              ? <CheckCircle2 size={15} className="text-emerald-500" />
+                              : <Circle size={15} className="text-slate-400 dark:text-slate-600" />
+                            }
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{session.plan_name}</p>
+                            <p className="text-xs text-slate-400 dark:text-slate-500 capitalize">{dayName} {dateStr}</p>
+                          </div>
+                          <span className={`shrink-0 text-xs font-bold px-2 py-0.5 rounded-lg ${
+                            isCompleted
+                              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                              : "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500"
+                          }`}>
+                            {isCompleted ? "Completa" : "Parcial"}
+                          </span>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{session.plan_name}</p>
-                          <p className="text-xs text-slate-400 dark:text-slate-500 capitalize">{dayName} {dateStr}</p>
-                        </div>
-                        <span className={`shrink-0 text-xs font-bold px-2 py-0.5 rounded-lg ${
-                          isCompleted
-                            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                            : "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500"
-                        }`}>
-                          {isCompleted ? "Completa" : "Parcial"}
-                        </span>
+                        {(vol > 0 || dur > 0) && (
+                          <div className="ml-11 flex gap-3">
+                            {dur > 0 && (
+                              <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                                {dur} min
+                              </span>
+                            )}
+                            {vol > 0 && (
+                              <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                                {vol >= 1000 ? `${(vol / 1000).toFixed(1)}t` : `${Math.round(vol)}kg`} vol.
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        {session.pt_notes && (
+                          <p className="ml-11 text-[11px] text-violet-500 dark:text-violet-400 italic line-clamp-2">
+                            "{session.pt_notes}"
+                          </p>
+                        )}
                       </div>
                     );
                   })}

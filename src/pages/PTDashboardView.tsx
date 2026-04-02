@@ -10,11 +10,15 @@ import {
   AlertTriangle,
   Activity,
   Clock,
+  Heart,
+  TrendingUp,
+  BarChart3,
 } from 'lucide-react';
 import { Card, Button } from '../components/UI';
 import { Student } from '../../shared/types';
 import { WorkoutSessionService } from '../services/WorkoutSessionService';
 import { GoalsService } from '../services/pt/GoalsService';
+import { WellnessCheckInService } from '../services/pt/WellnessCheckInService';
 
 interface PTDashboardViewProps {
   onNavigate: (view: string) => void;
@@ -41,6 +45,9 @@ export const PTDashboardView: React.FC<PTDashboardViewProps> = ({
 
   const [inactiveClients, setInactiveClients] = useState<Array<{ student: any; daysSince: number }>>([]);
   const [upcomingGoals, setUpcomingGoals] = useState<Array<{ studentName: string; studentId: string; goalType: string; targetDate: string; targetValue: string | null }>>([]);
+  const [wellnessAlerts, setWellnessAlerts] = useState<Array<{ student: any; metric: string; label: string; value: number; emoji: string }>>([]);
+  const [avgAdherence, setAvgAdherence] = useState<number | null>(null);
+  const [sessionsThisWeek, setSessionsThisWeek] = useState<number | null>(null);
   const [loadingInsights, setLoadingInsights] = useState(true);
 
   const normalizedStudents = safeStudents.map((s: any) => {
@@ -76,12 +83,17 @@ export const PTDashboardView: React.FC<PTDashboardViewProps> = ({
       // Find clients with no sessions in 7+ days
       const inactiveList: Array<{ student: any; daysSince: number }> = [];
       const goalsList: Array<{ studentName: string; studentId: string; goalType: string; targetDate: string; targetValue: string | null }> = [];
+      const wellnessList: Array<{ student: any; metric: string; label: string; value: number; emoji: string }> = [];
+      const adherenceValues: number[] = [];
+      let weekSessions = 0;
 
       const promises = activeStudents.map(async (student: any) => {
         try {
-          const [adherence, goals] = await Promise.allSettled([
+          const [adherence, goals, wellness, recentSessions] = await Promise.allSettled([
             WorkoutSessionService.getAdherenceStats(student.id, 7),
             GoalsService.getByStudent(student.id),
+            WellnessCheckInService.getAverages(student.id, 3),
+            WorkoutSessionService.getAdherenceStats(student.id, 30),
           ]);
 
           // Check inactivity
@@ -96,6 +108,12 @@ export const PTDashboardView: React.FC<PTDashboardViewProps> = ({
                 inactiveList.push({ student, daysSince: daysDiff });
               }
             }
+            weekSessions += stats.completedSessions;
+          }
+
+          // 30-day adherence for average
+          if (recentSessions.status === 'fulfilled' && recentSessions.value.totalSessions > 0) {
+            adherenceValues.push(recentSessions.value.adherencePercent);
           }
 
           // Check upcoming goals
@@ -115,6 +133,23 @@ export const PTDashboardView: React.FC<PTDashboardViewProps> = ({
               }
             });
           }
+
+          // Check wellness alerts (high soreness or low energy in last 3 days)
+          if (wellness.status === 'fulfilled' && wellness.value.count > 0) {
+            const avg = wellness.value;
+            if (avg.soreness >= 4) {
+              wellnessList.push({ student, metric: 'soreness', label: 'Dolor alto', value: avg.soreness, emoji: '🔴' });
+            }
+            if (avg.energy <= 2) {
+              wellnessList.push({ student, metric: 'energy', label: 'Energía baja', value: avg.energy, emoji: '😴' });
+            }
+            if (avg.mood <= 2) {
+              wellnessList.push({ student, metric: 'mood', label: 'Ánimo bajo', value: avg.mood, emoji: '😟' });
+            }
+            if (avg.sleep_quality <= 2) {
+              wellnessList.push({ student, metric: 'sleep', label: 'Mal sueño', value: avg.sleep_quality, emoji: '😫' });
+            }
+          }
         } catch { /* ignore individual failures */ }
       });
 
@@ -122,9 +157,13 @@ export const PTDashboardView: React.FC<PTDashboardViewProps> = ({
 
       inactiveList.sort((a, b) => b.daysSince - a.daysSince);
       goalsList.sort((a, b) => new Date(a.targetDate).getTime() - new Date(b.targetDate).getTime());
+      wellnessList.sort((a, b) => (b.metric === 'soreness' ? b.value : 6 - b.value) - (a.metric === 'soreness' ? a.value : 6 - a.value));
 
       setInactiveClients(inactiveList);
       setUpcomingGoals(goalsList);
+      setWellnessAlerts(wellnessList);
+      setSessionsThisWeek(weekSessions);
+      setAvgAdherence(adherenceValues.length > 0 ? Math.round(adherenceValues.reduce((a, b) => a + b, 0) / adherenceValues.length) : null);
       setLoadingInsights(false);
     };
 
@@ -200,6 +239,40 @@ export const PTDashboardView: React.FC<PTDashboardViewProps> = ({
             <p className="text-xs text-slate-400 dark:text-slate-600 mt-1.5 font-medium">este mes</p>
           </div>
         </div>
+
+        {avgAdherence !== null && (
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 flex flex-col justify-between gap-4 shadow-sm dark:shadow-none">
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-[0.12em]">Adherencia</p>
+              <div className="p-1.5 rounded-lg bg-cyan-500/10">
+                <TrendingUp size={14} className="text-cyan-500" />
+              </div>
+            </div>
+            <div>
+              <p className={`text-4xl font-black tracking-tight leading-none tabular-nums ${
+                avgAdherence >= 80 ? 'text-emerald-600 dark:text-emerald-400' :
+                avgAdherence >= 50 ? 'text-amber-600 dark:text-amber-400' :
+                'text-rose-600 dark:text-rose-400'
+              }`}>{avgAdherence}%</p>
+              <p className="text-xs text-slate-400 dark:text-slate-600 mt-1.5 font-medium">promedio 30d</p>
+            </div>
+          </div>
+        )}
+
+        {sessionsThisWeek !== null && (
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 flex flex-col justify-between gap-4 shadow-sm dark:shadow-none">
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-[0.12em]">Sesiones</p>
+              <div className="p-1.5 rounded-lg bg-amber-500/10">
+                <BarChart3 size={14} className="text-amber-500" />
+              </div>
+            </div>
+            <div>
+              <p className="text-4xl font-black text-slate-900 dark:text-white tracking-tight leading-none tabular-nums">{sessionsThisWeek}</p>
+              <p className="text-xs text-slate-400 dark:text-slate-600 mt-1.5 font-medium">esta semana</p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Quick Actions ────────────────────────────────────────── */}
@@ -250,6 +323,40 @@ export const PTDashboardView: React.FC<PTDashboardViewProps> = ({
                     <Clock size={10} className="text-amber-500" />
                     <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">
                       {daysSince}+ días sin entrenar
+                    </p>
+                  </div>
+                </div>
+                <ChevronRight size={16} className="text-slate-300 dark:text-slate-700 group-hover:text-slate-500 transition-colors shrink-0" />
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ── Alertas de bienestar ────────────────────────────────── */}
+      {!loadingInsights && wellnessAlerts.length > 0 && (
+        <section className="space-y-3">
+          <div className="flex items-center gap-2 px-0.5">
+            <Heart size={13} className="text-rose-500" />
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white">Alertas de bienestar</h3>
+          </div>
+
+          <div className="space-y-2">
+            {wellnessAlerts.slice(0, 5).map(({ student, metric, label, value, emoji }, i) => (
+              <button
+                key={`${student.id}-${metric}-${i}`}
+                onClick={() => onSelectStudent(student)}
+                className="w-full group flex items-center gap-3 px-4 py-3 bg-white dark:bg-slate-900 rounded-2xl border border-rose-200/60 dark:border-rose-500/20 hover:border-rose-300 dark:hover:border-rose-500/40 transition-all shadow-sm text-left"
+              >
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-sm shrink-0 ${avatarColor(student.displayName)}`}>
+                  {student.firstLetter}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{student.displayName}</p>
+                  <div className="flex items-center gap-1 mt-0.5">
+                    <span className="text-sm">{emoji}</span>
+                    <p className="text-xs text-rose-600 dark:text-rose-400 font-medium">
+                      {label} ({value.toFixed(1)}/5 últimos 3 días)
                     </p>
                   </div>
                 </div>

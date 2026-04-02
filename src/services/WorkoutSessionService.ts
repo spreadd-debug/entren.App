@@ -109,10 +109,13 @@ export const WorkoutSessionService = {
     session_date: string;
     completed_at: string | null;
     plan_name: string;
+    duration_minutes: number | null;
+    total_volume: number | null;
+    pt_notes: string | null;
   }>> {
     const { data } = await supabase
       .from('workout_sessions')
-      .select('id, session_date, completed_at, workout_plans(name)')
+      .select('id, session_date, completed_at, duration_minutes, total_volume, pt_notes, workout_plans(name)')
       .eq('student_id', studentId)
       .order('session_date', { ascending: false })
       .limit(limit);
@@ -122,6 +125,9 @@ export const WorkoutSessionService = {
       session_date: s.session_date,
       completed_at: s.completed_at,
       plan_name: s.workout_plans?.name ?? 'Rutina',
+      duration_minutes: s.duration_minutes ?? null,
+      total_volume: s.total_volume ?? null,
+      pt_notes: s.pt_notes ?? null,
     }));
   },
 

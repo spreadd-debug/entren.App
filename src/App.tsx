@@ -22,6 +22,7 @@ import { PTDashboardView } from './pages/PTDashboardView';
 import { AutomationView } from './pages/AutomationView';
 import WorkoutPlansView from "./pages/WorkoutPlansView";
 import PTCalendarView from './pages/PTCalendarView';
+import PTLiveSessionView from './pages/PTLiveSessionView';
 import { ShiftsView } from './pages/ShiftsView';
 import CheckInView from './pages/CheckInView';
 import { SuperAdminApp } from './pages/SuperAdminApp';
@@ -880,6 +881,25 @@ function PTApp({ gymId, onLogout }: {
             )
           } />
           <Route path="/clients/:studentId" element={<PTStudentDetailRoute />} />
+          <Route path="/clients/:studentId/session" element={
+            (() => {
+              const PTSessionRoute = () => {
+                const { studentId } = useParams<{ studentId: string }>();
+                const student = students.find((s: any) => s.id === studentId) ?? null;
+                if (isLoading) return loadingEl;
+                if (!student) return <Navigate to="/clients" replace />;
+                return (
+                  <PTLiveSessionView
+                    student={student}
+                    gymId={gymId}
+                    onBack={() => navigate(`/clients/${studentId}`)}
+                    onComplete={() => navigate(`/clients/${studentId}`)}
+                  />
+                );
+              };
+              return <PTSessionRoute />;
+            })()
+          } />
           <Route path="/plans" element={
             loadingEl ?? (
               <PlansView

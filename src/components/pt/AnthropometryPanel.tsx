@@ -27,6 +27,7 @@ export const AnthropometryPanel: React.FC<AnthropometryPanelProps> = ({ studentI
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+  const [chartRange, setChartRange] = useState<'3m' | '6m' | '1y' | 'all'>('all');
 
   const load = async () => {
     setLoading(true);
@@ -74,10 +75,20 @@ export const AnthropometryPanel: React.FC<AnthropometryPanelProps> = ({ studentI
     }
   };
 
-  // Chart data (oldest first)
+  // Chart data (oldest first) with date range filter
+  const rangeFilterDate = (() => {
+    if (chartRange === 'all') return null;
+    const d = new Date();
+    if (chartRange === '3m') d.setMonth(d.getMonth() - 3);
+    else if (chartRange === '6m') d.setMonth(d.getMonth() - 6);
+    else if (chartRange === '1y') d.setFullYear(d.getFullYear() - 1);
+    return d;
+  })();
+
   const chartData = [...entries]
     .reverse()
     .filter(e => e.weight_kg !== null)
+    .filter(e => !rangeFilterDate || new Date(e.measured_at) >= rangeFilterDate)
     .map(e => ({
       date: new Date(e.measured_at).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' }),
       peso: e.weight_kg,
@@ -114,9 +125,26 @@ export const AnthropometryPanel: React.FC<AnthropometryPanelProps> = ({ studentI
       {/* Weight Chart */}
       {chartData.length >= 2 && (
         <Card className="p-4">
-          <h4 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3">
-            Evolución de Peso
-          </h4>
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+              Evolución de Peso
+            </h4>
+            <div className="flex gap-1">
+              {(['3m', '6m', '1y', 'all'] as const).map((r) => (
+                <button
+                  key={r}
+                  onClick={() => setChartRange(r)}
+                  className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition-colors ${
+                    chartRange === r
+                      ? 'bg-violet-500/15 text-violet-600 dark:text-violet-400'
+                      : 'text-slate-400 dark:text-slate-600 hover:text-slate-600 dark:hover:text-slate-400'
+                  }`}
+                >
+                  {r === 'all' ? 'Todo' : r.toUpperCase()}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="h-48">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData}>

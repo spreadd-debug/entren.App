@@ -3,9 +3,10 @@ import {
   ArrowLeft, Phone, Edit2, MessageSquare, Trash2, Save, X,
   Dumbbell, PlayCircle, Bell, Plus, CheckCircle2, HeartPulse,
   Ruler, Target, FileText, Activity, KeyRound, Copy, Check, RefreshCw, Share2,
-  TrendingUp, Calendar, Clock,
+  TrendingUp, Calendar, Clock, Apple,
 } from 'lucide-react';
 import { Card, StatusBadge, Button, Input } from '../components/UI';
+import { useNavigate } from 'react-router-dom';
 import { Student, Plan, WorkoutOption, WorkoutUpdateRequest } from '../../shared/types';
 import { api } from '../services/api';
 import { WorkoutPlanService } from '../services/WorkoutPlanService';
@@ -19,10 +20,12 @@ import { AnthropometryPanel } from '../components/pt/AnthropometryPanel';
 import { MeasurementsPanel } from '../components/pt/MeasurementsPanel';
 import { GoalsPanel } from '../components/pt/GoalsPanel';
 import { SessionNotesPanel } from '../components/pt/SessionNotesPanel';
+import { WellnessCheckInPanel } from '../components/pt/WellnessCheckInPanel';
+import { NutritionPlanPanel } from '../components/pt/NutritionPlanPanel';
 
 const DAY_NAMES_SHORT = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
-type Tab = 'overview' | 'anthropometry' | 'measurements' | 'goals' | 'notes' | 'workouts';
+type Tab = 'overview' | 'anthropometry' | 'measurements' | 'goals' | 'notes' | 'nutrition' | 'wellness' | 'workouts';
 
 const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: 'overview', label: 'General', icon: Activity },
@@ -30,6 +33,8 @@ const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: 'measurements', label: 'Medidas', icon: Ruler },
   { id: 'goals', label: 'Objetivos', icon: Target },
   { id: 'notes', label: 'Notas', icon: FileText },
+  { id: 'nutrition', label: 'Nutrición', icon: Apple },
+  { id: 'wellness', label: 'Bienestar', icon: HeartPulse },
   { id: 'workouts', label: 'Rutinas', icon: Dumbbell },
 ];
 
@@ -51,6 +56,7 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({
   onDeleteStudent,
 }) => {
   const toast = useToast();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [isEditing, setIsEditing] = useState(false);
   const [pendingDelete, setPendingDelete] = useState(false);
@@ -466,6 +472,17 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({
             </div>
           )}
 
+          {/* Start training session */}
+          {workoutOptions.length > 0 && (
+            <button
+              onClick={() => navigate(`/clients/${student.id}/session`)}
+              className="w-full py-4 bg-violet-500 hover:bg-violet-600 active:bg-violet-700 text-white rounded-2xl font-black text-base transition-all shadow-lg shadow-violet-500/20 active:scale-[0.98] flex items-center justify-center gap-2.5"
+            >
+              <PlayCircle size={20} />
+              Iniciar Sesión de Entrenamiento
+            </button>
+          )}
+
           {/* Info cards grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {/* Phone */}
@@ -626,6 +643,14 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({
 
       {activeTab === 'notes' && (
         <SessionNotesPanel studentId={student.id} gymId={gymId} />
+      )}
+
+      {activeTab === 'nutrition' && (
+        <NutritionPlanPanel studentId={student.id} gymId={gymId} />
+      )}
+
+      {activeTab === 'wellness' && (
+        <WellnessCheckInPanel studentId={student.id} gymId={gymId} />
       )}
 
       {activeTab === 'workouts' && (
