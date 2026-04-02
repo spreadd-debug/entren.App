@@ -82,6 +82,7 @@ export interface StudentPortalPTViewProps {
 // ─── Theme constants ───────────────────────────────────────────────────────────
 
 const card = "bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm";
+const cardSecondary = "bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800/80";
 const cardBorder = "border-slate-100 dark:border-slate-800";
 const cardDivider = "divide-slate-100 dark:divide-slate-800";
 const textPrimary = "text-slate-900 dark:text-white";
@@ -459,15 +460,42 @@ export default function StudentPortalPTView({
         </button>
       </div>
 
-      <div className="px-4 py-4 space-y-4 max-w-lg mx-auto">
+      <div className="px-4 py-4 space-y-5 max-w-lg mx-auto">
 
         {/* ═══════════════════════════════════════════════════════════════════
             ZONA 1 — MÉTRICA HERO
             Lo primero que ve el alumno. Número grande + sparkline + contexto.
         ═══════════════════════════════════════════════════════════════════ */}
         {heroValue !== null && (
-          <div className="pt-2 pb-1">
-            <div className="flex items-end gap-3">
+          <div className="relative -mx-4 px-4 pt-4 pb-3 mb-2 bg-gradient-to-b from-violet-500/[0.07] via-violet-500/[0.03] to-transparent dark:from-violet-500/[0.12] dark:via-violet-500/[0.04] dark:to-transparent">
+            {/* Background sparkline (decorative, behind content) */}
+            {sparklineValues.length >= 2 && (
+              <div className="absolute inset-0 overflow-hidden opacity-[0.07] dark:opacity-[0.1] pointer-events-none">
+                <svg viewBox={`0 0 300 80`} preserveAspectRatio="none" className="w-full h-full text-violet-500">
+                  {(() => {
+                    const min = Math.min(...sparklineValues) - 0.5;
+                    const max = Math.max(...sparklineValues) + 0.5;
+                    const range = max - min || 1;
+                    const pts = sparklineValues.map((v, i) => {
+                      const x = (i / (sparklineValues.length - 1)) * 300;
+                      const y = 80 - ((v - min) / range) * 70 - 5;
+                      return `${x},${y}`;
+                    });
+                    return (
+                      <>
+                        <path
+                          d={`M${pts.join(" L")} L300,80 L0,80 Z`}
+                          fill="currentColor"
+                        />
+                        <polyline points={pts.join(" ")} fill="none" stroke="currentColor" strokeWidth="3" />
+                      </>
+                    );
+                  })()}
+                </svg>
+              </div>
+            )}
+
+            <div className="relative flex items-end gap-3">
               {/* Main number */}
               <div className="flex items-baseline gap-1.5">
                 <span className="text-5xl font-black text-slate-900 dark:text-white leading-none tracking-tight">
@@ -478,14 +506,14 @@ export default function StudentPortalPTView({
                 </span>
               </div>
 
-              {/* Mini sparkline */}
+              {/* Mini sparkline (inline, visible) */}
               {sparklineValues.length >= 2 && (
                 <div className="mb-1.5">
                   <MiniSparkline
                     values={sparklineValues}
                     color={isTrendGood === true ? "text-emerald-400" : isTrendGood === false ? "text-rose-400" : "text-violet-400"}
-                    width={72}
-                    height={28}
+                    width={80}
+                    height={32}
                   />
                 </div>
               )}
@@ -533,7 +561,9 @@ export default function StudentPortalPTView({
             ZONA 2 — RUTINA DEL DÍA (CTA principal)
             Card prominente con borde violeta. Destaca visualmente.
         ═══════════════════════════════════════════════════════════════════ */}
-        <div className={`${card} overflow-hidden border-violet-300 dark:border-violet-500/40 border-2 shadow-md shadow-violet-500/5`}>
+        <div className={`relative overflow-hidden rounded-2xl bg-gradient-to-r from-violet-500/[0.04] to-white dark:from-violet-500/[0.08] dark:to-slate-900 border border-slate-200 dark:border-slate-800 shadow-md shadow-violet-500/10 dark:shadow-violet-500/5`}>
+          {/* Left accent bar */}
+          <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-violet-500 to-purple-600 rounded-l-2xl" />
           <div className={`px-4 pt-4 pb-3 flex items-center gap-3`}>
             <div className="p-2.5 rounded-xl bg-violet-500/15 shrink-0">
               <Dumbbell size={18} className="text-violet-500" />
@@ -649,18 +679,21 @@ export default function StudentPortalPTView({
                 <span className="text-[10px] text-slate-400">Editar</span>
               </button>
             ) : !wellnessOpen ? (
-              /* Not checked in — invite */
+              /* Not checked in — invite with emoji preview */
               <button
                 onClick={() => setWellnessOpen(true)}
                 className="w-full px-4 py-3 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
               >
-                <Heart size={16} className="text-violet-400 shrink-0" />
                 <span className="flex-1 text-left text-sm font-bold text-slate-900 dark:text-white">
                   ¿Cómo te sentís hoy?
                 </span>
-                <span className="text-[10px] font-bold text-violet-500 px-2 py-0.5 rounded-full bg-violet-500/10">
-                  2 min
-                </span>
+                <div className="flex items-center gap-1 text-base opacity-60">
+                  <span title="Energía">⚡</span>
+                  <span title="Sueño">😴</span>
+                  <span title="Ánimo">🙂</span>
+                  <span title="Dolor">💪</span>
+                </div>
+                <ChevronRight size={14} className="text-slate-400 shrink-0" />
               </button>
             ) : null}
 
@@ -724,50 +757,77 @@ export default function StudentPortalPTView({
             Métricas secundarias + mini gráfico + foto de progreso thumbnail.
         ═══════════════════════════════════════════════════════════════════ */}
         {latest && (
-          <div className={`${card} overflow-hidden`}>
+          <div className={`${card} overflow-hidden shadow-md shadow-slate-900/[0.04] dark:shadow-black/20`}>
             <div className="px-4 pt-4 pb-3">
               <p className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3">Tu evolución</p>
 
               {/* Compact metric cards */}
               <div className="grid grid-cols-3 gap-2">
-                <div className={`p-2.5 rounded-xl ${subtleBg} text-center`}>
-                  <p className="text-base font-black text-slate-900 dark:text-white leading-tight">{latest.weight_kg ?? "—"}</p>
-                  <p className="text-[10px] text-slate-400 dark:text-slate-600">kg</p>
-                  {weightDiff !== null && weightDiff !== 0 && (
-                    <div className={`flex items-center justify-center gap-0.5 mt-0.5 text-[10px] font-bold ${
-                      weightDiff < 0 ? "text-emerald-500" : weightDiff > 0 ? "text-rose-500" : "text-slate-400"
-                    }`}>
-                      {weightDiff < 0 ? <TrendingDown size={9} /> : <TrendingUp size={9} />}
-                      {weightDiff > 0 ? "+" : ""}{weightDiff}
+                {(() => {
+                  const weightBg = weightDiff === null || weightDiff === 0
+                    ? subtleBg
+                    : weightDiff < 0
+                      ? "bg-emerald-500/[0.07] dark:bg-emerald-500/[0.12]"
+                      : "bg-rose-500/[0.07] dark:bg-rose-500/[0.12]";
+                  return (
+                    <div className={`p-2.5 rounded-xl ${weightBg} text-center`}>
+                      <p className="text-base font-black text-slate-900 dark:text-white leading-tight">{latest.weight_kg ?? "—"}</p>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-600">kg</p>
+                      {weightDiff !== null && weightDiff !== 0 && (
+                        <div className={`flex items-center justify-center gap-0.5 mt-0.5 text-[10px] font-bold ${
+                          weightDiff < 0 ? "text-emerald-500" : "text-rose-500"
+                        }`}>
+                          {weightDiff < 0 ? <TrendingDown size={9} /> : <TrendingUp size={9} />}
+                          {weightDiff > 0 ? "+" : ""}{weightDiff}
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
+                  );
+                })()}
 
-                <div className={`p-2.5 rounded-xl ${subtleBg} text-center`}>
-                  <p className="text-base font-black text-slate-900 dark:text-white leading-tight">{latest.body_fat_pct ?? "—"}</p>
-                  <p className="text-[10px] text-slate-400 dark:text-slate-600">% grasa</p>
-                  {fatDiff !== null && fatDiff !== 0 && (
-                    <div className={`flex items-center justify-center gap-0.5 mt-0.5 text-[10px] font-bold ${
-                      fatDiff < 0 ? "text-emerald-500" : fatDiff > 0 ? "text-rose-500" : "text-slate-400"
-                    }`}>
-                      {fatDiff < 0 ? <TrendingDown size={9} /> : <TrendingUp size={9} />}
-                      {fatDiff > 0 ? "+" : ""}{fatDiff}%
+                {(() => {
+                  const fatBg = fatDiff === null || fatDiff === 0
+                    ? subtleBg
+                    : fatDiff < 0
+                      ? "bg-emerald-500/[0.07] dark:bg-emerald-500/[0.12]"
+                      : "bg-rose-500/[0.07] dark:bg-rose-500/[0.12]";
+                  return (
+                    <div className={`p-2.5 rounded-xl ${fatBg} text-center`}>
+                      <p className="text-base font-black text-slate-900 dark:text-white leading-tight">{latest.body_fat_pct ?? "—"}</p>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-600">% grasa</p>
+                      {fatDiff !== null && fatDiff !== 0 && (
+                        <div className={`flex items-center justify-center gap-0.5 mt-0.5 text-[10px] font-bold ${
+                          fatDiff < 0 ? "text-emerald-500" : "text-rose-500"
+                        }`}>
+                          {fatDiff < 0 ? <TrendingDown size={9} /> : <TrendingUp size={9} />}
+                          {fatDiff > 0 ? "+" : ""}{fatDiff}%
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
+                  );
+                })()}
 
-                <div className={`p-2.5 rounded-xl ${subtleBg} text-center`}>
-                  <p className="text-base font-black text-slate-900 dark:text-white leading-tight">{latest.muscle_mass_kg ?? "—"}</p>
-                  <p className="text-[10px] text-slate-400 dark:text-slate-600">kg músc.</p>
-                  {muscleDiff !== null && muscleDiff !== 0 && (
-                    <div className={`flex items-center justify-center gap-0.5 mt-0.5 text-[10px] font-bold ${
-                      muscleDiff > 0 ? "text-emerald-500" : muscleDiff < 0 ? "text-rose-500" : "text-slate-400"
-                    }`}>
-                      {muscleDiff > 0 ? <TrendingUp size={9} /> : <TrendingDown size={9} />}
-                      {muscleDiff > 0 ? "+" : ""}{muscleDiff}
+                {(() => {
+                  const muscleBg = muscleDiff === null || muscleDiff === 0
+                    ? subtleBg
+                    : muscleDiff > 0
+                      ? "bg-emerald-500/[0.07] dark:bg-emerald-500/[0.12]"
+                      : "bg-rose-500/[0.07] dark:bg-rose-500/[0.12]";
+                  return (
+                    <div className={`p-2.5 rounded-xl ${muscleBg} text-center`}>
+                      <p className="text-base font-black text-slate-900 dark:text-white leading-tight">{latest.muscle_mass_kg ?? "—"}</p>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-600">kg músc.</p>
+                      {muscleDiff !== null && muscleDiff !== 0 && (
+                        <div className={`flex items-center justify-center gap-0.5 mt-0.5 text-[10px] font-bold ${
+                          muscleDiff > 0 ? "text-emerald-500" : "text-rose-500"
+                        }`}>
+                          {muscleDiff > 0 ? <TrendingUp size={9} /> : <TrendingDown size={9} />}
+                          {muscleDiff > 0 ? "+" : ""}{muscleDiff}
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
+                  );
+                })()}
               </div>
 
               {/* IMC inline */}
@@ -915,30 +975,50 @@ export default function StudentPortalPTView({
             )}
 
             {/* Progress photo thumbnail */}
-            {latestPhoto && (
-              <div className={`border-t ${cardBorder} px-4 py-3`}>
-                <div className="flex items-center gap-3">
-                  <div
-                    className="w-14 h-14 rounded-xl overflow-hidden shrink-0 cursor-pointer ring-1 ring-slate-200 dark:ring-slate-700"
-                    onClick={() => setFullscreenPhoto(latestPhoto)}
-                  >
-                    <img
-                      src={latestPhoto.photo_url}
-                      alt={ANGLE_LABELS[latestPhoto.angle]}
-                      className="w-full h-full object-cover"
-                    />
+            {latestPhoto && (() => {
+              const secondPhoto = photos.length >= 2
+                ? photos.filter(p => p.id !== latestPhoto.id).reduce((a, b) => a.photo_date > b.photo_date ? a : b)
+                : null;
+              return (
+                <div className={`border-t ${cardBorder} px-4 py-3`}>
+                  <div className="flex items-center gap-4">
+                    {/* Photo stack */}
+                    <div
+                      className="relative shrink-0 cursor-pointer"
+                      onClick={() => setFullscreenPhoto(latestPhoto)}
+                      style={{ width: 56, height: 72 }}
+                    >
+                      {/* Second photo peeking behind */}
+                      {secondPhoto && (
+                        <div className="absolute top-0.5 left-1.5 w-full h-full rounded-xl overflow-hidden ring-1 ring-slate-200/50 dark:ring-slate-700/50 opacity-60 rotate-3">
+                          <img
+                            src={secondPhoto.photo_url}
+                            alt=""
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      )}
+                      {/* Main photo */}
+                      <div className="relative w-full h-full rounded-xl overflow-hidden shadow-lg shadow-slate-900/10 dark:shadow-black/30 ring-1 ring-white/80 dark:ring-slate-700 -rotate-1">
+                        <img
+                          src={latestPhoto.photo_url}
+                          alt={ANGLE_LABELS[latestPhoto.angle]}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-slate-900 dark:text-white">Última foto</p>
+                      <p className="text-[10px] text-slate-400">
+                        {new Date(latestPhoto.photo_date).toLocaleDateString("es-AR", { day: "numeric", month: "short" })}
+                        {" · "}{ANGLE_LABELS[latestPhoto.angle]}
+                      </p>
+                    </div>
+                    <span className="text-[10px] text-slate-400">{photos.length} foto{photos.length !== 1 ? "s" : ""}</span>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold text-slate-900 dark:text-white">Última foto</p>
-                    <p className="text-[10px] text-slate-400">
-                      {new Date(latestPhoto.photo_date).toLocaleDateString("es-AR", { day: "numeric", month: "short" })}
-                      {" · "}{ANGLE_LABELS[latestPhoto.angle]}
-                    </p>
-                  </div>
-                  <span className="text-[10px] text-slate-400">{photos.length} foto{photos.length !== 1 ? "s" : ""}</span>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             <p className="text-[10px] text-slate-400 dark:text-slate-600 text-center pb-3">
               Última medición: {new Date(latest.measured_at + "T12:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric" })}
@@ -999,16 +1079,13 @@ export default function StudentPortalPTView({
                     </p>
                   </>
                 )}
-              </div>
-              {/* Small progress bar */}
-              <div className="shrink-0 w-16">
-                <div className="h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                {/* Wide progress bar below text */}
+                <div className="mt-2 h-2 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
                   <div
                     className="h-full rounded-full bg-gradient-to-r from-orange-400 to-amber-500 transition-all duration-700"
                     style={{ width: `${Math.min(100, adherencePercent)}%` }}
                   />
                 </div>
-                <p className="text-[9px] text-slate-400 text-center mt-0.5">{Math.round(adherencePercent)}%</p>
               </div>
             </div>
           );
@@ -1018,16 +1095,17 @@ export default function StudentPortalPTView({
             ZONA 6 — CARDS SECUNDARIOS (colapsados por defecto)
             Una línea cada uno. Expandibles.
         ═══════════════════════════════════════════════════════════════════ */}
-        <div className="space-y-2">
+        <div className="space-y-1.5 pt-1">
+          <p className="text-[10px] font-bold text-slate-400 dark:text-slate-600 uppercase tracking-wider px-1 mb-1">Más info</p>
 
           {/* ── Notas del entrenador ──────────────────────────────────────── */}
-          <div className={`${card} overflow-hidden`}>
+          <div className={`${cardSecondary} overflow-hidden`}>
             <button
               onClick={() => setShowNotes((v) => !v)}
-              className="w-full px-4 py-3 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+              className="w-full px-3 py-2.5 flex items-center gap-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
             >
-              <MessageSquare size={15} className="text-blue-400 shrink-0" />
-              <span className="flex-1 text-left text-sm font-bold text-slate-900 dark:text-white">Notas de tu entrenador</span>
+              <MessageSquare size={13} className="text-blue-400 shrink-0" />
+              <span className="flex-1 text-left text-[13px] font-semibold text-slate-700 dark:text-slate-300">Notas de tu entrenador</span>
               {sessionNotes.length > 0 && (
                 <span className="text-[10px] font-bold text-blue-500 bg-blue-500/10 px-1.5 py-0.5 rounded-md mr-1">
                   {sessionNotes.length}
@@ -1076,13 +1154,13 @@ export default function StudentPortalPTView({
 
           {/* ── Plan Nutricional ──────────────────────────────────────────── */}
           {nutritionLoaded && nutritionPlan && (
-            <div className={`${card} overflow-hidden`}>
+            <div className={`${cardSecondary} overflow-hidden`}>
               <button
                 onClick={() => setNutritionOpen((v) => !v)}
-                className="w-full px-4 py-3 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                className="w-full px-3 py-2.5 flex items-center gap-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
               >
-                <Coffee size={15} className="text-violet-500 shrink-0" />
-                <span className="flex-1 text-left text-sm font-bold text-slate-900 dark:text-white truncate">
+                <Coffee size={13} className="text-violet-500 shrink-0" />
+                <span className="flex-1 text-left text-[13px] font-semibold text-slate-700 dark:text-slate-300 truncate">
                   {nutritionPlan.title}
                 </span>
                 <span className="text-[10px] text-slate-400 mr-1">
@@ -1192,13 +1270,13 @@ export default function StudentPortalPTView({
             if (filledFields.length === 0) return null;
 
             return (
-              <div className={`${card} overflow-hidden`}>
+              <div className={`${cardSecondary} overflow-hidden`}>
                 <button
                   onClick={() => setShowMeasurements((v) => !v)}
-                  className="w-full px-4 py-3 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                  className="w-full px-3 py-2.5 flex items-center gap-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
                 >
-                  <Ruler size={15} className="text-violet-500 shrink-0" />
-                  <span className="flex-1 text-left text-sm font-bold text-slate-900 dark:text-white">Medidas corporales</span>
+                  <Ruler size={13} className="text-violet-500 shrink-0" />
+                  <span className="flex-1 text-left text-[13px] font-semibold text-slate-700 dark:text-slate-300">Medidas corporales</span>
                   <span className="text-[10px] text-slate-400 mr-1">
                     {new Date(latestM.measured_at + "T12:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "short" })}
                   </span>
@@ -1240,13 +1318,13 @@ export default function StudentPortalPTView({
           })()}
 
           {/* ── Historial de sesiones ─────────────────────────────────────── */}
-          <div className={`${card} overflow-hidden`}>
+          <div className={`${cardSecondary} overflow-hidden`}>
             <button
               onClick={() => setShowHistory((v) => !v)}
-              className="w-full px-4 py-3 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+              className="w-full px-3 py-2.5 flex items-center gap-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
             >
-              <History size={15} className="text-violet-500 shrink-0" />
-              <span className="flex-1 text-left text-sm font-bold text-slate-900 dark:text-white">Historial</span>
+              <History size={13} className="text-violet-500 shrink-0" />
+              <span className="flex-1 text-left text-[13px] font-semibold text-slate-700 dark:text-slate-300">Historial</span>
               <span className="text-[10px] text-slate-400 mr-1">
                 {recentSessions.length > 0
                   ? `${recentSessions.length} sesion${recentSessions.length !== 1 ? "es" : ""}`
@@ -1318,15 +1396,15 @@ export default function StudentPortalPTView({
 
           {/* ── Fotos de progreso (upload section, collapsed) ─────────────── */}
           {photosLoaded && (
-            <div className={`${card} overflow-hidden`}>
+            <div className={`${cardSecondary} overflow-hidden`}>
               {/* Upload button / form — only if no photo shown in evolution already, or to add more */}
               {!showPhotoUpload ? (
                 <button
                   onClick={() => setShowPhotoUpload(true)}
-                  className="w-full px-4 py-3 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                  className="w-full px-3 py-2.5 flex items-center gap-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
                 >
-                  <Camera size={15} className="text-violet-500 shrink-0" />
-                  <span className="flex-1 text-left text-sm font-bold text-slate-900 dark:text-white">Subir foto de progreso</span>
+                  <Camera size={13} className="text-violet-500 shrink-0" />
+                  <span className="flex-1 text-left text-[13px] font-semibold text-slate-700 dark:text-slate-300">Subir foto de progreso</span>
                   {photos.length > 0 && (
                     <span className="text-[10px] text-slate-400 mr-1">{photos.length} foto{photos.length !== 1 ? "s" : ""}</span>
                   )}
