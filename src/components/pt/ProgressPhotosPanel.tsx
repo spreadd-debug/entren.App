@@ -171,12 +171,12 @@ export const ProgressPhotosPanel: React.FC<ProgressPhotosPanelProps> = ({ studen
           Subir foto de progreso
         </Button>
       ) : (
-        <Card className="p-4 space-y-3 border-violet-200 dark:border-violet-500/30">
+        <Card className="p-4 space-y-3 border-violet-200 dark:border-violet-500/30 md:max-w-md">
           <h4 className="text-xs font-black text-violet-500 uppercase tracking-wider">Nueva foto</h4>
 
           {/* File input + preview */}
           {preview ? (
-            <div className="relative">
+            <div className="relative max-w-xs mx-auto">
               <img src={preview} alt="Preview" className="w-full aspect-[3/4] object-cover rounded-xl" />
               <button
                 onClick={() => { setPreview(null); setSelectedFile(null); if (fileRef.current) fileRef.current.value = ''; }}
@@ -188,7 +188,7 @@ export const ProgressPhotosPanel: React.FC<ProgressPhotosPanelProps> = ({ studen
           ) : (
             <button
               onClick={() => fileRef.current?.click()}
-              className="w-full aspect-[3/4] rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-600 flex flex-col items-center justify-center gap-2 hover:border-violet-400 transition-colors"
+              className="w-full aspect-[4/3] md:aspect-[3/2] rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-600 flex flex-col items-center justify-center gap-2 hover:border-violet-400 transition-colors"
             >
               <Camera size={32} className="text-slate-300 dark:text-slate-600" />
               <span className="text-sm text-slate-400">Tocá para seleccionar foto</span>
@@ -257,7 +257,7 @@ export const ProgressPhotosPanel: React.FC<ProgressPhotosPanelProps> = ({ studen
               <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">
                 {new Date(date).toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' })}
               </p>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
                 {groupedByDate[date].map(photo => {
                   const isSelectedA = compareA?.id === photo.id;
                   const isSelectedB = compareB?.id === photo.id;
@@ -291,7 +291,7 @@ export const ProgressPhotosPanel: React.FC<ProgressPhotosPanelProps> = ({ studen
 
                       {/* Action buttons (not in compare mode) */}
                       {!compareMode && (
-                        <div className="absolute bottom-0 left-0 right-0 p-1.5 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex justify-between items-end">
+                        <div className="absolute bottom-0 left-0 right-0 p-1.5 bg-gradient-to-t from-black/60 to-transparent md:opacity-100 opacity-0 group-hover:opacity-100 transition-opacity flex justify-between items-end">
                           <button
                             onClick={() => setFullscreenPhoto(photo)}
                             className="p-1.5 rounded-lg bg-white/20 text-white hover:bg-white/30"
@@ -337,8 +337,8 @@ export const ProgressPhotosPanel: React.FC<ProgressPhotosPanelProps> = ({ studen
           </div>
 
           {/* Photos side by side */}
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="flex-1 grid grid-cols-2 gap-[2px] bg-black">
+          <div className="flex-1 flex flex-col overflow-hidden items-center justify-center">
+            <div className="flex-1 w-full max-w-4xl grid grid-cols-2 gap-[2px] bg-black">
               {[compareA, compareB].map((photo, i) => (
                 <div key={photo.id} className="relative flex flex-col h-full">
                   {/* Label */}

@@ -200,6 +200,23 @@ export default function StudentPortalPTView({
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoAngle, setPhotoAngle] = useState<PhotoAngle>("front");
   const [fullscreenPhoto, setFullscreenPhoto] = useState<ProgressPhoto | null>(null);
+  const [compareMode, setCompareMode] = useState(false);
+  const [compareA, setCompareA] = useState<ProgressPhoto | null>(null);
+  const [compareB, setCompareB] = useState<ProgressPhoto | null>(null);
+
+  const handleCompareSelect = (photo: ProgressPhoto) => {
+    if (!compareA) {
+      setCompareA(photo);
+    } else if (compareA.id === photo.id) {
+      setCompareA(null);
+    } else if (!compareB) {
+      setCompareB(photo);
+    } else if (compareB.id === photo.id) {
+      setCompareB(null);
+    } else {
+      setCompareB(photo);
+    }
+  };
 
   useEffect(() => {
     if (!student?.id) return;
@@ -1254,23 +1271,65 @@ export default function StudentPortalPTView({
                 </div>
               )}
 
+              {/* Compare toggle */}
+              {photos.length >= 2 && (
+                <div className="flex items-center justify-end mt-2">
+                  <button
+                    onClick={() => { setCompareMode(!compareMode); setCompareA(null); setCompareB(null); }}
+                    className={`text-[10px] font-bold px-3 py-1 rounded-full transition-all ${
+                      compareMode
+                        ? "bg-violet-500 text-white"
+                        : `${subtleBg} text-slate-500 hover:text-violet-500`
+                    }`}
+                  >
+                    {compareMode ? "Salir de comparar" : "Comparar"}
+                  </button>
+                </div>
+              )}
+
+              {/* Compare hint */}
+              {compareMode && !(compareA && compareB) && (
+                <p className={`text-xs text-center py-2 ${textSecondary}`}>
+                  {!compareA
+                    ? "Seleccioná la primera foto (antes)"
+                    : "Ahora seleccioná la segunda foto (después)"}
+                </p>
+              )}
+
               {/* Photo gallery */}
               {photos.length === 0 ? (
                 <p className={`text-sm text-center py-4 ${textSecondary}`}>Sin fotos todavía</p>
               ) : (
                 <div className="grid grid-cols-3 gap-1.5 mt-2">
-                  {photos.map(photo => (
-                    <div key={photo.id} className="relative group rounded-xl overflow-hidden" onClick={() => setFullscreenPhoto(photo)}>
-                      <img
-                        src={photo.photo_url}
-                        alt={ANGLE_LABELS[photo.angle]}
-                        className="w-full aspect-square object-cover cursor-pointer"
-                      />
-                      <span className="absolute bottom-1 left-1 text-[7px] font-bold bg-black/50 text-white px-1.5 py-0.5 rounded-full">
-                        {ANGLE_LABELS[photo.angle]}
-                      </span>
-                    </div>
-                  ))}
+                  {photos.map(photo => {
+                    const isSelectedA = compareA?.id === photo.id;
+                    const isSelectedB = compareB?.id === photo.id;
+                    return (
+                      <div
+                        key={photo.id}
+                        className={`relative group rounded-xl overflow-hidden cursor-pointer ${
+                          isSelectedA ? "ring-2 ring-violet-500" : isSelectedB ? "ring-2 ring-emerald-500" : ""
+                        }`}
+                        onClick={compareMode ? () => handleCompareSelect(photo) : () => setFullscreenPhoto(photo)}
+                      >
+                        <img
+                          src={photo.photo_url}
+                          alt={ANGLE_LABELS[photo.angle]}
+                          className="w-full aspect-square object-cover"
+                        />
+                        <span className="absolute bottom-1 left-1 text-[7px] font-bold bg-black/50 text-white px-1.5 py-0.5 rounded-full">
+                          {ANGLE_LABELS[photo.angle]}
+                        </span>
+                        {(isSelectedA || isSelectedB) && (
+                          <div className={`absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-black text-white ${
+                            isSelectedA ? "bg-violet-500" : "bg-emerald-500"
+                          }`}>
+                            {isSelectedA ? "1" : "2"}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -1279,6 +1338,53 @@ export default function StudentPortalPTView({
 
         <div className="h-4" />
       </div>
+
+      {/* Fullscreen comparator */}
+      {compareA && compareB && (
+        <div className="fixed inset-0 z-50 bg-black flex flex-col animate-[fadeIn_0.3s_ease-out]">
+          <div className="flex items-center justify-between px-4 py-3 bg-black/80">
+            <h3 className="text-white text-sm font-bold">Comparativa</h3>
+            <button
+              onClick={() => { setCompareA(null); setCompareB(null); setCompareMode(false); }}
+              className="p-2 rounded-full bg-white/10 text-white hover:bg-white/20"
+            >
+              <X size={18} />
+            </button>
+          </div>
+          <div className="flex-1 flex flex-col overflow-hidden items-center justify-center">
+            <div className="flex-1 w-full max-w-4xl grid grid-cols-2 gap-[2px] bg-black">
+              {[compareA, compareB].map((photo, i) => (
+                <div key={photo.id} className="relative flex flex-col h-full">
+                  <div className={`py-2 text-center ${i === 0 ? "bg-violet-500/20" : "bg-emerald-500/20"}`}>
+                    <p className={`text-xs font-black uppercase tracking-wider ${i === 0 ? "text-violet-400" : "text-emerald-400"}`}>
+                      {i === 0 ? "Antes" : "Después"}
+                    </p>
+                    <p className="text-[10px] text-white/50">
+                      {new Date(photo.photo_date).toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "2-digit" })}
+                    </p>
+                  </div>
+                  <div className="flex-1 overflow-hidden">
+                    <img src={photo.photo_url} alt={ANGLE_LABELS[photo.angle]} className="w-full h-full object-cover" />
+                  </div>
+                  <div className="absolute bottom-2 left-1/2 -translate-x-1/2">
+                    <span className="text-[9px] font-bold bg-black/60 text-white px-2.5 py-1 rounded-full">
+                      {ANGLE_LABELS[photo.angle]}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="px-4 py-4 bg-black/80">
+            <button
+              onClick={() => { setCompareA(null); setCompareB(null); }}
+              className="w-full py-2.5 rounded-xl bg-white/10 text-white text-sm font-bold hover:bg-white/20 transition-colors"
+            >
+              Elegir otras fotos
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Fullscreen photo viewer */}
       {fullscreenPhoto && (
