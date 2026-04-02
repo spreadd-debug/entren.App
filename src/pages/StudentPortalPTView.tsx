@@ -23,6 +23,10 @@ import {
   Smile,
   AlertTriangle,
   Heart,
+  Camera,
+  X,
+  Maximize2,
+  Trash2,
 } from "lucide-react";
 import { ExerciseVideoModal } from "../components/ExerciseVideoModal";
 import {
@@ -40,6 +44,8 @@ import {
 } from "../../shared/types";
 import { WellnessCheckInService } from "../services/pt/WellnessCheckInService";
 import { NutritionPlanService, NutritionPlanWithItems } from "../services/pt/NutritionPlanService";
+import { ProgressPhotosService } from "../services/pt/ProgressPhotosService";
+import { ProgressPhoto, PhotoAngle } from "../../shared/types";
 
 const DAY_NAMES = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 
@@ -184,13 +190,53 @@ export default function StudentPortalPTView({
   const [nutritionOpen, setNutritionOpen] = useState(false);
   const [nutritionLoaded, setNutritionLoaded] = useState(false);
 
+  // Photos state
+  const [photos, setPhotos] = useState<ProgressPhoto[]>([]);
+  const [showPhotos, setShowPhotos] = useState(false);
+  const [photosLoaded, setPhotosLoaded] = useState(false);
+  const [showPhotoUpload, setShowPhotoUpload] = useState(false);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoAngle, setPhotoAngle] = useState<PhotoAngle>("front");
+  const [fullscreenPhoto, setFullscreenPhoto] = useState<ProgressPhoto | null>(null);
+
   useEffect(() => {
     if (!student?.id) return;
     NutritionPlanService.getActivePlan(student.id)
       .then(setNutritionPlan)
       .catch(() => {})
       .finally(() => setNutritionLoaded(true));
+    ProgressPhotosService.getByStudent(student.id)
+      .then(setPhotos)
+      .catch(() => {})
+      .finally(() => setPhotosLoaded(true));
   }, [student?.id]);
+
+  const ANGLE_LABELS: Record<PhotoAngle, string> = {
+    front: "Frente", side_left: "Lateral izq.", side_right: "Lateral der.", back: "Espalda",
+  };
+
+  const handlePhotoUpload = async () => {
+    if (!photoFile || !student?.gym_id) return;
+    setPhotoUploading(true);
+    try {
+      await ProgressPhotosService.upload({
+        gymId: student.gym_id,
+        studentId: student.id,
+        file: photoFile,
+        angle: photoAngle,
+        photoDate: new Date().toISOString().split("T")[0],
+      });
+      const updated = await ProgressPhotosService.getByStudent(student.id);
+      setPhotos(updated);
+      setShowPhotoUpload(false);
+      setPhotoFile(null);
+      setPhotoPreview(null);
+      setPhotoAngle("front");
+    } catch { /* ignore */ }
+    setPhotoUploading(false);
+  };
 
   // Wellness check-in state
   const [wellnessOpen, setWellnessOpen] = useState(false);
@@ -1113,8 +1159,151 @@ export default function StudentPortalPTView({
           )}
         </div>
 
+        {/* ── Fotos de progreso ───────────────────────────────────────── */}
+        <div className={card}>
+          <button
+            className="w-full flex items-center gap-3 px-4 py-3"
+            onClick={() => setShowPhotos(!showPhotos)}
+          >
+            <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${iconBg}`}>
+              <Camera size={15} className={iconColor} />
+            </div>
+            <span className={`flex-1 text-left text-sm font-bold ${textPrimary}`}>Fotos de progreso</span>
+            {photos.length > 0 && (
+              <span className="text-[10px] font-bold text-slate-400 mr-1">{photos.length}</span>
+            )}
+            <ChevronRight
+              size={16}
+              className={`text-slate-400 dark:text-slate-600 transition-transform ${showPhotos ? "rotate-90" : ""}`}
+            />
+          </button>
+
+          {showPhotos && (
+            <div className={`px-4 pb-4 space-y-3 border-t ${cardBorder}`}>
+              {/* Upload button / form */}
+              {!showPhotoUpload ? (
+                <button
+                  onClick={() => setShowPhotoUpload(true)}
+                  className="mt-3 w-full py-2.5 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 text-sm font-bold text-slate-400 hover:border-violet-400 hover:text-violet-500 transition-colors flex items-center justify-center gap-2"
+                >
+                  <Camera size={16} /> Subir foto
+                </button>
+              ) : (
+                <div className="mt-3 space-y-3">
+                  {photoPreview ? (
+                    <div className="relative">
+                      <img src={photoPreview} alt="Preview" className="w-full aspect-[3/4] object-cover rounded-xl" />
+                      <button
+                        onClick={() => { setPhotoPreview(null); setPhotoFile(null); }}
+                        className="absolute top-2 right-2 p-1.5 rounded-full bg-black/50 text-white"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="block w-full aspect-[3/4] rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-600 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-violet-400 transition-colors">
+                      <Camera size={32} className="text-slate-300 dark:text-slate-600" />
+                      <span className="text-sm text-slate-400">Tocá para sacar foto</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="hidden"
+                        onChange={e => {
+                          const f = e.target.files?.[0];
+                          if (f && f.type.startsWith("image/")) {
+                            setPhotoFile(f);
+                            setPhotoPreview(URL.createObjectURL(f));
+                          }
+                        }}
+                      />
+                    </label>
+                  )}
+
+                  {/* Angle selector */}
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {(["front", "side_left", "side_right", "back"] as PhotoAngle[]).map(a => (
+                      <button
+                        key={a}
+                        onClick={() => setPhotoAngle(a)}
+                        className={`py-1.5 rounded-xl text-[10px] font-bold transition-all ${
+                          photoAngle === a
+                            ? "bg-violet-500 text-white"
+                            : `${subtleBg} text-slate-500`
+                        }`}
+                      >
+                        {ANGLE_LABELS[a]}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => { setShowPhotoUpload(false); setPhotoFile(null); setPhotoPreview(null); }}
+                      className={`flex-1 py-2 rounded-xl text-sm font-bold ${subtleBg} ${textSecondary}`}
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={handlePhotoUpload}
+                      disabled={photoUploading || !photoFile}
+                      className="flex-1 py-2 rounded-xl text-sm font-bold bg-violet-500 text-white disabled:opacity-50"
+                    >
+                      {photoUploading ? "Subiendo..." : "Guardar"}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Photo gallery */}
+              {photos.length === 0 ? (
+                <p className={`text-sm text-center py-4 ${textSecondary}`}>Sin fotos todavía</p>
+              ) : (
+                <div className="grid grid-cols-3 gap-1.5 mt-2">
+                  {photos.map(photo => (
+                    <div key={photo.id} className="relative group rounded-xl overflow-hidden" onClick={() => setFullscreenPhoto(photo)}>
+                      <img
+                        src={photo.photo_url}
+                        alt={ANGLE_LABELS[photo.angle]}
+                        className="w-full aspect-square object-cover cursor-pointer"
+                      />
+                      <span className="absolute bottom-1 left-1 text-[7px] font-bold bg-black/50 text-white px-1.5 py-0.5 rounded-full">
+                        {ANGLE_LABELS[photo.angle]}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         <div className="h-4" />
       </div>
+
+      {/* Fullscreen photo viewer */}
+      {fullscreenPhoto && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setFullscreenPhoto(null)}
+        >
+          <button className="absolute top-4 right-4 p-2 rounded-full bg-white/10 text-white z-10" onClick={() => setFullscreenPhoto(null)}>
+            <X size={20} />
+          </button>
+          <img
+            src={fullscreenPhoto.photo_url}
+            alt={ANGLE_LABELS[fullscreenPhoto.angle]}
+            className="max-w-full max-h-full object-contain rounded-lg"
+            onClick={e => e.stopPropagation()}
+          />
+          <div className="absolute bottom-6 left-0 right-0 text-center">
+            <p className="text-white text-sm font-bold">{ANGLE_LABELS[fullscreenPhoto.angle]}</p>
+            <p className="text-white/60 text-xs">
+              {new Date(fullscreenPhoto.photo_date).toLocaleDateString("es-AR", { day: "2-digit", month: "long", year: "numeric" })}
+            </p>
+          </div>
+        </div>
+      )}
 
       <ExerciseVideoModal
         isOpen={videoModal.isOpen}
