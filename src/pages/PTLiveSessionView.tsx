@@ -66,6 +66,42 @@ export const PTLiveSessionView: React.FC<PTLiveSessionViewProps> = ({
 
   const elapsed = useElapsed(session?.session.started_at ?? null);
 
+  // ─── Prevent accidental navigation loss ────────────────────────────────
+
+  const hasActiveSession = !!session && !session.session.completed_at;
+
+  // Browser refresh / tab close
+  useEffect(() => {
+    if (!hasActiveSession) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [hasActiveSession]);
+
+  // Browser back button
+  useEffect(() => {
+    if (!hasActiveSession) return;
+    const handlePop = () => {
+      // Push state back so the user doesn't actually leave
+      window.history.pushState(null, '', window.location.href);
+      if (!window.confirm('Tenés una sesión en curso. ¿Salir sin completarla? Los sets guardados no se pierden.')) return;
+      onBack();
+    };
+    window.history.pushState(null, '', window.location.href);
+    window.addEventListener('popstate', handlePop);
+    return () => window.removeEventListener('popstate', handlePop);
+  }, [hasActiveSession, onBack]);
+
+  const handleSafeBack = () => {
+    if (hasActiveSession) {
+      if (!window.confirm('Tenés una sesión en curso. ¿Salir sin completarla? Los sets guardados no se pierden.')) return;
+    }
+    onBack();
+  };
+
   // ─── Load workout options ───────────────────────────────────────────────
 
   useEffect(() => {
@@ -309,7 +345,7 @@ export const PTLiveSessionView: React.FC<PTLiveSessionViewProps> = ({
         <div className="px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3 min-w-0">
-              <button onClick={onBack} className="p-2 -ml-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+              <button onClick={handleSafeBack} className="p-2 -ml-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                 <ArrowLeft size={20} className="text-slate-600 dark:text-slate-400" />
               </button>
               <div className="min-w-0">

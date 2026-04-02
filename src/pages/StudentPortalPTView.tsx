@@ -850,7 +850,10 @@ export default function StudentPortalPTView({
               <div className="flex-1 text-left">
                 <p className="text-sm font-bold text-slate-900 dark:text-white">{nutritionPlan.title}</p>
                 <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
-                  {nutritionPlan.calories_target ? `${nutritionPlan.calories_target} kcal` : 'Plan nutricional'}
+                  {(() => {
+                    const calc = (nutritionPlan.protein_g ?? 0) * 4 + (nutritionPlan.carbs_g ?? 0) * 4 + (nutritionPlan.fat_g ?? 0) * 9;
+                    return calc > 0 ? `${calc} kcal` : nutritionPlan.calories_target ? `${nutritionPlan.calories_target} kcal` : 'Plan nutricional';
+                  })()}
                   {nutritionPlan.protein_g ? ` · ${nutritionPlan.protein_g}g P` : ''}
                 </p>
               </div>
@@ -863,34 +866,38 @@ export default function StudentPortalPTView({
             {nutritionOpen && (
               <div className="px-4 pb-4 space-y-3">
                 {/* Macro targets */}
-                {(nutritionPlan.calories_target || nutritionPlan.protein_g || nutritionPlan.carbs_g || nutritionPlan.fat_g) && (
-                  <div className="grid grid-cols-4 gap-2">
-                    {nutritionPlan.calories_target && (
+                {(nutritionPlan.protein_g || nutritionPlan.carbs_g || nutritionPlan.fat_g) && (() => {
+                  const p = nutritionPlan.protein_g ?? 0;
+                  const c = nutritionPlan.carbs_g ?? 0;
+                  const f = nutritionPlan.fat_g ?? 0;
+                  const totalCal = p * 4 + c * 4 + f * 9;
+                  return (
+                    <div className="grid grid-cols-4 gap-2">
                       <div className="text-center p-2 rounded-xl bg-orange-500/10">
-                        <p className="text-xs font-bold text-slate-900 dark:text-white">{nutritionPlan.calories_target}</p>
+                        <p className="text-xs font-bold text-slate-900 dark:text-white">{totalCal}</p>
                         <p className="text-[10px] text-orange-500">kcal</p>
                       </div>
-                    )}
-                    {nutritionPlan.protein_g && (
-                      <div className="text-center p-2 rounded-xl bg-rose-500/10">
-                        <p className="text-xs font-bold text-slate-900 dark:text-white">{nutritionPlan.protein_g}g</p>
-                        <p className="text-[10px] text-rose-500">proteína</p>
-                      </div>
-                    )}
-                    {nutritionPlan.carbs_g && (
-                      <div className="text-center p-2 rounded-xl bg-amber-500/10">
-                        <p className="text-xs font-bold text-slate-900 dark:text-white">{nutritionPlan.carbs_g}g</p>
-                        <p className="text-[10px] text-amber-500">carbos</p>
-                      </div>
-                    )}
-                    {nutritionPlan.fat_g && (
-                      <div className="text-center p-2 rounded-xl bg-cyan-500/10">
-                        <p className="text-xs font-bold text-slate-900 dark:text-white">{nutritionPlan.fat_g}g</p>
-                        <p className="text-[10px] text-cyan-500">grasas</p>
-                      </div>
-                    )}
-                  </div>
-                )}
+                      {p > 0 && (
+                        <div className="text-center p-2 rounded-xl bg-rose-500/10">
+                          <p className="text-xs font-bold text-slate-900 dark:text-white">{p}g</p>
+                          <p className="text-[10px] text-rose-500">{Math.round((p * 4 / totalCal) * 100)}% prot</p>
+                        </div>
+                      )}
+                      {c > 0 && (
+                        <div className="text-center p-2 rounded-xl bg-amber-500/10">
+                          <p className="text-xs font-bold text-slate-900 dark:text-white">{c}g</p>
+                          <p className="text-[10px] text-amber-500">{Math.round((c * 4 / totalCal) * 100)}% carbs</p>
+                        </div>
+                      )}
+                      {f > 0 && (
+                        <div className="text-center p-2 rounded-xl bg-cyan-500/10">
+                          <p className="text-xs font-bold text-slate-900 dark:text-white">{f}g</p>
+                          <p className="text-[10px] text-cyan-500">{Math.round((f * 9 / totalCal) * 100)}% grasas</p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {nutritionPlan.description && (
                   <p className="text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 rounded-xl p-3">

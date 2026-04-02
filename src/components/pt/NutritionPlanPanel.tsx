@@ -20,6 +20,108 @@ const MEAL_ICONS: Record<string, string> = {
   Snack: '🍎',
 };
 
+// ─── Calorie math helpers ─────────────────────────────────────────────────────
+
+const calcCaloriesFromMacros = (p: string, c: string, f: string) => {
+  const protein = Number(p) || 0;
+  const carbs = Number(c) || 0;
+  const fat = Number(f) || 0;
+  return protein * 4 + carbs * 4 + fat * 9;
+};
+
+// ─── Macro form with live calorie calc ────────────────────────────────────────
+
+function MacroForm({ planForm, setPlanForm, onSave, onCancel, saving, saveLabel }: {
+  planForm: { title: string; description: string; calories_target: string; protein_g: string; carbs_g: string; fat_g: string };
+  setPlanForm: (f: any) => void;
+  onSave: () => void;
+  onCancel: () => void;
+  saving: boolean;
+  saveLabel: string;
+}) {
+  const calculatedCal = calcCaloriesFromMacros(planForm.protein_g, planForm.carbs_g, planForm.fat_g);
+  const hasMacros = planForm.protein_g || planForm.carbs_g || planForm.fat_g;
+  const targetCal = Number(planForm.calories_target) || 0;
+  const delta = targetCal > 0 && hasMacros ? calculatedCal - targetCal : null;
+
+  return (
+    <Card className="p-4 space-y-3 border-violet-200 dark:border-violet-500/30">
+      <h4 className="text-xs font-black text-violet-500 uppercase tracking-wider">Nuevo plan nutricional</h4>
+      <Input placeholder="Título (ej: Plan hipercalórico)" value={planForm.title} onChange={e => setPlanForm({ ...planForm, title: e.target.value })} />
+      <textarea
+        className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white text-sm"
+        rows={2}
+        placeholder="Descripción / pautas generales (opcional)"
+        value={planForm.description}
+        onChange={e => setPlanForm({ ...planForm, description: e.target.value })}
+      />
+
+      {/* Calorie target */}
+      <div>
+        <label className="text-xs text-slate-500 dark:text-slate-400 mb-1 block">Calorías objetivo (opcional)</label>
+        <Input type="number" placeholder="ej: 2000" value={planForm.calories_target} onChange={e => setPlanForm({ ...planForm, calories_target: e.target.value })} />
+      </div>
+
+      {/* Macros */}
+      <div>
+        <label className="text-xs text-slate-500 dark:text-slate-400 mb-1 block">Macronutrientes (g)</label>
+        <div className="grid grid-cols-3 gap-2">
+          <div>
+            <Input type="number" placeholder="Proteína" value={planForm.protein_g} onChange={e => setPlanForm({ ...planForm, protein_g: e.target.value })} />
+            <p className="text-[10px] text-rose-500 text-center mt-0.5">{Number(planForm.protein_g) * 4 || 0} kcal</p>
+          </div>
+          <div>
+            <Input type="number" placeholder="Carbos" value={planForm.carbs_g} onChange={e => setPlanForm({ ...planForm, carbs_g: e.target.value })} />
+            <p className="text-[10px] text-amber-500 text-center mt-0.5">{Number(planForm.carbs_g) * 4 || 0} kcal</p>
+          </div>
+          <div>
+            <Input type="number" placeholder="Grasas" value={planForm.fat_g} onChange={e => setPlanForm({ ...planForm, fat_g: e.target.value })} />
+            <p className="text-[10px] text-cyan-500 text-center mt-0.5">{Number(planForm.fat_g) * 9 || 0} kcal</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Live calorie summary */}
+      {hasMacros && (
+        <div className={`rounded-xl p-3 text-center ${
+          delta !== null && Math.abs(delta) > 50
+            ? 'bg-rose-500/10 border border-rose-200 dark:border-rose-500/20'
+            : 'bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20'
+        }`}>
+          <p className="text-sm font-bold text-slate-900 dark:text-white">
+            Total de macros: <span className="text-violet-600 dark:text-violet-400">{calculatedCal} kcal</span>
+          </p>
+          {delta !== null && Math.abs(delta) > 50 && (
+            <p className="text-xs text-rose-600 dark:text-rose-400 mt-0.5">
+              {delta > 0 ? `+${delta}` : delta} kcal vs objetivo ({targetCal})
+              {' '}— ajustá los macros
+            </p>
+          )}
+          {delta !== null && Math.abs(delta) <= 50 && (
+            <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-0.5">
+              Coincide con el objetivo ({targetCal} kcal)
+            </p>
+          )}
+          <div className="flex justify-center gap-3 mt-1.5 text-[10px] text-slate-500">
+            <span>P: {Math.round((Number(planForm.protein_g) * 4 / calculatedCal) * 100) || 0}%</span>
+            <span>C: {Math.round((Number(planForm.carbs_g) * 4 / calculatedCal) * 100) || 0}%</span>
+            <span>G: {Math.round((Number(planForm.fat_g) * 9 / calculatedCal) * 100) || 0}%</span>
+          </div>
+        </div>
+      )}
+
+      <div className="flex gap-2">
+        <Button variant="outline" fullWidth onClick={onCancel}>Cancelar</Button>
+        <Button variant="secondary" fullWidth onClick={onSave} disabled={saving}>
+          {saving ? 'Guardando...' : saveLabel}
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
+// ─── Main Panel ───────────────────────────────────────────────────────────────
+
 export const NutritionPlanPanel: React.FC<NutritionPlanPanelProps> = ({ studentId, gymId }) => {
   const toast = useToast();
   const [plans, setPlans] = useState<NutritionPlan[]>([]);
@@ -54,6 +156,8 @@ export const NutritionPlanPanel: React.FC<NutritionPlanPanelProps> = ({ studentI
 
   const handleCreatePlan = async () => {
     if (!planForm.title.trim()) { toast.error('Ingresá un título'); return; }
+    const macroCalories = calcCaloriesFromMacros(planForm.protein_g, planForm.carbs_g, planForm.fat_g);
+    const finalCalories = planForm.calories_target ? Number(planForm.calories_target) : (macroCalories > 0 ? macroCalories : undefined);
     setSaving(true);
     try {
       await NutritionPlanService.createPlan({
@@ -61,7 +165,7 @@ export const NutritionPlanPanel: React.FC<NutritionPlanPanelProps> = ({ studentI
         student_id: studentId,
         title: planForm.title.trim(),
         description: planForm.description.trim() || undefined,
-        calories_target: planForm.calories_target ? Number(planForm.calories_target) : undefined,
+        calories_target: finalCalories,
         protein_g: planForm.protein_g ? Number(planForm.protein_g) : undefined,
         carbs_g: planForm.carbs_g ? Number(planForm.carbs_g) : undefined,
         fat_g: planForm.fat_g ? Number(planForm.fat_g) : undefined,
@@ -166,38 +270,50 @@ export const NutritionPlanPanel: React.FC<NutritionPlanPanelProps> = ({ studentI
             </div>
 
             {/* Macro targets */}
-            {(activePlan.calories_target || activePlan.protein_g || activePlan.carbs_g || activePlan.fat_g) && (
-              <div className="grid grid-cols-4 gap-2 mt-3">
-                {activePlan.calories_target && (
-                  <div className="text-center p-2 rounded-xl bg-orange-500/10">
-                    <Flame size={14} className="mx-auto text-orange-500 mb-0.5" />
-                    <p className="text-xs font-bold text-slate-900 dark:text-white">{activePlan.calories_target}</p>
-                    <p className="text-[10px] text-slate-400">kcal</p>
+            {(activePlan.protein_g || activePlan.carbs_g || activePlan.fat_g) && (() => {
+              const calc = calcCaloriesFromMacros(
+                String(activePlan.protein_g ?? 0),
+                String(activePlan.carbs_g ?? 0),
+                String(activePlan.fat_g ?? 0),
+              );
+              return (
+                <div className="mt-3 space-y-2">
+                  <div className="grid grid-cols-4 gap-2">
+                    <div className="text-center p-2 rounded-xl bg-orange-500/10">
+                      <Flame size={14} className="mx-auto text-orange-500 mb-0.5" />
+                      <p className="text-xs font-bold text-slate-900 dark:text-white">{calc}</p>
+                      <p className="text-[10px] text-slate-400">kcal</p>
+                    </div>
+                    {activePlan.protein_g && (
+                      <div className="text-center p-2 rounded-xl bg-rose-500/10">
+                        <Beef size={14} className="mx-auto text-rose-500 mb-0.5" />
+                        <p className="text-xs font-bold text-slate-900 dark:text-white">{activePlan.protein_g}g</p>
+                        <p className="text-[10px] text-rose-500">{Math.round((activePlan.protein_g * 4 / calc) * 100)}%</p>
+                      </div>
+                    )}
+                    {activePlan.carbs_g && (
+                      <div className="text-center p-2 rounded-xl bg-amber-500/10">
+                        <Wheat size={14} className="mx-auto text-amber-500 mb-0.5" />
+                        <p className="text-xs font-bold text-slate-900 dark:text-white">{activePlan.carbs_g}g</p>
+                        <p className="text-[10px] text-amber-500">{Math.round((activePlan.carbs_g * 4 / calc) * 100)}%</p>
+                      </div>
+                    )}
+                    {activePlan.fat_g && (
+                      <div className="text-center p-2 rounded-xl bg-cyan-500/10">
+                        <Droplets size={14} className="mx-auto text-cyan-500 mb-0.5" />
+                        <p className="text-xs font-bold text-slate-900 dark:text-white">{activePlan.fat_g}g</p>
+                        <p className="text-[10px] text-cyan-500">{Math.round((activePlan.fat_g * 9 / calc) * 100)}%</p>
+                      </div>
+                    )}
                   </div>
-                )}
-                {activePlan.protein_g && (
-                  <div className="text-center p-2 rounded-xl bg-rose-500/10">
-                    <Beef size={14} className="mx-auto text-rose-500 mb-0.5" />
-                    <p className="text-xs font-bold text-slate-900 dark:text-white">{activePlan.protein_g}g</p>
-                    <p className="text-[10px] text-slate-400">proteína</p>
-                  </div>
-                )}
-                {activePlan.carbs_g && (
-                  <div className="text-center p-2 rounded-xl bg-amber-500/10">
-                    <Wheat size={14} className="mx-auto text-amber-500 mb-0.5" />
-                    <p className="text-xs font-bold text-slate-900 dark:text-white">{activePlan.carbs_g}g</p>
-                    <p className="text-[10px] text-slate-400">carbos</p>
-                  </div>
-                )}
-                {activePlan.fat_g && (
-                  <div className="text-center p-2 rounded-xl bg-cyan-500/10">
-                    <Droplets size={14} className="mx-auto text-cyan-500 mb-0.5" />
-                    <p className="text-xs font-bold text-slate-900 dark:text-white">{activePlan.fat_g}g</p>
-                    <p className="text-[10px] text-slate-400">grasas</p>
-                  </div>
-                )}
-              </div>
-            )}
+                  {activePlan.calories_target && Math.abs(calc - activePlan.calories_target) > 50 && (
+                    <p className="text-[10px] text-rose-500 text-center">
+                      Objetivo: {activePlan.calories_target} kcal — macros suman {calc} kcal ({calc > activePlan.calories_target ? '+' : ''}{calc - activePlan.calories_target})
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
           </Card>
 
           {/* Meals grouped */}
@@ -303,31 +419,14 @@ export const NutritionPlanPanel: React.FC<NutritionPlanPanelProps> = ({ studentI
 
       {/* New plan form */}
       {showNewPlan && (
-        <Card className="p-4 space-y-3 border-violet-200 dark:border-violet-500/30">
-          <h4 className="text-xs font-black text-violet-500 uppercase tracking-wider">Nuevo plan nutricional</h4>
-          <Input placeholder="Título (ej: Plan hipercalórico)" value={planForm.title} onChange={e => setPlanForm({ ...planForm, title: e.target.value })} />
-          <textarea
-            className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white text-sm"
-            rows={2}
-            placeholder="Descripción / pautas generales (opcional)"
-            value={planForm.description}
-            onChange={e => setPlanForm({ ...planForm, description: e.target.value })}
-          />
-          <div className="grid grid-cols-2 gap-3">
-            <Input type="number" placeholder="Calorías diarias" value={planForm.calories_target} onChange={e => setPlanForm({ ...planForm, calories_target: e.target.value })} />
-            <Input type="number" placeholder="Proteína (g)" value={planForm.protein_g} onChange={e => setPlanForm({ ...planForm, protein_g: e.target.value })} />
-            <Input type="number" placeholder="Carbos (g)" value={planForm.carbs_g} onChange={e => setPlanForm({ ...planForm, carbs_g: e.target.value })} />
-            <Input type="number" placeholder="Grasas (g)" value={planForm.fat_g} onChange={e => setPlanForm({ ...planForm, fat_g: e.target.value })} />
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" fullWidth onClick={() => { setShowNewPlan(false); setPlanForm({ title: '', description: '', calories_target: '', protein_g: '', carbs_g: '', fat_g: '' }); }}>
-              Cancelar
-            </Button>
-            <Button variant="secondary" fullWidth onClick={handleCreatePlan} disabled={saving}>
-              {saving ? 'Creando...' : 'Crear plan'}
-            </Button>
-          </div>
-        </Card>
+        <MacroForm
+          planForm={planForm}
+          setPlanForm={setPlanForm}
+          onSave={handleCreatePlan}
+          onCancel={() => { setShowNewPlan(false); setPlanForm({ title: '', description: '', calories_target: '', protein_g: '', carbs_g: '', fat_g: '' }); }}
+          saving={saving}
+          saveLabel="Crear plan"
+        />
       )}
 
       {/* Archived plans */}
