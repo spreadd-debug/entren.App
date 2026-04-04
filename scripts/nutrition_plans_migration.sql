@@ -55,3 +55,9 @@ CREATE INDEX IF NOT EXISTS idx_nutrition_plans_student
 
 CREATE INDEX IF NOT EXISTS idx_nutrition_items_plan
   ON nutrition_items(plan_id, item_order);
+
+  ALTER TABLE nutrition_plans ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE nutrition_items ENABLE ROW LEVEL SECURITY
+
+  CREATE INDEX IF NOT EXISTS idx_nutrition_plans_student
+  ON nutrition_plans(student_id, status)

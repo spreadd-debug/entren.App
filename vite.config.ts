@@ -66,9 +66,7 @@ export default defineConfig(({ mode }) => {
         '@': path.resolve(__dirname, '.'),
       },
     },
-    build: {
-      sourcemap: true,
-    },
+    build: {},
     server: {
       hmr: process.env.DISABLE_HMR !== 'true',
     },

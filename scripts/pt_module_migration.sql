@@ -104,3 +104,4 @@ CREATE INDEX IF NOT EXISTS idx_session_notes_student
 ALTER TABLE session_notes ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "allow_all_session_notes"
   ON session_notes FOR ALL USING (true) WITH CHECK (true);
+

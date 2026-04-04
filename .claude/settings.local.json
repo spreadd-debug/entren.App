@@ -1,0 +1,34 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -v \"\\\\.tsx$\")",
+      "Bash(grep -r \"access_code\\\\|invite\\\\|slug\" /c/Users/Mauro/Desktop/entren.App/src --include=*.ts --include=*.tsx)",
+      "Bash(grep -r \"daily\\\\|energy\\\\|mood\\\\|sleep\\\\|biometric\" /c/Users/Mauro/Desktop/entren.App/src --include=*.tsx --include=*.ts)",
+      "Bash(grep -l \"student\" /c/Users/Mauro/Desktop/entren.App/scripts/*.sql)",
+      "Bash(find /c/Users/Mauro/Desktop/entren.App/src/services/pt -type f -name *.ts -o -name *.tsx)",
+      "Bash(find /c/Users/Mauro/Desktop/entren.App/src -type f \\\\\\(-name *filter* -o -name *range* \\\\\\))",
+      "Bash(npm search:*)",
+      "Bash(npm info:*)",
+      "Bash(find /c/Users/Mauro/Desktop/entren.App/src -name *Photo* -o -name *photo* -o -name *Image*)",
+      "Bash(find /c/Users/Mauro/Desktop/entren.App -name *.sql -o -name schema* -o -name migration*)",
+      "Bash(find /c/Users/Mauro/Desktop/entren.App/src -type f \\\\\\(-name *.tsx -o -name *.ts -o -name *.jsx -o -name *.js \\\\\\))",
+      "Bash(find /c/Users/Mauro/Desktop/entren.App/src -type f \\\\\\(-name *.tsx -o -name *.ts \\\\\\))",
+      "Bash(find /c/Users/Mauro/Desktop/entren.App/src/components -type f -name *.tsx)",
+      "Bash(grep -r \"desayuno\\\\|almuerzo\\\\|cena\\\\|merienda\" /c/Users/Mauro/Desktop/entren.App/src --include=*.tsx --include=*.ts)",
+      "Bash(grep -r \"MealCard\\\\|meal.*card\\\\|Meal\" /c/Users/Mauro/Desktop/entren.App/src --include=*.tsx --include=*.ts)",
+      "Bash(grep -r \"export.*interface\\\\|export.*type.*Nutrition\\\\|export.*type.*Meal\" /c/Users/Mauro/Desktop/entren.App/src --include=*.ts --include=*.tsx)",
+      "Bash(grep -l \"NutritionPlanPanel\\\\|NutritionPlanService\" /c/Users/Mauro/Desktop/entren.App/src/pages/*.tsx)",
+      "Bash(find /c/Users/Mauro/Desktop/entren.App/src -type f \\\\\\(-name *.ts -o -name *.tsx \\\\\\))",
+      "Bash(git add:*)",
+      "Bash(git commit -m ':*)",
+      "Bash(git push:*)",
+      "Bash(npm list:*)",
+      "Bash(curl -s http://localhost:5174/)",
+      "Bash(ls dist/assets/*.js)",
+      "Read(//c/Users/Mauro/Desktop/entren.App/**)",
+      "Bash(ls dist/assets/*.map)",
+      "Bash(npx source-map-cli:*)",
+      "WebFetch(domain:project-irts3.vercel.app)"
+    ]
+  }
+}

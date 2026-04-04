@@ -71,3 +71,4 @@ CREATE INDEX IF NOT EXISTS idx_workout_update_requests_student_status
 
 CREATE INDEX IF NOT EXISTS idx_workout_update_requests_gym_status
   ON workout_update_requests(gym_id, status);
+

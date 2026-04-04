@@ -1,11 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Loader2, ChevronRight, ClipboardList } from 'lucide-react';
 import { Card } from '../components/UI';
-import { ErrorBoundary } from '../components/ErrorBoundary';
 import { SemaphoreBadge } from '../components/pt/SemaphoreBadge';
 import { AlertsList } from '../components/pt/AlertsList';
 import { AlertEngineService } from '../services/pt/AlertEngineService';
-import { safe } from '../utils/safeRender';
 import type { Student, StudentSemaphore } from '../../shared/types';
 
 interface PlanningViewProps {
@@ -67,21 +65,21 @@ const PlanningView: React.FC<PlanningViewProps> = ({
         <Card className="p-3 text-center">
           <div className="flex items-center justify-center gap-2 mb-1">
             <span className="w-3 h-3 rounded-full bg-rose-500" />
-            <span className="text-2xl font-black text-slate-900 dark:text-white">{safe(redCount, 'redCount')}</span>
+            <span className="text-2xl font-black text-slate-900 dark:text-white">{redCount}</span>
           </div>
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Atencion</p>
         </Card>
         <Card className="p-3 text-center">
           <div className="flex items-center justify-center gap-2 mb-1">
             <span className="w-3 h-3 rounded-full bg-amber-500" />
-            <span className="text-2xl font-black text-slate-900 dark:text-white">{safe(yellowCount, 'yellowCount')}</span>
+            <span className="text-2xl font-black text-slate-900 dark:text-white">{yellowCount}</span>
           </div>
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Revisar</p>
         </Card>
         <Card className="p-3 text-center">
           <div className="flex items-center justify-center gap-2 mb-1">
             <span className="w-3 h-3 rounded-full bg-emerald-500" />
-            <span className="text-2xl font-black text-slate-900 dark:text-white">{safe(greenCount, 'greenCount')}</span>
+            <span className="text-2xl font-black text-slate-900 dark:text-white">{greenCount}</span>
           </div>
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Bien</p>
         </Card>
@@ -89,9 +87,7 @@ const PlanningView: React.FC<PlanningViewProps> = ({
 
       {/* Student list */}
       <div className="space-y-3">
-        {sorted.map(({ student, semaphore }) => (
-        <ErrorBoundary key={student.id} fallbackLabel={`StudentCard:${student.id}`}>
-        {(() => {
+        {sorted.map(({ student, semaphore }) => {
           const rawName =
             (student as any).name ??
             (`${(student as any).nombre ?? ''} ${(student as any).apellido ?? ''}`.trim() || 'Sin nombre');
@@ -115,10 +111,10 @@ const PlanningView: React.FC<PlanningViewProps> = ({
                     className="font-bold text-slate-900 dark:text-white text-sm cursor-pointer hover:text-violet-600 dark:hover:text-violet-400 transition-colors"
                     onClick={() => onSelectStudent(student)}
                   >
-                    {safe(name, 'name')}
+                    {name}
                   </h4>
                   <p className="text-xs text-slate-500 dark:text-slate-400 leading-snug line-clamp-1">
-                    {safe(semaphore.statusText, 'statusText')}
+                    {semaphore.statusText}
                   </p>
                 </div>
                 <button
@@ -138,9 +134,7 @@ const PlanningView: React.FC<PlanningViewProps> = ({
               )}
             </Card>
           );
-        })()}
-        </ErrorBoundary>
-        ))}
+        })}
 
         {sorted.length === 0 && (
           <div className="text-center py-12 text-slate-400 dark:text-slate-500">

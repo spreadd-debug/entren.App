@@ -62,3 +62,4 @@ VALUES (
   NOW() + INTERVAL '30 days'
 )
 ON CONFLICT (gym_id) DO NOTHING;
+
