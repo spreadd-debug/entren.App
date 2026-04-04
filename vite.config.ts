@@ -53,6 +53,8 @@ export default defineConfig(({ mode }) => {
           globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
           maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
           cleanupOutdatedCaches: true,
+          skipWaiting: true,
+          clientsClaim: true,
         },
       }),
     ],
@@ -64,7 +66,9 @@ export default defineConfig(({ mode }) => {
         '@': path.resolve(__dirname, '.'),
       },
     },
-    build: {},
+    build: {
+      sourcemap: true,
+    },
     server: {
       hmr: process.env.DISABLE_HMR !== 'true',
     },
