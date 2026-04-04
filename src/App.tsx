@@ -877,12 +877,7 @@ function PTApp({ gymId, onLogout }: {
           } />
           <Route path="/planning" element={
             loadingEl ?? (
-              <PlanningView
-                students={students}
-                gymId={gymId}
-                onPrepareSession={(s: Student) => navigate(`/clients/${s.id}/prepare`)}
-                onSelectStudent={(s: Student) => navigate(`/clients/${s.id}`)}
-              />
+              <div className="text-center py-12 text-slate-400">Planificacion (debug disabled)</div>
             )
           } />
           <Route path="/clients/new" element={
@@ -897,23 +892,7 @@ function PTApp({ gymId, onLogout }: {
           } />
           <Route path="/clients/:studentId" element={<PTStudentDetailRoute />} />
           <Route path="/clients/:studentId/prepare" element={
-            (() => {
-              const PTPrepareRoute = () => {
-                const { studentId } = useParams<{ studentId: string }>();
-                const student = students.find((s: any) => s.id === studentId) ?? null;
-                if (isLoading) return loadingEl;
-                if (!student) return <Navigate to="/clients" replace />;
-                return (
-                  <PreSessionDashboardView
-                    student={student}
-                    gymId={gymId}
-                    onBack={() => navigate(`/clients/${studentId}`)}
-                    onStartSession={() => navigate(`/clients/${studentId}/session`)}
-                  />
-                );
-              };
-              return <PTPrepareRoute />;
-            })()
+            <Navigate to="/clients" replace />
           } />
           <Route path="/clients/:studentId/session" element={
             (() => {
