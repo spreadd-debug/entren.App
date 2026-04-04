@@ -78,8 +78,25 @@ const PreSessionDashboardView: React.FC<PreSessionDashboardViewProps> = ({
       AIAnalysisService.getLatest(student.id).catch(() => null),
     ]).then(([dataRes, aiRes]) => {
       if (cancelled) return;
-      if (dataRes.status === 'fulfilled') setData(dataRes.value);
-      if (aiRes.status === 'fulfilled') setAiAnalysis(aiRes.value);
+      if (dataRes.status === 'fulfilled') {
+        const d = dataRes.value;
+        // DEBUG: deep-inspect all values for objects that could crash React
+        console.log('[DEBUG PreSession] data loaded:', JSON.stringify({
+          wellnessToday: d.wellness.today,
+          wellnessHistoryCount: d.wellness.history.length,
+          wellnessAverages: d.wellness.averages,
+          exerciseHistoryCount: d.exerciseHistory.length,
+          alertsCount: d.alerts.length,
+          alerts: d.alerts.map(a => ({ id: a.id, severity: a.severity, message: a.message, detail: a.detail, dataKeys: Object.keys(a.data) })),
+          lastSessionDate: d.lastSessionDate,
+          progressionMetrics: d.progressionMetrics,
+        }, null, 2));
+        setData(d);
+      }
+      if (aiRes.status === 'fulfilled') {
+        console.log('[DEBUG PreSession] aiAnalysis:', JSON.stringify(aiRes.value, null, 2));
+        setAiAnalysis(aiRes.value);
+      }
       setLoading(false);
     });
 

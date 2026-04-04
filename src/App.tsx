@@ -903,6 +903,11 @@ function PTApp({ gymId, onLogout }: {
                 const student = students.find((s: any) => s.id === studentId) ?? null;
                 if (isLoading) return loadingEl;
                 if (!student) return <Navigate to="/clients" replace />;
+                // DEBUG: log the student object to find any objects that could crash React
+                console.log('[DEBUG PTPrepareRoute] student:', JSON.stringify(student, null, 2));
+                console.log('[DEBUG PTPrepareRoute] student keys with object values:',
+                  Object.entries(student).filter(([, v]) => v !== null && typeof v === 'object').map(([k, v]) => `${k}: ${JSON.stringify(v)}`)
+                );
                 return (
                   <PreSessionDashboardView
                     student={student}
