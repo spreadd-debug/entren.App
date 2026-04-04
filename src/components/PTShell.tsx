@@ -171,17 +171,7 @@ export const PTShell: React.FC<PTShellProps> = ({
 
         {/* Content */}
         <div className="px-4 md:px-8 pt-6 flex-1" data-tour="content-area">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={currentView}
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.16, ease: 'easeOut' }}
-            >
-              {children}
-            </motion.div>
-          </AnimatePresence>
+          {children}
         </div>
       </main>
 

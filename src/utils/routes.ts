@@ -56,11 +56,11 @@ export function viewToPath(view: string, params?: { studentId?: string; pt?: boo
 export function pathToView(pathname: string): string {
   // Check exact match first
   if (PATH_TO_VIEW[pathname]) return PATH_TO_VIEW[pathname];
-  // Check /students/:id or /clients/:id pattern
-  if (/^\/students\/[^/]+$/.test(pathname) && pathname !== '/students/new') {
+  // Check /students/:id or /clients/:id pattern (with optional sub-routes)
+  if (/^\/students\/[^/]+/.test(pathname) && pathname !== '/students/new') {
     return 'student-detail';
   }
-  if (/^\/clients\/[^/]+$/.test(pathname) && pathname !== '/clients/new') {
+  if (/^\/clients\/[^/]+/.test(pathname) && pathname !== '/clients/new') {
     return 'student-detail';
   }
   return 'dashboard';
