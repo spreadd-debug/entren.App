@@ -1,7 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Search, Filter, MessageSquare, CreditCard, ChevronRight, UserPlus, Users, ArrowUpDown } from 'lucide-react';
 import { Card, Input, StatusBadge, Button, BillingBadge } from '../components/UI';
 import { SemaphoreBadge } from '../components/pt/SemaphoreBadge';
+import { AlertEngineService } from '../services/pt/AlertEngineService';
 import { Student, StudentSemaphore } from '../../shared/types';
 import { formatDate } from '../utils/dateUtils';
 
@@ -12,7 +13,7 @@ interface StudentsViewProps {
   onSelectStudent: (student: Student) => void;
   onNavigate: (view: string) => void;
   gymType?: 'gym' | 'personal_trainer';
-  semaphores?: Map<string, StudentSemaphore>;
+  gymId?: string;
 }
 
 const isValidDate = (value: unknown) => {
@@ -21,10 +22,18 @@ const isValidDate = (value: unknown) => {
   return !isNaN(date.getTime());
 };
 
-export const StudentsView: React.FC<StudentsViewProps> = ({ students, onSelectStudent, onNavigate, gymType = 'gym', semaphores }) => {
+export const StudentsView: React.FC<StudentsViewProps> = ({ students, onSelectStudent, onNavigate, gymType = 'gym', gymId }) => {
   const isPT = gymType === 'personal_trainer';
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortMode, setSortMode] = useState<SortMode>(isPT && semaphores ? 'priority' : 'name');
+  const [sortMode, setSortMode] = useState<SortMode>(isPT ? 'priority' : 'name');
+  const [semaphores, setSemaphores] = useState<Map<string, StudentSemaphore>>(new Map());
+
+  useEffect(() => {
+    if (!isPT || !gymId || !students.length) return;
+    AlertEngineService.getSemaphoresForStudents(students, gymId)
+      .then(setSemaphores)
+      .catch(() => {});
+  }, [isPT, gymId, students]);
 
   const safeStudents = Array.isArray(students) ? students : [];
 
@@ -63,7 +72,7 @@ export const StudentsView: React.FC<StudentsViewProps> = ({ students, onSelectSt
   const filteredStudents = normalizedStudents
     .filter((s: any) => s.displayName.toLowerCase().includes(searchTerm.toLowerCase()))
     .sort((a: any, b: any) => {
-      if (isPT && semaphores && sortMode === 'priority') {
+      if (isPT && semaphores.size > 0 && sortMode === 'priority') {
         const aPriority = semaphores.get(a.id)?.priorityScore ?? 0;
         const bPriority = semaphores.get(b.id)?.priorityScore ?? 0;
         if (bPriority !== aPriority) return bPriority - aPriority;
@@ -83,7 +92,7 @@ export const StudentsView: React.FC<StudentsViewProps> = ({ students, onSelectSt
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        {isPT && semaphores && (
+        {isPT && semaphores.size > 0 && (
           <Button
             variant="outline"
             size="icon"
@@ -122,7 +131,7 @@ export const StudentsView: React.FC<StudentsViewProps> = ({ students, onSelectSt
                   <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-700 flex items-center justify-center font-bold text-slate-600 dark:text-slate-300 text-lg">
                     {student.firstLetter}
                   </div>
-                  {isPT && semaphores?.has(student.id) && (
+                  {isPT && semaphores.has(student.id) && (
                     <span className="absolute -top-0.5 -right-0.5">
                       <SemaphoreBadge color={semaphores.get(student.id)!.color} />
                     </span>
@@ -140,7 +149,7 @@ export const StudentsView: React.FC<StudentsViewProps> = ({ students, onSelectSt
                       />
                     )}
                   </div>
-                  {isPT && semaphores?.has(student.id) ? (
+                  {isPT && semaphores.has(student.id) ? (
                     <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-snug line-clamp-1">
                       {semaphores.get(student.id)!.statusText}
                     </p>
