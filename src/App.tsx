@@ -25,6 +25,7 @@ import PTCalendarView from './pages/PTCalendarView';
 import PTLiveSessionView from './pages/PTLiveSessionView';
 import PTPaymentsView from './pages/PTPaymentsView';
 import PreSessionDashboardView from './pages/PreSessionDashboardView';
+import PlanningView from './pages/PlanningView';
 import { ShiftsView } from './pages/ShiftsView';
 import CheckInView from './pages/CheckInView';
 import { SuperAdminApp } from './pages/SuperAdminApp';
@@ -828,6 +829,7 @@ function PTApp({ gymId, onLogout }: {
       case 'dashboard':      return 'Panel General';
       case 'students':       return 'Clientes';
       case 'student-detail': return 'Detalle de Cliente';
+      case 'planning':       return 'Planificacion Smart';
       case 'calendar':       return 'Mi Agenda';
       case 'payments':       return 'Cobros';
       case 'workouts':       return 'Rutinas';
@@ -882,6 +884,16 @@ function PTApp({ gymId, onLogout }: {
           <Route path="/clients" element={
             loadingEl ?? (
               <StudentsView onSelectStudent={handleSelectStudent} students={students} onNavigate={handleNavigate} gymType="personal_trainer" semaphores={semaphores} />
+            )
+          } />
+          <Route path="/planning" element={
+            loadingEl ?? (
+              <PlanningView
+                students={students}
+                gymId={gymId}
+                onPrepareSession={(s: Student) => navigate(`/clients/${s.id}/prepare`)}
+                onSelectStudent={(s: Student) => navigate(`/clients/${s.id}`)}
+              />
             )
           } />
           <Route path="/clients/new" element={

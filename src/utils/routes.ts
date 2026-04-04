@@ -16,6 +16,7 @@ const VIEW_TO_PATH: Record<string, string> = {
   'workouts':       '/workouts',
   'shifts':         '/shifts',
   'new-student':    '/students/new',
+  'planning':       '/planning',
   'student-portal': '/portal-preview',
   'register':       '/register',
 };
@@ -34,6 +35,7 @@ const PATH_TO_VIEW: Record<string, string> = {
   '/shifts':          'shifts',
   '/students/new':    'new-student',
   '/clients/new':     'new-student',
+  '/planning':        'planning',
   '/portal-preview':  'student-portal',
   '/register':        'register',
 };

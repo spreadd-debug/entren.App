@@ -9,6 +9,7 @@ import {
   Plus,
   Zap,
   LogOut,
+  Brain,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -30,6 +31,7 @@ export const PTShell: React.FC<PTShellProps> = ({
   const navItems = [
     { id: 'dashboard', label: 'Inicio',   icon: LayoutDashboard },
     { id: 'students',  label: 'Clientes', icon: Users },
+    { id: 'planning',  label: 'Smart',    icon: Brain },
     { id: 'calendar',  label: 'Agenda',   icon: CalendarDays },
     { id: 'payments',  label: 'Cobros',   icon: DollarSign },
     { id: 'workouts',  label: 'Rutinas',  icon: Dumbbell },
