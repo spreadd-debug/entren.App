@@ -19,7 +19,7 @@ const PlanningView: React.FC<PlanningViewProps> = ({
   onPrepareSession,
   onSelectStudent,
 }) => {
-  const [semaphores, setSemaphores] = useState<Map<string, StudentSemaphore>>(new Map());
+  const [semaphores, setSemaphores] = useState<Record<string, StudentSemaphore>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -28,7 +28,11 @@ const PlanningView: React.FC<PlanningViewProps> = ({
       return;
     }
     AlertEngineService.getSemaphoresForStudents(students, gymId)
-      .then(setSemaphores)
+      .then((map) => {
+        const obj: Record<string, StudentSemaphore> = {};
+        map.forEach((v, k) => { obj[k] = v; });
+        setSemaphores(obj);
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [students, gymId]);
@@ -46,7 +50,7 @@ const PlanningView: React.FC<PlanningViewProps> = ({
   const sorted = [...students]
     .map((s) => ({
       student: s,
-      semaphore: semaphores.get(s.id) ?? { color: 'green' as const, statusText: 'Sin datos', alerts: [], priorityScore: 0 },
+      semaphore: semaphores[s.id] ?? { color: 'green' as const, statusText: 'Sin datos', alerts: [], priorityScore: 0 },
     }))
     .sort((a, b) => b.semaphore.priorityScore - a.semaphore.priorityScore);
 
@@ -84,9 +88,10 @@ const PlanningView: React.FC<PlanningViewProps> = ({
       {/* Student list */}
       <div className="space-y-3">
         {sorted.map(({ student, semaphore }) => {
-          const name =
+          const rawName =
             (student as any).name ??
             (`${(student as any).nombre ?? ''} ${(student as any).apellido ?? ''}`.trim() || 'Sin nombre');
+          const name = String(rawName || 'Sin nombre');
           const firstLetter = name.charAt(0).toUpperCase();
           const topAlerts = semaphore.alerts.filter((a) => a.severity === 'danger' || a.severity === 'warning').slice(0, 2);
 
@@ -109,7 +114,7 @@ const PlanningView: React.FC<PlanningViewProps> = ({
                     {name}
                   </h4>
                   <p className="text-xs text-slate-500 dark:text-slate-400 leading-snug line-clamp-1">
-                    {semaphore.statusText}
+                    {String(semaphore.statusText || '')}
                   </p>
                 </div>
                 <button

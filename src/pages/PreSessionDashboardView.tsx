@@ -61,10 +61,11 @@ const PreSessionDashboardView: React.FC<PreSessionDashboardViewProps> = ({
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
 
-  const clientName =
-    (student as any).name ??
-    `${(student as any).nombre ?? ''} ${(student as any).apellido ?? ''}`.trim() ??
-    'Cliente';
+  const clientName = String(
+    (student as any).name ||
+    `${(student as any).nombre ?? ''} ${(student as any).apellido ?? ''}`.trim() ||
+    'Cliente'
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -155,7 +156,7 @@ const PreSessionDashboardView: React.FC<PreSessionDashboardViewProps> = ({
             </button>
           </div>
           <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
-            {aiAnalysis.content}
+            {String(aiAnalysis.content || '')}
           </p>
         </Card>
       ) : (

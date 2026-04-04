@@ -93,9 +93,11 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({
     }));
   }, [plans]);
 
-  const clientName =
-    (student as any).name ??
-    `${(student as any).nombre ?? ''} ${(student as any).apellido ?? ''}`.trim();
+  const clientName = String(
+    (student as any).name ||
+    `${(student as any).nombre ?? ''} ${(student as any).apellido ?? ''}`.trim() ||
+    'Cliente'
+  );
 
   const clientPlan = normalizedPlans.find((p: any) => p.id === ((student as any).plan_id ?? (student as any).planId));
 

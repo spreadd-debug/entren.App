@@ -26,12 +26,16 @@ export const StudentsView: React.FC<StudentsViewProps> = ({ students, onSelectSt
   const isPT = gymType === 'personal_trainer';
   const [searchTerm, setSearchTerm] = useState('');
   const [sortMode, setSortMode] = useState<SortMode>(isPT ? 'priority' : 'name');
-  const [semaphores, setSemaphores] = useState<Map<string, StudentSemaphore>>(new Map());
+  const [semaphores, setSemaphores] = useState<Record<string, StudentSemaphore>>({});
 
   useEffect(() => {
     if (!isPT || !gymId || !students.length) return;
     AlertEngineService.getSemaphoresForStudents(students, gymId)
-      .then(setSemaphores)
+      .then((map) => {
+        const obj: Record<string, StudentSemaphore> = {};
+        map.forEach((v, k) => { obj[k] = v; });
+        setSemaphores(obj);
+      })
       .catch(() => {});
   }, [isPT, gymId, students]);
 
@@ -69,12 +73,14 @@ export const StudentsView: React.FC<StudentsViewProps> = ({ students, onSelectSt
     });
   }, [safeStudents]);
 
+  const hasSemaphores = Object.keys(semaphores).length > 0;
+
   const filteredStudents = normalizedStudents
     .filter((s: any) => s.displayName.toLowerCase().includes(searchTerm.toLowerCase()))
     .sort((a: any, b: any) => {
-      if (isPT && semaphores.size > 0 && sortMode === 'priority') {
-        const aPriority = semaphores.get(a.id)?.priorityScore ?? 0;
-        const bPriority = semaphores.get(b.id)?.priorityScore ?? 0;
+      if (isPT && hasSemaphores && sortMode === 'priority') {
+        const aPriority = semaphores[a.id]?.priorityScore ?? 0;
+        const bPriority = semaphores[b.id]?.priorityScore ?? 0;
         if (bPriority !== aPriority) return bPriority - aPriority;
       }
       return a.displayName.localeCompare(b.displayName);
@@ -92,7 +98,7 @@ export const StudentsView: React.FC<StudentsViewProps> = ({ students, onSelectSt
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        {isPT && semaphores.size > 0 && (
+        {isPT && hasSemaphores && (
           <Button
             variant="outline"
             size="icon"
@@ -131,9 +137,9 @@ export const StudentsView: React.FC<StudentsViewProps> = ({ students, onSelectSt
                   <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-700 flex items-center justify-center font-bold text-slate-600 dark:text-slate-300 text-lg">
                     {student.firstLetter}
                   </div>
-                  {isPT && semaphores.has(student.id) && (
+                  {isPT && semaphores[student.id] && (
                     <span className="absolute -top-0.5 -right-0.5">
-                      <SemaphoreBadge color={semaphores.get(student.id)!.color} />
+                      <SemaphoreBadge color={semaphores[student.id].color} />
                     </span>
                   )}
                 </div>
@@ -149,9 +155,9 @@ export const StudentsView: React.FC<StudentsViewProps> = ({ students, onSelectSt
                       />
                     )}
                   </div>
-                  {isPT && semaphores.has(student.id) ? (
+                  {isPT && semaphores[student.id] ? (
                     <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-snug line-clamp-1">
-                      {semaphores.get(student.id)!.statusText}
+                      {String(semaphores[student.id].statusText || '')}
                     </p>
                   ) : (
                     <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">{student.planDisplay}</p>

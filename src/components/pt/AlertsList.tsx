@@ -71,10 +71,10 @@ export const AlertsList: React.FC<AlertsListProps> = ({ alerts, compact = false,
             <Icon size={compact ? 14 : 16} className={`${config.iconColor} shrink-0 mt-0.5`} />
             <div className="min-w-0 flex-1">
               <p className={`${compact ? 'text-xs' : 'text-sm'} font-medium ${config.textColor} leading-snug`}>
-                {alert.message}
+                {String(alert.message || '')}
               </p>
               {!compact && alert.detail && (
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{alert.detail}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{String(alert.detail)}</p>
               )}
             </div>
           </div>
