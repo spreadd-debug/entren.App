@@ -1,5 +1,6 @@
 import React from 'react';
 import { Moon, Zap, Smile, Activity } from 'lucide-react';
+import { safe } from '../../utils/safeRender';
 import type { WellnessCheckIn } from '../../../shared/types';
 
 interface WellnessQuickViewProps {
@@ -65,7 +66,7 @@ export const WellnessQuickView: React.FC<WellnessQuickViewProps> = ({ today, his
             <div key={m.key} className="text-center">
               <Icon size={16} className="mx-auto mb-1 text-slate-400 dark:text-slate-500" />
               <div className={`text-lg font-bold ${valueColor(val, m.goodHigh)}`}>
-                {val > 0 ? val.toFixed(1) : '-'}
+                {safe(val > 0 ? val.toFixed(1) : '-', `avg.${m.key}`)}
               </div>
               <div className="text-[10px] uppercase tracking-wider font-bold text-slate-400 dark:text-slate-500">
                 {m.label}
@@ -85,7 +86,7 @@ export const WellnessQuickView: React.FC<WellnessQuickViewProps> = ({ today, his
             {recent.map((c) => (
               <div key={c.checkin_date} className="flex items-center gap-2 text-xs">
                 <span className="w-16 text-slate-500 dark:text-slate-400 shrink-0 text-right">
-                  {formatDate(c.checkin_date)}
+                  {safe(formatDate(c.checkin_date), 'checkin_date')}
                 </span>
                 <div className="flex-1 flex items-center gap-1">
                   {METRICS.map((m) => {

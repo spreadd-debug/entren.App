@@ -11,6 +11,7 @@ import { AlertsList } from '../components/pt/AlertsList';
 import { PreSessionService } from '../services/pt/PreSessionService';
 import type { PreSessionData } from '../services/pt/PreSessionService';
 import { AIAnalysisService } from '../services/pt/AIAnalysisService';
+import { safe } from '../utils/safeRender';
 import type { Student, AIAnalysis } from '../../shared/types';
 
 interface PreSessionDashboardViewProps {
@@ -133,7 +134,7 @@ const PreSessionDashboardView: React.FC<PreSessionDashboardViewProps> = ({
           <h2 className="text-lg font-bold text-slate-900 dark:text-white">
             Preparar sesion
           </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400">{clientName}</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">{safe(clientName, 'clientName')}</p>
         </div>
       </div>
 
@@ -156,7 +157,7 @@ const PreSessionDashboardView: React.FC<PreSessionDashboardViewProps> = ({
             </button>
           </div>
           <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
-            {String(aiAnalysis.content || '')}
+            {safe(aiAnalysis.content, 'aiAnalysis.content')}
           </p>
         </Card>
       ) : (
@@ -180,7 +181,7 @@ const PreSessionDashboardView: React.FC<PreSessionDashboardViewProps> = ({
             )}
           </div>
           {aiError && (
-            <p className="text-xs text-rose-500 mt-2">{aiError}</p>
+            <p className="text-xs text-rose-500 mt-2">{safe(aiError, 'aiError')}</p>
           )}
         </Card>
       )}

@@ -1,5 +1,6 @@
 import React from 'react';
 import { TrendingUp, TrendingDown, BarChart3, Calendar } from 'lucide-react';
+import { safe } from '../../utils/safeRender';
 import type { ProgressionMetrics } from '../../services/pt/PreSessionService';
 
 interface ProgressionMetricsCardsProps {
@@ -58,11 +59,11 @@ export const ProgressionMetricsCards: React.FC<ProgressionMetricsCardsProps> = (
           <VolumeChart volumes={metrics.weeklyVolume} />
           <div className="mt-2 flex items-baseline gap-1.5">
             <span className="text-lg font-bold text-slate-900 dark:text-white">
-              {currentVolume > 0 ? `${(currentVolume / 1000).toFixed(1)}t` : '-'}
+              {safe(currentVolume > 0 ? `${(currentVolume / 1000).toFixed(1)}t` : '-', 'currentVolume')}
             </span>
             {volumeDelta !== 0 && (
               <span className={`text-xs font-semibold ${volumeDelta > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                {volumeDelta > 0 ? '+' : ''}{volumeDelta}%
+                {volumeDelta > 0 ? '+' : ''}{safe(volumeDelta, 'volumeDelta')}%
               </span>
             )}
           </div>
@@ -81,7 +82,7 @@ export const ProgressionMetricsCards: React.FC<ProgressionMetricsCardsProps> = (
               const isLatest = i === metrics.weeklyFrequency.length - 1;
               return (
                 <div key={i} className="flex-1 flex flex-col items-center justify-end gap-0.5">
-                  <span className="text-[10px] font-bold text-slate-400">{f}</span>
+                  <span className="text-[10px] font-bold text-slate-400">{safe(f, 'freq')}</span>
                   <div
                     className={`w-full rounded-t-sm ${isLatest ? 'bg-indigo-500' : 'bg-slate-200 dark:bg-slate-700'}`}
                     style={{ height: `${Math.max((f / Math.max(...metrics.weeklyFrequency, 1)) * 100, 8)}%` }}
@@ -92,7 +93,7 @@ export const ProgressionMetricsCards: React.FC<ProgressionMetricsCardsProps> = (
           </div>
           <div className="mt-2">
             <span className="text-lg font-bold text-slate-900 dark:text-white">
-              {currentFreq} ses/sem
+              {safe(currentFreq, 'currentFreq')} ses/sem
             </span>
           </div>
         </div>
@@ -112,8 +113,8 @@ export const ProgressionMetricsCards: React.FC<ProgressionMetricsCardsProps> = (
             <div className="space-y-1.5">
               {metrics.topProgressions.map((p) => (
                 <div key={p.exercise} className="text-xs">
-                  <span className="text-slate-700 dark:text-slate-300 font-medium">{p.exercise}</span>
-                  <span className="text-emerald-600 dark:text-emerald-400 font-bold ml-1">+{p.deltaKg}kg</span>
+                  <span className="text-slate-700 dark:text-slate-300 font-medium">{safe(p.exercise, 'prog.exercise')}</span>
+                  <span className="text-emerald-600 dark:text-emerald-400 font-bold ml-1">+{safe(p.deltaKg, 'prog.deltaKg')}kg</span>
                 </div>
               ))}
             </div>
@@ -134,8 +135,8 @@ export const ProgressionMetricsCards: React.FC<ProgressionMetricsCardsProps> = (
             <div className="space-y-1.5">
               {metrics.topStagnations.map((s) => (
                 <div key={s.exercise} className="text-xs">
-                  <span className="text-slate-700 dark:text-slate-300 font-medium">{s.exercise}</span>
-                  <span className="text-amber-600 dark:text-amber-400 font-bold ml-1">{s.sameWeightSessions} ses</span>
+                  <span className="text-slate-700 dark:text-slate-300 font-medium">{safe(s.exercise, 'stag.exercise')}</span>
+                  <span className="text-amber-600 dark:text-amber-400 font-bold ml-1">{safe(s.sameWeightSessions, 'stag.sessions')} ses</span>
                 </div>
               ))}
             </div>

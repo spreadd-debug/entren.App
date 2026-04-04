@@ -64,7 +64,7 @@ export default defineConfig(({ mode }) => {
       },
     },
     build: {
-      sourcemap: false,
+      sourcemap: true,
     },
     server: {
       hmr: process.env.DISABLE_HMR !== 'true',

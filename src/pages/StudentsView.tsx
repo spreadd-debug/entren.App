@@ -5,6 +5,7 @@ import { SemaphoreBadge } from '../components/pt/SemaphoreBadge';
 import { AlertEngineService } from '../services/pt/AlertEngineService';
 import { Student, StudentSemaphore } from '../../shared/types';
 import { formatDate } from '../utils/dateUtils';
+import { safe } from '../utils/safeRender';
 
 type SortMode = 'priority' | 'name';
 
@@ -157,7 +158,7 @@ export const StudentsView: React.FC<StudentsViewProps> = ({ students, onSelectSt
                   </div>
                   {isPT && semaphores[student.id] ? (
                     <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-snug line-clamp-1">
-                      {String(semaphores[student.id].statusText || '')}
+                      {safe(semaphores[student.id].statusText, 'semaphore.statusText')}
                     </p>
                   ) : (
                     <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">{student.planDisplay}</p>

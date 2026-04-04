@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ChevronDown, ChevronUp, Dumbbell } from 'lucide-react';
+import { safe } from '../../utils/safeRender';
 import type { ExerciseHistory } from '../../services/pt/PreSessionService';
 
 interface ExerciseHistoryTableProps {
@@ -63,7 +64,7 @@ export const ExerciseHistoryTable: React.FC<ExerciseHistoryTableProps> = ({ exer
               <div className="flex items-center gap-2">
                 <Dumbbell size={14} className="text-slate-400" />
                 <span className="text-sm font-semibold text-slate-900 dark:text-white">
-                  {ex.exerciseName}
+                  {safe(ex.exerciseName, 'exerciseName')}
                 </span>
                 {latestWeight != null && latestWeight > 0 && (
                   <span className="text-xs text-slate-400 dark:text-slate-500">
@@ -73,7 +74,7 @@ export const ExerciseHistoryTable: React.FC<ExerciseHistoryTableProps> = ({ exer
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-slate-400 dark:text-slate-500">
-                  {ex.sessions.length} sesiones
+                  {safe(ex.sessions.length, 'sessions.length')} sesiones
                 </span>
                 {isExpanded ? (
                   <ChevronUp size={14} className="text-slate-400" />
@@ -91,14 +92,14 @@ export const ExerciseHistoryTable: React.FC<ExerciseHistoryTableProps> = ({ exer
                     className="flex items-start gap-3 text-xs"
                   >
                     <span className="w-14 shrink-0 text-slate-400 dark:text-slate-500 font-medium pt-0.5">
-                      {formatDate(session.date)}
+                      {safe(formatDate(session.date), 'session.date')}
                     </span>
                     <div className="flex-1">
                       <span className="text-slate-700 dark:text-slate-300">
-                        {formatSets(session.sets)}
+                        {safe(formatSets(session.sets), 'formatSets')}
                       </span>
                       <span className="text-slate-400 dark:text-slate-500 ml-2">
-                        vol: {Math.round(session.totalVolume).toLocaleString()}
+                        vol: {safe(Math.round(session.totalVolume).toLocaleString(), 'totalVolume')}
                       </span>
                     </div>
                   </div>
