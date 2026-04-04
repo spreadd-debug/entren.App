@@ -46,13 +46,21 @@ export interface PreSessionData {
 export const PreSessionService = {
 
   async getPreSessionData(studentId: string, gymId: string): Promise<PreSessionData> {
-    const [sessions, wellnessToday, wellnessHistory, wellnessAverages, alerts] = await Promise.all([
+    const results = await Promise.allSettled([
       PTSessionService.getSessionsWithSets(studentId, 20),
       WellnessCheckInService.getToday(studentId),
       WellnessCheckInService.getHistory(studentId, 7),
       WellnessCheckInService.getAverages(studentId, 7),
       AlertEngineService.getAlertsForStudent(studentId, gymId),
     ]);
+
+    const sessions = results[0].status === 'fulfilled' ? results[0].value : [];
+    const wellnessToday = results[1].status === 'fulfilled' ? results[1].value : null;
+    const wellnessHistory = results[2].status === 'fulfilled' ? results[2].value : [];
+    const wellnessAverages = results[3].status === 'fulfilled'
+      ? results[3].value
+      : { energy: 0, sleep_quality: 0, mood: 0, soreness: 0, count: 0 };
+    const alerts = results[4].status === 'fulfilled' ? results[4].value : [];
 
     return {
       wellness: {

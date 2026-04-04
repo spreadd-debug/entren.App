@@ -207,7 +207,10 @@ export const PTLiveSessionView: React.FC<PTLiveSessionViewProps> = ({
       await PTSessionService.completeSession(session.session.id, ptNotes || undefined);
       toast.success('Sesión completada');
 
-      // AI analysis temporarily disabled for debugging
+      // Fire AI analysis in background (don't block completion)
+      AIAnalysisService.requestAnalysis(gymId, student.id, session.session.id)
+        .then(() => toast.success('Analisis IA generado'))
+        .catch(() => {}); // Silently fail — AI is a bonus
 
       onComplete();
     } catch (err: any) {

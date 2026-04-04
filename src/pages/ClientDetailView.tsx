@@ -497,7 +497,8 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({
             </div>
           )}
 
-          {/* Smart Summary — temporarily disabled for debugging */}
+          {/* Smart Summary */}
+          <StudentSummaryCard studentId={student.id} gymId={gymId} studentName={clientName} />
 
           {/* Info cards grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

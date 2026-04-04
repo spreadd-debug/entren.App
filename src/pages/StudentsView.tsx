@@ -28,17 +28,16 @@ export const StudentsView: React.FC<StudentsViewProps> = ({ students, onSelectSt
   const [sortMode, setSortMode] = useState<SortMode>(isPT ? 'priority' : 'name');
   const [semaphores, setSemaphores] = useState<Record<string, StudentSemaphore>>({});
 
-  // Semaphores temporarily disabled for debugging
-  // useEffect(() => {
-  //   if (!isPT || !gymId || !students.length) return;
-  //   AlertEngineService.getSemaphoresForStudents(students, gymId)
-  //     .then((map) => {
-  //       const obj: Record<string, StudentSemaphore> = {};
-  //       map.forEach((v, k) => { obj[k] = v; });
-  //       setSemaphores(obj);
-  //     })
-  //     .catch(() => {});
-  // }, [isPT, gymId, students]);
+  useEffect(() => {
+    if (!isPT || !gymId || !students.length) return;
+    AlertEngineService.getSemaphoresForStudents(students, gymId)
+      .then((map) => {
+        const obj: Record<string, StudentSemaphore> = {};
+        map.forEach((v, k) => { obj[k] = v; });
+        setSemaphores(obj);
+      })
+      .catch(() => {});
+  }, [isPT, gymId, students]);
 
   const safeStudents = Array.isArray(students) ? students : [];
 

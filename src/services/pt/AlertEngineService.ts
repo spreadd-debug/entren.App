@@ -436,12 +436,19 @@ function deriveSemaphore(alerts: StudentAlert[]): { color: SemaphoreColor; statu
 export const AlertEngineService = {
 
   async getAlertsForStudent(studentId: string, gymId: string): Promise<StudentAlert[]> {
-    const [sessions, averages, anthro, goals] = await Promise.all([
+    const results = await Promise.allSettled([
       PTSessionService.getSessionsWithSets(studentId, 15),
       WellnessCheckInService.getAverages(studentId, 7),
       AnthropometryService.getByStudent(studentId),
       GoalsService.getByStudent(studentId),
     ]);
+
+    const sessions = results[0].status === 'fulfilled' ? results[0].value : [];
+    const averages = results[1].status === 'fulfilled'
+      ? results[1].value
+      : { energy: 0, sleep_quality: 0, mood: 0, soreness: 0, count: 0 };
+    const anthro = results[2].status === 'fulfilled' ? results[2].value : [];
+    const goals = results[3].status === 'fulfilled' ? results[3].value : [];
 
     const alerts: StudentAlert[] = [
       ...checkProgression(sessions),
