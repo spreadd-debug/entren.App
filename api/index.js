@@ -1176,6 +1176,262 @@ router7.delete("/:userId", async (req, res) => {
 });
 var staff_default = router7;
 
+// server/routes/ai.ts
+import { Router as Router8 } from "express";
+
+// server/services/AIAnalysisServerService.ts
+import { GoogleGenAI } from "@google/genai";
+var MAX_ANALYSES_PER_WEEK = 3;
+var SYSTEM_PROMPT = `Sos un asistente de planificaci\xF3n para un Personal Trainer profesional.
+Tu trabajo es analizar los datos de un alumno y darle al PT un resumen \xFAtil con sugerencias accionables.
+
+Reglas:
+- Hablale al PT como un colega, directo y sin vueltas.
+- S\xE9 espec\xEDfico: nombr\xE1 ejercicios, pesos, n\xFAmeros. No seas gen\xE9rico.
+- Prioriz\xE1 lo accionable: "subile 2.5kg al press banca" > "consider\xE1 aumentar la carga".
+- Si hay algo preocupante (dolor, mal sue\xF1o, alej\xE1ndose del objetivo), mencionalo primero.
+- Si hay algo para felicitar (PR, constancia, cerca del objetivo), mencionalo.
+- M\xE1ximo 4-6 oraciones. R\xE1pido de leer.
+- No des disclaimers m\xE9dicos. El PT es el profesional, vos sos su asistente de datos.
+- Correlacion\xE1 datos: "rindi\xF3 menos hoy, puede ser por las 5hs de sue\xF1o".
+- Suger\xED variantes de ejercicios concretas cuando haya estancamiento.
+- Suger\xED ajustes de peso espec\xEDficos (ej: "subir a 52.5kg", "bajar a 70kg y meter m\xE1s reps").
+- Respond\xE9 siempre en espa\xF1ol.`;
+var AIAnalysisServerService = {
+  async countThisWeek(studentId) {
+    const now = /* @__PURE__ */ new Date();
+    const dayOfWeek = now.getDay();
+    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const monday = new Date(now);
+    monday.setDate(monday.getDate() + mondayOffset);
+    monday.setHours(0, 0, 0, 0);
+    const { count, error } = await supabase.from("ai_analyses").select("*", { count: "exact", head: true }).eq("student_id", studentId).gte("created_at", monday.toISOString());
+    if (error) throw error;
+    return count ?? 0;
+  },
+  async gatherContext(gymId, studentId, sessionId) {
+    const [
+      studentRes,
+      goalsRes,
+      anthroRes,
+      sessionsRes,
+      wellnessRes,
+      nutritionRes
+    ] = await Promise.all([
+      supabase.from("students").select("*").eq("id", studentId).single(),
+      supabase.from("client_goals").select("*").eq("student_id", studentId).eq("status", "active").limit(3),
+      supabase.from("client_anthropometry").select("*").eq("student_id", studentId).order("measured_at", { ascending: false }).limit(3),
+      supabase.from("workout_sessions").select("*").eq("student_id", studentId).eq("status", "completed").order("session_date", { ascending: false }).limit(6),
+      supabase.from("wellness_checkins").select("*").eq("student_id", studentId).order("checkin_date", { ascending: false }).limit(7),
+      supabase.from("nutrition_plans").select("*").eq("student_id", studentId).eq("status", "active").limit(1)
+    ]);
+    const student = studentRes.data;
+    const studentName = student ? `${student.nombre ?? ""} ${student.apellido ?? ""}`.trim() : "Alumno";
+    const goals = goalsRes.data ?? [];
+    const primaryGoal = goals[0];
+    const goalLabels = {
+      lose_weight: "Bajar de peso",
+      gain_muscle: "Ganar musculo",
+      strength: "Fuerza",
+      endurance: "Resistencia",
+      general_fitness: "Fitness general"
+    };
+    const measurements = (anthroRes.data ?? []).map((a) => ({
+      date: a.measured_at,
+      weight: a.weight_kg,
+      fat_pct: a.body_fat_pct,
+      muscle_kg: a.muscle_mass_kg
+    }));
+    const sessions = sessionsRes.data ?? [];
+    const recentSessions = [];
+    let currentSession;
+    for (const sess of sessions) {
+      const { data: exercises } = await supabase.from("workout_session_exercises").select("*, workout_exercises(exercise_name, exercise_order)").eq("session_id", sess.id);
+      const exIds = (exercises ?? []).map((e) => e.id);
+      let sets = [];
+      if (exIds.length > 0) {
+        const { data } = await supabase.from("session_sets").select("*").in("session_exercise_id", exIds).order("set_number", { ascending: true });
+        sets = data ?? [];
+      }
+      const setsByEx = /* @__PURE__ */ new Map();
+      for (const s of sets) {
+        const arr = setsByEx.get(s.session_exercise_id) ?? [];
+        arr.push(s);
+        setsByEx.set(s.session_exercise_id, arr);
+      }
+      const exerciseData = (exercises ?? []).sort((a, b) => (a.workout_exercises?.exercise_order ?? 0) - (b.workout_exercises?.exercise_order ?? 0)).map((ex) => {
+        const exSets = setsByEx.get(ex.id) ?? [];
+        return {
+          name: ex.workout_exercises?.exercise_name ?? "Ejercicio",
+          max_weight: Math.max(0, ...exSets.map((s) => s.weight_kg ?? 0)),
+          completed_all_reps: exSets.every((s) => s.completed),
+          sets: exSets.map((s) => ({
+            weight: s.weight_kg ?? 0,
+            reps: s.reps_done ?? 0,
+            completed: s.completed
+          }))
+        };
+      });
+      if (sessionId && sess.id === sessionId) {
+        let routineName;
+        if (sess.workout_plan_id) {
+          const { data: plan } = await supabase.from("workout_plans").select("name").eq("id", sess.workout_plan_id).single();
+          routineName = plan?.name;
+        }
+        currentSession = {
+          date: sess.session_date,
+          routine_name: routineName,
+          exercises: exerciseData,
+          total_volume: sess.total_volume ?? 0,
+          pt_notes: sess.pt_notes ?? void 0
+        };
+      } else {
+        recentSessions.push({
+          date: sess.session_date,
+          volume: sess.total_volume ?? 0,
+          exercises: exerciseData.map((e) => ({
+            name: e.name,
+            max_weight: e.max_weight,
+            completed_all_reps: e.completed_all_reps
+          }))
+        });
+      }
+    }
+    const checkins = (wellnessRes.data ?? []).map((c) => ({
+      date: c.checkin_date,
+      energy: c.energy,
+      sleep: c.sleep_quality,
+      mood: c.mood,
+      soreness: c.soreness
+    }));
+    const activePlan = nutritionRes.data?.[0];
+    const nutrition = activePlan ? {
+      calories: activePlan.calories_target,
+      protein: activePlan.protein_g,
+      carbs: activePlan.carbs_g,
+      fat: activePlan.fat_g
+    } : void 0;
+    const prMap = /* @__PURE__ */ new Map();
+    for (const sess of sessions) {
+      const { data: exercises } = await supabase.from("workout_session_exercises").select("id, workout_exercises(exercise_name)").eq("session_id", sess.id);
+      const exIds = (exercises ?? []).map((e) => e.id);
+      if (!exIds.length) continue;
+      const { data: setsData } = await supabase.from("session_sets").select("session_exercise_id, weight_kg").in("session_exercise_id", exIds);
+      for (const s of setsData ?? []) {
+        const ex = (exercises ?? []).find((e) => e.id === s.session_exercise_id);
+        const name = ex?.workout_exercises?.exercise_name ?? "";
+        const weight = s.weight_kg ?? 0;
+        const existing = prMap.get(name);
+        if (!existing || weight > existing.weight) {
+          prMap.set(name, { exercise: name, weight, date: sess.session_date });
+        }
+      }
+    }
+    return {
+      student_name: studentName,
+      objective: primaryGoal ? goalLabels[primaryGoal.goal_type] ?? primaryGoal.goal_type : void 0,
+      target_weight: primaryGoal?.target_value ? parseFloat(primaryGoal.target_value) : void 0,
+      measurements,
+      current_session: currentSession,
+      recent_sessions: recentSessions,
+      recent_checkins: checkins,
+      personal_records: Array.from(prMap.values()).filter((p) => p.weight > 0).slice(0, 5),
+      nutrition,
+      active_alerts: []
+      // Could be computed server-side but we keep it simple
+    };
+  },
+  async generateAnalysis(gymId, studentId, sessionId) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error("GEMINI_API_KEY no esta configurada en el servidor");
+    }
+    const weekCount = await this.countThisWeek(studentId);
+    if (weekCount >= MAX_ANALYSES_PER_WEEK) {
+      throw new Error(`Limite de ${MAX_ANALYSES_PER_WEEK} analisis por semana alcanzado para este alumno`);
+    }
+    const context = await this.gatherContext(gymId, studentId, sessionId);
+    const userMessage = `Analiza los siguientes datos del alumno y dame tu resumen con sugerencias:
+
+${JSON.stringify(context, null, 2)}`;
+    const ai = new GoogleGenAI({ apiKey });
+    const model = "gemini-2.0-flash";
+    const response = await ai.models.generateContent({
+      model,
+      contents: userMessage,
+      config: {
+        systemInstruction: SYSTEM_PROMPT,
+        maxOutputTokens: 400,
+        temperature: 0.7
+      }
+    });
+    const content = response.text ?? "";
+    const usage = response.usageMetadata;
+    return {
+      content,
+      tokens_input: usage?.promptTokenCount ?? 0,
+      tokens_output: usage?.candidatesTokenCount ?? 0,
+      model
+    };
+  },
+  async analyzeAndSave(gymId, studentId, sessionId) {
+    const result = await this.generateAnalysis(gymId, studentId, sessionId);
+    const { data, error } = await supabase.from("ai_analyses").insert([{
+      gym_id: gymId,
+      student_id: studentId,
+      session_id: sessionId ?? null,
+      analysis_type: sessionId ? "post_session" : "weekly_review",
+      content: result.content,
+      model_used: result.model,
+      tokens_used: result.tokens_input + result.tokens_output
+    }]).select().single();
+    if (error) throw error;
+    return data;
+  }
+};
+
+// server/routes/ai.ts
+var router8 = Router8();
+router8.post("/analyze", async (req, res) => {
+  try {
+    const { gymId, studentId, sessionId } = req.body;
+    if (!gymId || !studentId) {
+      return res.status(400).json({ error: "gymId y studentId son requeridos" });
+    }
+    const result = await AIAnalysisServerService.analyzeAndSave(gymId, studentId, sessionId);
+    res.status(201).json(result);
+  } catch (error) {
+    const status = error.message?.includes("Limite de") ? 429 : 500;
+    res.status(status).json({ error: error.message });
+  }
+});
+router8.get("/latest", async (req, res) => {
+  try {
+    const studentId = req.query.studentId;
+    if (!studentId) {
+      return res.status(400).json({ error: "studentId es requerido" });
+    }
+    const { data, error } = await supabase.from("ai_analyses").select("*").eq("student_id", studentId).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (error) throw error;
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+router8.get("/count-week", async (req, res) => {
+  try {
+    const studentId = req.query.studentId;
+    if (!studentId) {
+      return res.status(400).json({ error: "studentId es requerido" });
+    }
+    const count = await AIAnalysisServerService.countThisWeek(studentId);
+    res.json({ count, limit: 3 });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+var ai_default = router8;
+
 // api/_handler.ts
 var app = express();
 app.use(cors());
@@ -1187,6 +1443,7 @@ app.use("/api/dashboard", dashboard_default);
 app.use("/api/automation", automation_default);
 app.use("/api/subscriptions", subscriptions_default);
 app.use("/api/staff", staff_default);
+app.use("/api/ai", ai_default);
 app.get("/api/health", async (_req, res) => {
   const supabaseUrl2 = process.env.SUPABASE_URL;
   const supabaseKey2 = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_ANON_KEY;

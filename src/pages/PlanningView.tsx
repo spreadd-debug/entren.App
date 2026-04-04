@@ -1,14 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Loader2, ChevronRight, ClipboardList } from 'lucide-react';
 import { Card } from '../components/UI';
 import { SemaphoreBadge } from '../components/pt/SemaphoreBadge';
 import { AlertsList } from '../components/pt/AlertsList';
-import { AlertEngineService } from '../services/pt/AlertEngineService';
 import type { Student, StudentSemaphore } from '../../shared/types';
 
 interface PlanningViewProps {
   students: Student[];
   gymId: string;
+  semaphores: Record<string, StudentSemaphore>;
+  semaphoresLoaded: boolean;
   onPrepareSession: (student: Student) => void;
   onSelectStudent: (student: Student) => void;
 }
@@ -16,28 +17,12 @@ interface PlanningViewProps {
 const PlanningView: React.FC<PlanningViewProps> = ({
   students,
   gymId,
+  semaphores,
+  semaphoresLoaded,
   onPrepareSession,
   onSelectStudent,
 }) => {
-  const [semaphores, setSemaphores] = useState<Record<string, StudentSemaphore>>({});
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!students.length) {
-      setLoading(false);
-      return;
-    }
-    AlertEngineService.getSemaphoresForStudents(students, gymId)
-      .then((map) => {
-        const obj: Record<string, StudentSemaphore> = {};
-        map.forEach((v, k) => { obj[k] = v; });
-        setSemaphores(obj);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [students, gymId]);
-
-  if (loading) {
+  if (!semaphoresLoaded) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3 text-slate-400">
         <Loader2 size={32} className="animate-spin" />

@@ -26,6 +26,7 @@ import PTLiveSessionView from './pages/PTLiveSessionView';
 import PTPaymentsView from './pages/PTPaymentsView';
 import PreSessionDashboardView from './pages/PreSessionDashboardView';
 import PlanningView from './pages/PlanningView';
+import { AlertEngineService } from './services/pt/AlertEngineService';
 import { ShiftsView } from './pages/ShiftsView';
 import CheckInView from './pages/CheckInView';
 import { SuperAdminApp } from './pages/SuperAdminApp';
@@ -46,6 +47,7 @@ import {
   AutomationStatus,
   GymSubscription,
   GymType,
+  StudentSemaphore,
 } from '../shared/types';
 
 import { api } from './services/api';
@@ -701,6 +703,8 @@ function PTApp({ gymId, onLogout }: {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [gymSubscription, setGymSubscription] = useState<GymSubscription | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [semaphores, setSemaphores] = useState<Record<string, StudentSemaphore>>({});
+  const [semaphoresLoaded, setSemaphoresLoaded] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -721,6 +725,19 @@ function PTApp({ gymId, onLogout }: {
     };
     fetchData();
   }, []);
+
+  // Compute semaphores once when students load (cached across navigations)
+  useEffect(() => {
+    if (!students.length || semaphoresLoaded) return;
+    AlertEngineService.getSemaphoresForStudents(students, gymId)
+      .then((map) => {
+        const obj: Record<string, StudentSemaphore> = {};
+        map.forEach((v, k) => { obj[k] = v; });
+        setSemaphores(obj);
+        setSemaphoresLoaded(true);
+      })
+      .catch(() => setSemaphoresLoaded(true));
+  }, [students, gymId, semaphoresLoaded]);
 
   const handleNavigate = (view: string) => {
     navigate(viewToPath(view, { pt: true }));
@@ -880,6 +897,8 @@ function PTApp({ gymId, onLogout }: {
               <PlanningView
                 students={students}
                 gymId={gymId}
+                semaphores={semaphores}
+                semaphoresLoaded={semaphoresLoaded}
                 onPrepareSession={(student) => navigate(`/clients/${student.id}/prepare`)}
                 onSelectStudent={handleSelectStudent}
               />
