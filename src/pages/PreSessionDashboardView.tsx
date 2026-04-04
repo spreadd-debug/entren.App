@@ -4,6 +4,7 @@ import {
   BarChart3, AlertTriangle, Sparkles, RefreshCw,
 } from 'lucide-react';
 import { Card, Button } from '../components/UI';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 import { WellnessQuickView } from '../components/pt/WellnessQuickView';
 import { ExerciseHistoryTable } from '../components/pt/ExerciseHistoryTable';
 import { ProgressionMetricsCards } from '../components/pt/ProgressionMetricsCards';
@@ -139,102 +140,114 @@ const PreSessionDashboardView: React.FC<PreSessionDashboardViewProps> = ({
       </div>
 
       {/* Block 1: AI Analysis */}
-      {aiAnalysis ? (
-        <Card className="p-4 border-indigo-200 dark:border-indigo-500/20 bg-indigo-50/30 dark:bg-indigo-500/5">
-          <div className="flex items-center justify-between mb-3">
-            <SectionHeader
-              icon={Sparkles}
-              title="Analisis inteligente"
-              subtitle={formatRelativeDate(aiAnalysis.created_at)}
-            />
-            <button
-              onClick={handleRequestAnalysis}
-              disabled={aiLoading}
-              className="p-1.5 rounded-lg text-indigo-500 hover:bg-indigo-100 dark:hover:bg-indigo-500/10 transition-colors disabled:opacity-50"
-              title="Reanalizar"
-            >
-              <RefreshCw size={14} className={aiLoading ? 'animate-spin' : ''} />
-            </button>
-          </div>
-          <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
-            {safe(aiAnalysis.content, 'aiAnalysis.content')}
-          </p>
-        </Card>
-      ) : (
-        <Card className="p-4 border-dashed border-indigo-300 dark:border-indigo-500/20 bg-indigo-50/20 dark:bg-indigo-500/5">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Sparkles size={16} className="text-indigo-400" />
-              <span className="text-sm text-indigo-600 dark:text-indigo-400 font-medium">
-                {aiLoading ? 'Generando analisis...' : 'Analisis inteligente con IA'}
-              </span>
-            </div>
-            {!aiLoading ? (
+      <ErrorBoundary fallbackLabel="AI Analysis">
+        {aiAnalysis ? (
+          <Card className="p-4 border-indigo-200 dark:border-indigo-500/20 bg-indigo-50/30 dark:bg-indigo-500/5">
+            <div className="flex items-center justify-between mb-3">
+              <SectionHeader
+                icon={Sparkles}
+                title="Analisis inteligente"
+                subtitle={formatRelativeDate(aiAnalysis.created_at)}
+              />
               <button
                 onClick={handleRequestAnalysis}
-                className="px-3 py-1.5 rounded-lg bg-indigo-500 text-white text-xs font-bold hover:bg-indigo-600 transition-colors"
+                disabled={aiLoading}
+                className="p-1.5 rounded-lg text-indigo-500 hover:bg-indigo-100 dark:hover:bg-indigo-500/10 transition-colors disabled:opacity-50"
+                title="Reanalizar"
               >
-                Generar
+                <RefreshCw size={14} className={aiLoading ? 'animate-spin' : ''} />
               </button>
-            ) : (
-              <Loader2 size={16} className="animate-spin text-indigo-500" />
+            </div>
+            <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+              {safe(aiAnalysis.content, 'aiAnalysis.content')}
+            </p>
+          </Card>
+        ) : (
+          <Card className="p-4 border-dashed border-indigo-300 dark:border-indigo-500/20 bg-indigo-50/20 dark:bg-indigo-500/5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Sparkles size={16} className="text-indigo-400" />
+                <span className="text-sm text-indigo-600 dark:text-indigo-400 font-medium">
+                  {aiLoading ? 'Generando analisis...' : 'Analisis inteligente con IA'}
+                </span>
+              </div>
+              {!aiLoading ? (
+                <button
+                  onClick={handleRequestAnalysis}
+                  className="px-3 py-1.5 rounded-lg bg-indigo-500 text-white text-xs font-bold hover:bg-indigo-600 transition-colors"
+                >
+                  Generar
+                </button>
+              ) : (
+                <Loader2 size={16} className="animate-spin text-indigo-500" />
+              )}
+            </div>
+            {aiError && (
+              <p className="text-xs text-rose-500 mt-2">{safe(aiError, 'aiError')}</p>
             )}
-          </div>
-          {aiError && (
-            <p className="text-xs text-rose-500 mt-2">{safe(aiError, 'aiError')}</p>
-          )}
-        </Card>
-      )}
+          </Card>
+        )}
+      </ErrorBoundary>
 
       {/* Urgent alerts (danger) at the top */}
-      {dangerAlerts.length > 0 && (
-        <Card className="p-4">
-          <SectionHeader icon={AlertTriangle} title="Atencion urgente" />
-          <AlertsList alerts={dangerAlerts} />
-        </Card>
-      )}
+      <ErrorBoundary fallbackLabel="Danger Alerts">
+        {dangerAlerts.length > 0 && (
+          <Card className="p-4">
+            <SectionHeader icon={AlertTriangle} title="Atencion urgente" />
+            <AlertsList alerts={dangerAlerts} />
+          </Card>
+        )}
+      </ErrorBoundary>
 
       {/* Block 2: Wellness */}
-      <Card className="p-4">
-        <SectionHeader
-          icon={HeartPulse}
-          title="Estado actual"
-          subtitle="Check-ins de la ultima semana"
-        />
-        <WellnessQuickView
-          today={data.wellness.today}
-          history={data.wellness.history}
-          averages={data.wellness.averages}
-        />
-      </Card>
+      <ErrorBoundary fallbackLabel="Wellness">
+        <Card className="p-4">
+          <SectionHeader
+            icon={HeartPulse}
+            title="Estado actual"
+            subtitle="Check-ins de la ultima semana"
+          />
+          <WellnessQuickView
+            today={data.wellness.today}
+            history={data.wellness.history}
+            averages={data.wellness.averages}
+          />
+        </Card>
+      </ErrorBoundary>
 
       {/* Block 3: Exercise History */}
-      <Card className="p-4">
-        <SectionHeader
-          icon={Dumbbell}
-          title="Historial de ejercicios"
-          subtitle={data.lastSessionDate ? `Ultima sesion: ${formatRelativeDate(data.lastSessionDate)}` : undefined}
-        />
-        <ExerciseHistoryTable exerciseHistory={data.exerciseHistory} />
-      </Card>
+      <ErrorBoundary fallbackLabel="Exercise History">
+        <Card className="p-4">
+          <SectionHeader
+            icon={Dumbbell}
+            title="Historial de ejercicios"
+            subtitle={data.lastSessionDate ? `Ultima sesion: ${formatRelativeDate(data.lastSessionDate)}` : undefined}
+          />
+          <ExerciseHistoryTable exerciseHistory={data.exerciseHistory} />
+        </Card>
+      </ErrorBoundary>
 
       {/* Block 4: Progression Metrics */}
-      <Card className="p-4">
-        <SectionHeader
-          icon={BarChart3}
-          title="Metricas de progresion"
-          subtitle="Ultimas 6 semanas"
-        />
-        <ProgressionMetricsCards metrics={data.progressionMetrics} />
-      </Card>
+      <ErrorBoundary fallbackLabel="Progression Metrics">
+        <Card className="p-4">
+          <SectionHeader
+            icon={BarChart3}
+            title="Metricas de progresion"
+            subtitle="Ultimas 6 semanas"
+          />
+          <ProgressionMetricsCards metrics={data.progressionMetrics} />
+        </Card>
+      </ErrorBoundary>
 
       {/* Block 5: Warnings + Info Alerts */}
-      {(warningAlerts.length > 0 || otherAlerts.length > 0) && (
-        <Card className="p-4">
-          <SectionHeader icon={AlertTriangle} title="Alertas y notas" />
-          <AlertsList alerts={[...warningAlerts, ...otherAlerts]} />
-        </Card>
-      )}
+      <ErrorBoundary fallbackLabel="Warning Alerts">
+        {(warningAlerts.length > 0 || otherAlerts.length > 0) && (
+          <Card className="p-4">
+            <SectionHeader icon={AlertTriangle} title="Alertas y notas" />
+            <AlertsList alerts={[...warningAlerts, ...otherAlerts]} />
+          </Card>
+        )}
+      </ErrorBoundary>
 
       {/* Fixed bottom CTA */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm border-t border-slate-200 dark:border-slate-700 z-10">

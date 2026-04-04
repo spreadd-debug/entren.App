@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Loader2, ChevronRight, ClipboardList } from 'lucide-react';
 import { Card } from '../components/UI';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 import { SemaphoreBadge } from '../components/pt/SemaphoreBadge';
 import { AlertsList } from '../components/pt/AlertsList';
 import { AlertEngineService } from '../services/pt/AlertEngineService';
@@ -88,7 +89,9 @@ const PlanningView: React.FC<PlanningViewProps> = ({
 
       {/* Student list */}
       <div className="space-y-3">
-        {sorted.map(({ student, semaphore }) => {
+        {sorted.map(({ student, semaphore }) => (
+        <ErrorBoundary key={student.id} fallbackLabel={`StudentCard:${student.id}`}>
+        {(() => {
           const rawName =
             (student as any).name ??
             (`${(student as any).nombre ?? ''} ${(student as any).apellido ?? ''}`.trim() || 'Sin nombre');
@@ -135,7 +138,9 @@ const PlanningView: React.FC<PlanningViewProps> = ({
               )}
             </Card>
           );
-        })}
+        })()}
+        </ErrorBoundary>
+        ))}
 
         {sorted.length === 0 && (
           <div className="text-center py-12 text-slate-400 dark:text-slate-500">
