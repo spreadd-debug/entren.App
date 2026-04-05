@@ -198,6 +198,26 @@ export default function WorkoutPlansView({ gymId }: { gymId: string }) {
   const toast = useToast();
   const [activeTab, setActiveTab] = useState<Tab>("plans");
   const [editingRoutineId, setEditingRoutineId] = useState<string | null>(null);
+  const [editorDirty, setEditorDirty] = useState(false);
+  const [pendingTab, setPendingTab] = useState<Tab | null>(null);
+
+  const handleTabSwitch = (tab: Tab) => {
+    if (editingRoutineId && editorDirty && tab !== "plans") {
+      setPendingTab(tab);
+      return;
+    }
+    setActiveTab(tab);
+    if (tab !== "plans") setEditingRoutineId(null);
+  };
+
+  const confirmTabSwitch = () => {
+    if (pendingTab) {
+      setEditorDirty(false);
+      setEditingRoutineId(null);
+      setActiveTab(pendingTab);
+      setPendingTab(null);
+    }
+  };
 
   // ─── Students tab state ───────────────────────────────────────────────────
   const [studentsWorkoutData, setStudentsWorkoutData] = useState<any[]>([]);
@@ -565,7 +585,7 @@ export default function WorkoutPlansView({ gymId }: { gymId: string }) {
       {/* Tab switcher */}
       <div className="flex gap-2">
         <button
-          onClick={() => setActiveTab("plans")}
+          onClick={() => handleTabSwitch("plans")}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all ${
             activeTab === "plans"
               ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-lg"
@@ -576,7 +596,7 @@ export default function WorkoutPlansView({ gymId }: { gymId: string }) {
           Rutinas
         </button>
         <button
-          onClick={() => setActiveTab("library")}
+          onClick={() => handleTabSwitch("library")}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all ${
             activeTab === "library"
               ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-lg"
@@ -598,7 +618,7 @@ export default function WorkoutPlansView({ gymId }: { gymId: string }) {
           )}
         </button>
         <button
-          onClick={() => setActiveTab("students")}
+          onClick={() => handleTabSwitch("students")}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all ${
             activeTab === "students"
               ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-lg"
@@ -610,6 +630,32 @@ export default function WorkoutPlansView({ gymId }: { gymId: string }) {
         </button>
       </div>
 
+      {/* ── Unsaved changes modal (tab switch while editing) ──────────────── */}
+      {pendingTab && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setPendingTab(null)} />
+          <div className="relative bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl p-6 max-w-sm mx-4 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-amber-500/10">
+                <AlertTriangle size={20} className="text-amber-500" />
+              </div>
+              <h3 className="font-bold text-slate-900 dark:text-white">Cambios sin guardar</h3>
+            </div>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Tenés cambios sin guardar en la rutina. Si cambiás de sección, se van a perder.
+            </p>
+            <div className="flex gap-2 pt-1">
+              <Button variant="danger" onClick={confirmTabSwitch} className="flex-1">
+                Salir sin guardar
+              </Button>
+              <Button variant="outline" onClick={() => setPendingTab(null)} className="flex-1">
+                Seguir editando
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── PLANS TAB (v2 builder) ────────────────────────────────────────── */}
       {activeTab === "plans" && (
         editingRoutineId ? (
@@ -617,6 +663,7 @@ export default function WorkoutPlansView({ gymId }: { gymId: string }) {
             routineId={editingRoutineId}
             gymId={gymId}
             onBack={() => setEditingRoutineId(null)}
+            onDirtyChange={setEditorDirty}
           />
         ) : (
           <RoutineListPage

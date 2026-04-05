@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   ArrowLeft,
   Save,
@@ -40,6 +40,7 @@ import type {
   SetType,
   WeightType,
 } from "../../../shared/types";
+import { AlertTriangle } from "lucide-react";
 import BlockCard from "./BlockCard";
 import ExercisePickerModal from "./ExercisePickerModal";
 
@@ -76,9 +77,11 @@ interface RoutineEditorProps {
   routineId: string;
   gymId: string;
   onBack: () => void;
+  /** Parent calls this to attempt navigation away; editor will confirm if dirty */
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
-export default function RoutineEditor({ routineId, gymId, onBack }: RoutineEditorProps) {
+export default function RoutineEditor({ routineId, gymId, onBack, onDirtyChange }: RoutineEditorProps) {
   const toast = useToast();
   const [routine, setRoutine] = useState<RoutineV2 | null>(null);
   const [days, setDays] = useState<RoutineDayDraft[]>([]);
@@ -88,8 +91,62 @@ export default function RoutineEditor({ routineId, gymId, onBack }: RoutineEdito
   const [editingName, setEditingName] = useState(false);
   const [editingDesc, setEditingDesc] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [addToBlockId, setAddToBlockId] = useState<string | null>(null); // which block to add exercise to
+  const [addToBlockId, setAddToBlockId] = useState<string | null>(null);
   const [selectedBlockIds, setSelectedBlockIds] = useState<Set<string>>(new Set());
+
+  // ─── Unsaved changes tracking ────────────────────────────────────────────
+  const [dirty, setDirty] = useState(false);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const pendingExitAction = useRef<(() => void) | null>(null);
+  const loadedSnapshot = useRef<string>("");
+
+  const markDirty = () => {
+    if (!dirty) {
+      setDirty(true);
+      onDirtyChange?.(true);
+    }
+  };
+
+  const markClean = () => {
+    setDirty(false);
+    onDirtyChange?.(false);
+    // Update snapshot to current state
+    loadedSnapshot.current = JSON.stringify({ routine, days });
+  };
+
+  // Guard: browser tab close / refresh
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (dirty) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [dirty]);
+
+  /** Try to exit — if dirty, show confirmation. Otherwise execute immediately. */
+  const guardedExit = useCallback((action: () => void) => {
+    if (!dirty) {
+      action();
+      return;
+    }
+    pendingExitAction.current = action;
+    setShowExitConfirm(true);
+  }, [dirty]);
+
+  const confirmExit = () => {
+    setShowExitConfirm(false);
+    setDirty(false);
+    onDirtyChange?.(false);
+    pendingExitAction.current?.();
+    pendingExitAction.current = null;
+  };
+
+  const cancelExit = () => {
+    setShowExitConfirm(false);
+    pendingExitAction.current = null;
+  };
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -144,12 +201,17 @@ export default function RoutineEditor({ routineId, gymId, onBack }: RoutineEdito
         })),
       }));
 
-      setDays(draftDays.length > 0 ? draftDays : [{
+      const finalDays = draftDays.length > 0 ? draftDays : [{
         id: crypto.randomUUID(),
         label: "Día 1",
         order: 0,
         blocks: [],
-      }]);
+      }];
+      setDays(finalDays);
+      // Snapshot for dirty detection
+      loadedSnapshot.current = JSON.stringify({ routine: full.routine, days: finalDays });
+      setDirty(false);
+      onDirtyChange?.(false);
     } catch (err) {
       console.error(err);
       toast.error("Error al cargar la rutina");
@@ -188,6 +250,7 @@ export default function RoutineEditor({ routineId, gymId, onBack }: RoutineEdito
         await RoutineBuilderService.saveDay(routine.id, orderedDay);
       }
 
+      markClean();
       toast.success("Rutina guardada");
     } catch (err) {
       console.error(err);
@@ -195,6 +258,18 @@ export default function RoutineEditor({ routineId, gymId, onBack }: RoutineEdito
     } finally {
       setSaving(false);
     }
+  };
+
+  // ─── Dirty-aware state setters ─────────────────────────────────────────
+
+  const setDaysDirty = (newDays: RoutineDayDraft[] | ((prev: RoutineDayDraft[]) => RoutineDayDraft[])) => {
+    setDays(newDays);
+    markDirty();
+  };
+
+  const setRoutineDirty = (newRoutine: RoutineV2) => {
+    setRoutine(newRoutine);
+    markDirty();
   };
 
   // ─── Day management ──────────────────────────────────────────────────────
@@ -206,14 +281,14 @@ export default function RoutineEditor({ routineId, gymId, onBack }: RoutineEdito
       order: days.length,
       blocks: [],
     };
-    setDays([...days, newDay]);
+    setDaysDirty([...days, newDay]);
     setActiveDayIndex(days.length);
   };
 
   const handleDeleteDay = (index: number) => {
     if (days.length <= 1) return;
     const newDays = days.filter((_, i) => i !== index);
-    setDays(newDays);
+    setDaysDirty(newDays);
     if (activeDayIndex >= newDays.length) {
       setActiveDayIndex(newDays.length - 1);
     }
@@ -222,7 +297,7 @@ export default function RoutineEditor({ routineId, gymId, onBack }: RoutineEdito
   const updateDayLabel = (index: number, label: string) => {
     const newDays = [...days];
     newDays[index] = { ...newDays[index], label };
-    setDays(newDays);
+    setDaysDirty(newDays);
   };
 
   // ─── Block management ────────────────────────────────────────────────────
@@ -231,7 +306,7 @@ export default function RoutineEditor({ routineId, gymId, onBack }: RoutineEdito
     if (!activeDay) return;
     const newDays = [...days];
     newDays[activeDayIndex] = { ...activeDay, blocks: newBlocks };
-    setDays(newDays);
+    setDaysDirty(newDays);
   };
 
   const handleAddExerciseToDay = () => {
@@ -399,7 +474,7 @@ export default function RoutineEditor({ routineId, gymId, onBack }: RoutineEdito
       {/* Header */}
       <div className="sticky top-0 z-30 bg-slate-50/80 dark:bg-slate-950/80 backdrop-blur-xl border-b border-slate-200 dark:border-slate-800 -mx-4 px-4 py-3 mb-4">
         <div className="flex items-center gap-3">
-          <button type="button" onClick={onBack} className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+          <button type="button" onClick={() => guardedExit(onBack)} className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
             <ArrowLeft size={18} />
           </button>
 
@@ -409,7 +484,7 @@ export default function RoutineEditor({ routineId, gymId, onBack }: RoutineEdito
                 autoFocus
                 className="text-lg font-bold text-slate-900 dark:text-white bg-transparent border-b-2 border-cyan-500 outline-none w-full"
                 value={routine.name}
-                onChange={(e) => setRoutine({ ...routine, name: e.target.value })}
+                onChange={(e) => setRoutineDirty({ ...routine, name: e.target.value })}
                 onBlur={() => setEditingName(false)}
                 onKeyDown={(e) => e.key === "Enter" && setEditingName(false)}
               />
@@ -425,7 +500,7 @@ export default function RoutineEditor({ routineId, gymId, onBack }: RoutineEdito
                 className="text-xs text-slate-500 bg-transparent border-b border-cyan-500/50 outline-none w-full mt-0.5"
                 value={routine.description ?? ""}
                 placeholder="Descripción (opcional)"
-                onChange={(e) => setRoutine({ ...routine, description: e.target.value || null })}
+                onChange={(e) => setRoutineDirty({ ...routine, description: e.target.value || null })}
                 onBlur={() => setEditingDesc(false)}
                 onKeyDown={(e) => e.key === "Enter" && setEditingDesc(false)}
               />
@@ -548,6 +623,32 @@ export default function RoutineEditor({ routineId, gymId, onBack }: RoutineEdito
         onClose={() => setPickerOpen(false)}
         onSelect={handleExercisePicked}
       />
+
+      {/* Unsaved changes confirmation */}
+      {showExitConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={cancelExit} />
+          <div className="relative bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl p-6 max-w-sm mx-4 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-amber-500/10">
+                <AlertTriangle size={20} className="text-amber-500" />
+              </div>
+              <h3 className="font-bold text-slate-900 dark:text-white">Cambios sin guardar</h3>
+            </div>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Tenés cambios sin guardar en esta rutina. Si salís ahora, se van a perder.
+            </p>
+            <div className="flex gap-2 pt-1">
+              <Button variant="danger" onClick={confirmExit} fullWidth>
+                Salir sin guardar
+              </Button>
+              <Button variant="outline" onClick={cancelExit} fullWidth>
+                Seguir editando
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
