@@ -279,7 +279,7 @@ export const AIAnalysisServerService = {
 
     // Call Gemini API
     const ai = new GoogleGenAI({ apiKey });
-    const model = 'gemini-1.5-flash';
+    const model = 'gemini-2.0-flash-lite';
 
     const response = await ai.models.generateContent({
       model,
