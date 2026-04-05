@@ -16,6 +16,7 @@ import { ExerciseVideoModal } from '../components/ExerciseVideoModal';
 import { useToast } from '../context/ToastContext';
 import { getWorkoutFreshness } from '../config/workoutConfig';
 
+import { PlanProfileService } from '../services/pt/PlanProfileService';
 import { AnthropometryPanel } from '../components/pt/AnthropometryPanel';
 import { MeasurementsPanel } from '../components/pt/MeasurementsPanel';
 import { GoalsPanel } from '../components/pt/GoalsPanel';
@@ -82,6 +83,13 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
+  const [hasPlan, setHasPlan] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    PlanProfileService.get(student.id)
+      .then((p) => setHasPlan(!!p))
+      .catch(() => setHasPlan(false));
+  }, [student.id]);
 
   const normalizedPlans = useMemo(() => {
     return (Array.isArray(plans) ? plans : []).map((p: any) => ({
@@ -498,13 +506,24 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({
           )}
 
           {/* Plan de entrenamiento */}
-          <button
-            onClick={() => navigate(`/clients/${student.id}/plan`)}
-            className="w-full py-3 bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold text-sm transition-all active:scale-[0.98] flex items-center justify-center gap-2"
-          >
-            <Target size={16} />
-            Plan de entrenamiento
-          </button>
+          {hasPlan === false ? (
+            <button
+              onClick={() => navigate(`/clients/${student.id}/plan`)}
+              className="w-full py-4 bg-gradient-to-r from-violet-500 to-indigo-500 hover:from-violet-600 hover:to-indigo-600 text-white rounded-2xl font-black text-sm transition-all active:scale-[0.98] shadow-lg shadow-violet-500/25 flex items-center justify-center gap-2.5"
+            >
+              <Target size={18} />
+              Armar plan de entrenamiento
+              <span className="px-2 py-0.5 bg-white/20 rounded-lg text-[10px] font-black uppercase tracking-wider">Nuevo</span>
+            </button>
+          ) : hasPlan ? (
+            <button
+              onClick={() => navigate(`/clients/${student.id}/plan`)}
+              className="w-full py-3 bg-violet-50 dark:bg-violet-500/10 hover:bg-violet-100 dark:hover:bg-violet-500/20 text-violet-600 dark:text-violet-400 border border-violet-200 dark:border-violet-500/20 rounded-2xl font-bold text-sm transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+            >
+              <Target size={16} />
+              Editar plan de entrenamiento
+            </button>
+          ) : null}
 
           {/* Smart Summary */}
           <StudentSummaryCard studentId={student.id} gymId={gymId} studentName={clientName} />

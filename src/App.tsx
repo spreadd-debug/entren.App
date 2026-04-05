@@ -27,6 +27,7 @@ import PTPaymentsView from './pages/PTPaymentsView';
 import PreSessionDashboardView from './pages/PreSessionDashboardView';
 import PlanningView from './pages/PlanningView';
 import PlanProfileWizard from './pages/PlanProfileWizard';
+import PlanProfileIntro from './pages/PlanProfileIntro';
 import { AlertEngineService } from './services/pt/AlertEngineService';
 import { ShiftsView } from './pages/ShiftsView';
 import CheckInView from './pages/CheckInView';
@@ -771,9 +772,9 @@ function PTApp({ gymId, onLogout }: {
       }
     }
     try {
-      await api.students.create({ ...studentData, gym_id: gymId });
+      const created = await api.students.create({ ...studentData, gym_id: gymId });
       setStudents(await api.students.getAll(gymId));
-      navigate('/clients');
+      navigate(`/clients/${created.id}/plan-intro`);
     } catch (error: any) {
       toast.error(`No se pudo crear el cliente: ${error?.message ?? 'Error desconocido'}`);
     }
@@ -933,6 +934,24 @@ function PTApp({ gymId, onLogout }: {
                 );
               };
               return <PTPrepareRoute />;
+            })()
+          } />
+          <Route path="/clients/:studentId/plan-intro" element={
+            (() => {
+              const PTPlanIntroRoute = () => {
+                const { studentId } = useParams<{ studentId: string }>();
+                const student = students.find((s: any) => s.id === studentId) ?? null;
+                if (isLoading) return loadingEl;
+                if (!student) return <Navigate to="/clients" replace />;
+                return (
+                  <PlanProfileIntro
+                    student={student}
+                    onContinue={() => navigate(`/clients/${studentId}/plan`)}
+                    onSkip={() => navigate(`/clients/${studentId}`)}
+                  />
+                );
+              };
+              return <PTPlanIntroRoute />;
             })()
           } />
           <Route path="/clients/:studentId/plan" element={
