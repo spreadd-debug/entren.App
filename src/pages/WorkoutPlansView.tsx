@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import { Card, Button, Input } from "../components/UI";
 import { WorkoutPlanService, LibraryExercise } from "../services/WorkoutPlanService";
+import RoutineListPage from "../components/routines/RoutineListPage";
+import RoutineEditor from "../components/routines/RoutineEditor";
 import { WorkoutRequestService } from "../services/WorkoutRequestService";
 import { ExerciseVideoModal } from "../components/ExerciseVideoModal";
 import { useToast } from "../context/ToastContext";
@@ -195,6 +197,7 @@ function ExercisePicker({
 export default function WorkoutPlansView({ gymId }: { gymId: string }) {
   const toast = useToast();
   const [activeTab, setActiveTab] = useState<Tab>("plans");
+  const [editingRoutineId, setEditingRoutineId] = useState<string | null>(null);
 
   // ─── Students tab state ───────────────────────────────────────────────────
   const [studentsWorkoutData, setStudentsWorkoutData] = useState<any[]>([]);
@@ -607,8 +610,24 @@ export default function WorkoutPlansView({ gymId }: { gymId: string }) {
         </button>
       </div>
 
-      {/* ── PLANS TAB ─────────────────────────────────────────────────────── */}
+      {/* ── PLANS TAB (v2 builder) ────────────────────────────────────────── */}
       {activeTab === "plans" && (
+        editingRoutineId ? (
+          <RoutineEditor
+            routineId={editingRoutineId}
+            gymId={gymId}
+            onBack={() => setEditingRoutineId(null)}
+          />
+        ) : (
+          <RoutineListPage
+            gymId={gymId}
+            onEditRoutine={(id) => setEditingRoutineId(id)}
+          />
+        )
+      )}
+
+      {/* ── PLANS TAB (legacy, hidden) ───────────────────────────────────── */}
+      {false && activeTab === "plans" && (
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
           {/* Left: create + list */}
           <div className="xl:col-span-1 space-y-6">

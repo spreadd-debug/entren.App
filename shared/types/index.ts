@@ -529,3 +529,92 @@ export interface StudentPlanProfile {
   created_at: string;
   updated_at: string;
 }
+
+// ─── Routine Builder v2 ─────────────────────────────────────────────────────
+
+export type BlockType = 'normal' | 'superset' | 'triset' | 'circuit';
+export type SetType = 'normal' | 'warmup' | 'dropset' | 'failure' | 'backoff';
+export type WeightType = 'absolute' | 'bodyweight' | 'rpe_target' | 'percentage_1rm' | 'band' | 'not_specified';
+export type MuscleGroup = 'chest' | 'back' | 'shoulders' | 'biceps' | 'triceps' | 'quads' | 'hamstrings' | 'glutes' | 'calves' | 'core' | 'full_body' | 'forearms' | 'traps' | 'neck' | 'lower_back' | 'mid_back' | 'abductors' | 'adductors';
+export type Equipment = 'barbell' | 'dumbbell' | 'machine' | 'cable' | 'bodyweight' | 'band' | 'kettlebell' | 'trx' | 'other';
+
+export interface RoutineV2 {
+  id: string;
+  gym_id: string;
+  name: string;
+  description: string | null;
+  is_template: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RoutineDay {
+  id: string;
+  routine_id: string;
+  label: string;
+  order: number;
+}
+
+export interface RoutineBlock {
+  id: string;
+  routine_day_id: string;
+  block_type: BlockType;
+  order: number;
+  rest_after_block_sec: number | null;
+}
+
+export interface RoutineExercise {
+  id: string;
+  block_id: string;
+  exercise_library_id: string | null;
+  exercise_name: string;
+  order: number;
+  notes: string | null;
+  rest_between_sets_sec: number | null;
+  tempo: string | null;
+}
+
+export interface RoutineSet {
+  id: string;
+  routine_exercise_id: string;
+  set_number: number;
+  set_type: SetType;
+  reps: number | null;
+  reps_max: number | null;
+  time_sec: number | null;
+  weight_kg: number | null;
+  weight_type: WeightType;
+  rpe_target: number | null;
+  rir_target: number | null;
+  notes: string | null;
+}
+
+export interface RoutineAssignment {
+  id: string;
+  routine_id: string;
+  student_id: string;
+  day_mapping: Record<string, string>;
+  assigned_at: string;
+  active: boolean;
+}
+
+// ─── Routine Builder v2: Editor state (in-memory, not DB) ───────────────────
+
+export interface RoutineSetDraft extends Omit<RoutineSet, 'id' | 'routine_exercise_id'> {
+  id: string; // temp UUID for new sets
+}
+
+export interface RoutineExerciseDraft extends Omit<RoutineExercise, 'id' | 'block_id'> {
+  id: string;
+  sets: RoutineSetDraft[];
+}
+
+export interface RoutineBlockDraft extends Omit<RoutineBlock, 'id' | 'routine_day_id'> {
+  id: string;
+  exercises: RoutineExerciseDraft[];
+}
+
+export interface RoutineDayDraft extends Omit<RoutineDay, 'id' | 'routine_id'> {
+  id: string;
+  blocks: RoutineBlockDraft[];
+}
