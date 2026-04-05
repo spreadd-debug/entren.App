@@ -1355,7 +1355,7 @@ var AIAnalysisServerService = {
 
 ${JSON.stringify(context, null, 2)}`;
     const ai = new GoogleGenAI({ apiKey });
-    const model = "gemini-2.0-flash";
+    const model = "gemini-1.5-flash";
     const response = await ai.models.generateContent({
       model,
       contents: userMessage,
