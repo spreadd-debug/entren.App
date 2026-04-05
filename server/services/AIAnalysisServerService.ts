@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai';
+import Groq from 'groq-sdk';
 import { supabase } from '../db/supabase';
 
 const MAX_ANALYSES_PER_WEEK = 3;
@@ -260,9 +260,9 @@ export const AIAnalysisServerService = {
     studentId: string,
     sessionId?: string,
   ): Promise<{ content: string; tokens_input: number; tokens_output: number; model: string }> {
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) {
-      throw new Error('GEMINI_API_KEY no esta configurada en el servidor');
+      throw new Error('GROQ_API_KEY no esta configurada en el servidor');
     }
 
     // Rate limit check
@@ -277,27 +277,27 @@ export const AIAnalysisServerService = {
     // Build prompt
     const userMessage = `Analiza los siguientes datos del alumno y dame tu resumen con sugerencias:\n\n${JSON.stringify(context, null, 2)}`;
 
-    // Call Gemini API
-    const ai = new GoogleGenAI({ apiKey });
-    const model = 'gemini-2.0-flash-lite';
+    // Call Groq API
+    const groq = new Groq({ apiKey });
+    const model = 'llama-3.1-8b-instant';
 
-    const response = await ai.models.generateContent({
+    const response = await groq.chat.completions.create({
       model,
-      contents: userMessage,
-      config: {
-        systemInstruction: SYSTEM_PROMPT,
-        maxOutputTokens: 400,
-        temperature: 0.7,
-      },
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: userMessage },
+      ],
+      max_tokens: 400,
+      temperature: 0.7,
     });
 
-    const content = response.text ?? '';
-    const usage = response.usageMetadata;
+    const content = response.choices[0]?.message?.content ?? '';
+    const usage = response.usage;
 
     return {
       content,
-      tokens_input: usage?.promptTokenCount ?? 0,
-      tokens_output: usage?.candidatesTokenCount ?? 0,
+      tokens_input: usage?.prompt_tokens ?? 0,
+      tokens_output: usage?.completion_tokens ?? 0,
       model,
     };
   },
