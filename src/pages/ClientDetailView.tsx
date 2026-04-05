@@ -497,6 +497,15 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({
             </div>
           )}
 
+          {/* Plan de entrenamiento */}
+          <button
+            onClick={() => navigate(`/clients/${student.id}/plan`)}
+            className="w-full py-3 bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold text-sm transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+          >
+            <Target size={16} />
+            Plan de entrenamiento
+          </button>
+
           {/* Smart Summary */}
           <StudentSummaryCard studentId={student.id} gymId={gymId} studentName={clientName} />
 

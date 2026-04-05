@@ -463,5 +463,69 @@ export interface AIAnalysis {
   content: string;
   model_used: string;
   tokens_used: number;
+  context_json?: any;
   created_at: string;
+}
+
+// ─── Student Plan Profiles (PT Planning Wizard) ──────────────────────────────
+
+export type StudentType = 'general' | 'amateur_athlete' | 'competitive_athlete' | 'rehab' | 'senior' | 'postpartum';
+export type ExperienceLevel = 'beginner' | 'intermediate' | 'advanced';
+export type SportSeason = 'preseason' | 'in_season' | 'offseason' | 'none';
+
+export type TrainingObjective = 'fat_loss' | 'hypertrophy' | 'max_strength' | 'recomp' | 'sport_performance' | 'power' | 'endurance' | 'rehab' | 'general_health' | 'competition_prep';
+export type GoalTimeframe = '1_month' | '2_months' | '3_months' | '6_months' | '1_year' | 'no_deadline';
+
+export type TrainingPhase = 'anatomical_adaptation' | 'hypertrophy' | 'max_strength' | 'power' | 'muscular_endurance' | 'peaking' | 'deload' | 'rehab' | 'maintenance';
+export type PeriodizationModel = 'linear' | 'daily_undulating' | 'weekly_undulating' | 'block' | 'autoregulated' | 'none';
+export type ProgressionMethod = 'linear_weight' | 'double_progression' | 'volume' | 'rpe' | 'percentage_1rm' | 'session_by_session';
+export type RepRange = '1-5' | '6-8' | '8-12' | '12-15' | '15-20' | 'mixed';
+export type NutritionStrategy = 'deficit' | 'surplus' | 'maintenance' | 'specific_diet' | 'not_managed';
+
+export type SpecialTechnique = 'tempo' | 'pauses' | 'drop_sets' | 'rest_pause' | 'supersets' | 'pre_fatigue' | 'mechanical_sets' | 'cluster_sets' | 'amrap' | 'eccentrics' | 'plyometrics' | 'speed_work' | 'circuits';
+
+export interface StudentPlanProfile {
+  id: string;
+  gym_id: string;
+  student_id: string;
+
+  // Step 1: Who
+  student_type: StudentType;
+  sport: string | null;
+  sport_season: SportSeason | null;
+  experience_level: ExperienceLevel;
+  age: number | null;
+  biological_sex: 'male' | 'female' | null;
+  injuries_limitations: string | null;
+  available_days: string[];
+  sessions_per_week: number | null;
+  session_duration_min: number | null;
+
+  // Step 2: Goals
+  primary_objective: TrainingObjective;
+  secondary_objective: TrainingObjective | null;
+  numeric_goal: string | null;
+  goal_deadline: string | null;
+  goal_timeframe: GoalTimeframe | null;
+
+  // Step 3: Methodology
+  current_phase: TrainingPhase;
+  phase_duration_weeks: number | null;
+  phase_start_date: string | null;
+  next_phase: TrainingPhase | null;
+  periodization_model: PeriodizationModel;
+  progression_method: ProgressionMethod;
+  rep_range: RepRange;
+  special_techniques: SpecialTechnique[];
+  methodology_notes: string | null;
+
+  // Step 4: Context
+  nutrition_strategy: NutritionStrategy;
+  nutrition_detail: string | null;
+  lifestyle_factors: string | null;
+  equipment_restrictions: string | null;
+  schedule_considerations: string | null;
+
+  created_at: string;
+  updated_at: string;
 }

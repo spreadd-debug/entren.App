@@ -26,6 +26,7 @@ import PTLiveSessionView from './pages/PTLiveSessionView';
 import PTPaymentsView from './pages/PTPaymentsView';
 import PreSessionDashboardView from './pages/PreSessionDashboardView';
 import PlanningView from './pages/PlanningView';
+import PlanProfileWizard from './pages/PlanProfileWizard';
 import { AlertEngineService } from './services/pt/AlertEngineService';
 import { ShiftsView } from './pages/ShiftsView';
 import CheckInView from './pages/CheckInView';
@@ -932,6 +933,28 @@ function PTApp({ gymId, onLogout }: {
                 );
               };
               return <PTPrepareRoute />;
+            })()
+          } />
+          <Route path="/clients/:studentId/plan" element={
+            (() => {
+              const PTPlanRoute = () => {
+                const { studentId } = useParams<{ studentId: string }>();
+                const student = students.find((s: any) => s.id === studentId) ?? null;
+                if (isLoading) return loadingEl;
+                if (!student) return <Navigate to="/clients" replace />;
+                return (
+                  <PlanProfileWizard
+                    student={student}
+                    gymId={gymId}
+                    onBack={() => navigate(`/clients/${studentId}`)}
+                    onSaved={() => {
+                      toast.success('Plan de entrenamiento guardado');
+                      navigate(`/clients/${studentId}`);
+                    }}
+                  />
+                );
+              };
+              return <PTPlanRoute />;
             })()
           } />
           <Route path="/clients/:studentId/session" element={

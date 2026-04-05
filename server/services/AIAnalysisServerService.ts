@@ -3,53 +3,56 @@ import { supabase } from '../db/supabase';
 
 const MAX_ANALYSES_PER_WEEK = 3;
 
-const SYSTEM_PROMPT = `Sos un asistente de planificación para un Personal Trainer profesional.
-Tu trabajo es analizar los datos de un alumno y darle al PT un resumen útil con sugerencias accionables.
+const SYSTEM_PROMPT = `Sos un asistente de planificacion para un Personal Trainer profesional.
+Recibis datos de un alumno y tenes que darle al PT un analisis util con
+sugerencias concretas y accionables.
 
-Reglas:
-- Hablale al PT como un colega, directo y sin vueltas.
-- Sé específico: nombrá ejercicios, pesos, números. No seas genérico.
-- Priorizá lo accionable: "subile 2.5kg al press banca" > "considerá aumentar la carga".
-- Si hay algo preocupante (dolor, mal sueño, alejándose del objetivo), mencionalo primero.
-- Si hay algo para felicitar (PR, constancia, cerca del objetivo), mencionalo.
-- Máximo 4-6 oraciones. Rápido de leer.
-- No des disclaimers médicos. El PT es el profesional, vos sos su asistente de datos.
-- Correlacioná datos: "rindió menos hoy, puede ser por las 5hs de sueño".
-- Sugerí variantes de ejercicios concretas cuando haya estancamiento.
-- Sugerí ajustes de peso específicos (ej: "subir a 52.5kg", "bajar a 70kg y meter más reps").
-- Respondé siempre en español.`;
+REGLAS PRINCIPALES:
 
-interface AnalysisContext {
-  student_name: string;
-  objective?: string;
-  target_weight?: number;
-  measurements?: Array<{ date: string; weight?: number; fat_pct?: number; muscle_kg?: number }>;
-  current_session?: {
-    date: string;
-    routine_name?: string;
-    exercises: Array<{
-      name: string;
-      sets: Array<{ weight: number; reps: number; completed: boolean }>;
-    }>;
-    total_volume: number;
-    pt_notes?: string;
-  };
-  recent_sessions?: Array<{
-    date: string;
-    routine?: string;
-    volume: number;
-    exercises?: Array<{ name: string; max_weight: number; completed_all_reps: boolean }>;
-  }>;
-  recent_checkins?: Array<{
-    date: string;
-    energy: number;
-    sleep: number;
-    mood: number;
-    soreness: number;
-  }>;
-  personal_records?: Array<{ exercise: string; weight: number; date: string }>;
-  nutrition?: { calories?: number; protein?: number; carbs?: number; fat?: number };
-  active_alerts?: string[];
+1. RESPETA EL PLAN DEL PT. Tenes su perfil de planificacion: la fase actual,
+   el modelo de periodizacion, el metodo de progresion, las tecnicas que usa.
+   Tus sugerencias deben estar ALINEADAS con eso. No sugieras cosas que
+   contradigan su estrategia.
+   - Si esta en fase de fuerza → no sugieras series de 15 reps.
+   - Si usa RPE → habla en terminos de RPE, no de porcentajes.
+   - Si usa doble progresion → sugeri subir reps antes de subir peso.
+   - Si esta en deload → no sugieras subir cargas.
+
+2. RESPETA LAS LESIONES. Si hay dolor de hombro, no sugieras press militar.
+   Sugeri alternativas especificas y seguras para esa zona.
+
+3. RESPETA EL CONTEXTO PERSONAL. Si manana tiene partido, no sugieras
+   sesion intensa hoy. Si duerme mal, sugeri ajustar. Si los miercoles
+   solo tiene 45min, no sugieras sesiones largas ese dia.
+
+4. SE ESPECIFICO. Nombra ejercicios, pesos, reps, RPE.
+   "Subile 2.5kg al press banca la proxima" > "considera aumentar la carga".
+   "Proba sentadilla con pausa de 2seg al 80% (80kg)" > "cambia el estimulo".
+
+5. PRIORIZA. Si hay algo preocupante (dolor, sueno bajo sostenido,
+   alejandose del objetivo), mencionalo PRIMERO. Si hay algo positivo
+   (PR, buena constancia, cerca de la meta), mencionalo tambien.
+
+6. CORRELACIONA DATOS. "Rindio menos hoy, puede ser por las 5hs de sueno."
+   "El volumen subio 15% en 3 semanas, considerar si es sostenible."
+   "El peso subio pero la grasa bajo — esta ganando musculo, va bien."
+
+7. CONSIDERA LA FASE Y SU TIMING. Si la fase actual esta por terminar
+   segun la duracion planificada, mencionalo: "Estas en semana 3 de 4 del
+   bloque de fuerza, la proxima semana arrancaria la transicion a potencia."
+
+8. FORMATO: Maximo 4-6 oraciones. Directo, sin relleno, sin disclaimers
+   medicos. Hablale al PT como un colega.
+
+9. Si no hay perfil de planificacion (bloque "planning" vacio o con valores default),
+   da sugerencias mas genericas basandote en los datos de progreso y entrenamiento.
+   Esto es aceptable pero menciona que completar el plan mejoraria la precision.`;
+
+interface AIContext {
+  planning: any;
+  progress: any;
+  training: any;
+  wellbeing: any;
 }
 
 export const AIAnalysisServerService = {
@@ -76,10 +79,11 @@ export const AIAnalysisServerService = {
     gymId: string,
     studentId: string,
     sessionId?: string,
-  ): Promise<AnalysisContext> {
+  ): Promise<AIContext> {
     // Fetch all data in parallel
     const [
       studentRes,
+      profileRes,
       goalsRes,
       anthroRes,
       sessionsRes,
@@ -87,28 +91,64 @@ export const AIAnalysisServerService = {
       nutritionRes,
     ] = await Promise.all([
       supabase.from('students').select('*').eq('id', studentId).single(),
+      supabase.from('student_plan_profiles').select('*').eq('student_id', studentId).maybeSingle(),
       supabase.from('client_goals').select('*').eq('student_id', studentId).eq('status', 'active').limit(3),
-      supabase.from('client_anthropometry').select('*').eq('student_id', studentId).order('measured_at', { ascending: false }).limit(3),
-      supabase.from('workout_sessions').select('*').eq('student_id', studentId).eq('status', 'completed').order('session_date', { ascending: false }).limit(6),
+      supabase.from('client_anthropometry').select('*').eq('student_id', studentId).order('measured_at', { ascending: false }).limit(5),
+      supabase.from('workout_sessions').select('*').eq('student_id', studentId).eq('status', 'completed').order('session_date', { ascending: false }).limit(8),
       supabase.from('wellness_checkins').select('*').eq('student_id', studentId).order('checkin_date', { ascending: false }).limit(7),
       supabase.from('nutrition_plans').select('*').eq('student_id', studentId).eq('status', 'active').limit(1),
     ]);
 
     const student = studentRes.data;
-    const studentName = student ? `${student.nombre ?? ''} ${student.apellido ?? ''}`.trim() : 'Alumno';
+    const profile = profileRes.data;
+    const sessions = sessionsRes.data ?? [];
 
-    // Build goal info
-    const goals = goalsRes.data ?? [];
-    const primaryGoal = goals[0];
-    const goalLabels: Record<string, string> = {
-      lose_weight: 'Bajar de peso',
-      gain_muscle: 'Ganar musculo',
-      strength: 'Fuerza',
-      endurance: 'Resistencia',
-      general_fitness: 'Fitness general',
-    };
+    // ─── BLOCK 1: Planning (from wizard profile) ─────────────────────────
+    let planning: any = {};
+    if (profile) {
+      // Calculate phase week
+      let phaseWeek: string | null = null;
+      if (profile.phase_start_date && profile.phase_duration_weeks) {
+        const startDate = new Date(profile.phase_start_date);
+        const now = new Date();
+        const weekNum = Math.floor((now.getTime() - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
+        phaseWeek = `${Math.min(weekNum, profile.phase_duration_weeks)} de ${profile.phase_duration_weeks}`;
+      }
 
-    // Build measurements
+      planning = {
+        student_type: profile.student_type,
+        sport: profile.sport,
+        sport_season: profile.sport_season,
+        experience: profile.experience_level,
+        age: profile.age,
+        sex: profile.biological_sex,
+        injuries: profile.injuries_limitations,
+        objective: profile.primary_objective,
+        secondary_objective: profile.secondary_objective,
+        goal: profile.numeric_goal,
+        timeframe: profile.goal_timeframe,
+        current_phase: profile.current_phase,
+        phase_week: phaseWeek,
+        next_phase: profile.next_phase,
+        periodization: profile.periodization_model,
+        progression_method: profile.progression_method,
+        rep_range: profile.rep_range,
+        special_techniques: profile.special_techniques,
+        methodology_notes: profile.methodology_notes,
+        nutrition: profile.nutrition_strategy,
+        nutrition_detail: profile.nutrition_detail,
+        lifestyle: profile.lifestyle_factors,
+        equipment: profile.equipment_restrictions,
+        schedule: profile.schedule_considerations,
+        available_days: profile.available_days,
+        sessions_per_week: profile.sessions_per_week,
+        session_duration_min: profile.session_duration_min,
+      };
+    }
+
+    // ─── BLOCK 2: Progress ───────────────────────────────────────────────
+
+    // Measurements
     const measurements = (anthroRes.data ?? []).map((a: any) => ({
       date: a.measured_at,
       weight: a.weight_kg,
@@ -116,54 +156,161 @@ export const AIAnalysisServerService = {
       muscle_kg: a.muscle_mass_kg,
     }));
 
-    // Build sessions with exercises
-    const sessions = sessionsRes.data ?? [];
-    const recentSessions: AnalysisContext['recent_sessions'] = [];
-    let currentSession: AnalysisContext['current_session'] | undefined;
+    // Gather all exercises + sets for sessions (for PRs, progression, stagnation)
+    const sessionExerciseMap = new Map<string, any[]>();
+    const allExIds: string[] = [];
 
     for (const sess of sessions) {
-      // Get exercises and sets for this session
       const { data: exercises } = await supabase
         .from('workout_session_exercises')
         .select('*, workout_exercises(exercise_name, exercise_order)')
         .eq('session_id', sess.id);
 
-      const exIds = (exercises ?? []).map((e: any) => e.id);
-      let sets: any[] = [];
-      if (exIds.length > 0) {
+      sessionExerciseMap.set(sess.id, exercises ?? []);
+      for (const e of exercises ?? []) allExIds.push(e.id);
+    }
+
+    let allSets: any[] = [];
+    if (allExIds.length > 0) {
+      // Fetch in chunks of 50 to avoid URL length limits
+      for (let i = 0; i < allExIds.length; i += 50) {
+        const chunk = allExIds.slice(i, i + 50);
         const { data } = await supabase
           .from('session_sets')
           .select('*')
-          .in('session_exercise_id', exIds)
+          .in('session_exercise_id', chunk)
           .order('set_number', { ascending: true });
-        sets = data ?? [];
+        allSets = allSets.concat(data ?? []);
       }
+    }
 
-      const setsByEx = new Map<string, any[]>();
-      for (const s of sets) {
-        const arr = setsByEx.get(s.session_exercise_id) ?? [];
-        arr.push(s);
-        setsByEx.set(s.session_exercise_id, arr);
+    const setsByExId = new Map<string, any[]>();
+    for (const s of allSets) {
+      const arr = setsByExId.get(s.session_exercise_id) ?? [];
+      arr.push(s);
+      setsByExId.set(s.session_exercise_id, arr);
+    }
+
+    // Personal records
+    const prMap = new Map<string, { exercise: string; weight: number; date: string }>();
+    // Exercise history for progression/stagnation analysis
+    const exerciseTimeline = new Map<string, Array<{ date: string; weight: number; reps: number; completed: boolean }>>();
+
+    for (const sess of sessions) {
+      const exercises = sessionExerciseMap.get(sess.id) ?? [];
+      for (const ex of exercises) {
+        const name = ex.workout_exercises?.exercise_name ?? '';
+        if (!name) continue;
+        const exSets = setsByExId.get(ex.id) ?? [];
+
+        for (const s of exSets) {
+          const weight = s.weight_kg ?? 0;
+          // PRs
+          const existing = prMap.get(name);
+          if (!existing || weight > existing.weight) {
+            prMap.set(name, { exercise: name, weight, date: sess.session_date });
+          }
+          // Timeline
+          const timeline = exerciseTimeline.get(name) ?? [];
+          timeline.push({
+            date: sess.session_date,
+            weight,
+            reps: s.reps_done ?? 0,
+            completed: s.completed,
+          });
+          exerciseTimeline.set(name, timeline);
+        }
       }
+    }
 
-      const exerciseData = (exercises ?? [])
-        .sort((a: any, b: any) => (a.workout_exercises?.exercise_order ?? 0) - (b.workout_exercises?.exercise_order ?? 0))
-        .map((ex: any) => {
-          const exSets = setsByEx.get(ex.id) ?? [];
-          return {
-            name: ex.workout_exercises?.exercise_name ?? 'Ejercicio',
-            max_weight: Math.max(0, ...exSets.map((s: any) => s.weight_kg ?? 0)),
-            completed_all_reps: exSets.every((s: any) => s.completed),
-            sets: exSets.map((s: any) => ({
-              weight: s.weight_kg ?? 0,
-              reps: s.reps_done ?? 0,
-              completed: s.completed,
-            })),
-          };
-        });
+    // Compute progression and stagnation
+    const progressing: any[] = [];
+    const stagnant: any[] = [];
+
+    for (const [name, timeline] of exerciseTimeline.entries()) {
+      if (timeline.length < 2) continue;
+      // Group by date, get max weight per date
+      const byDate = new Map<string, number>();
+      for (const t of timeline) {
+        const cur = byDate.get(t.date) ?? 0;
+        if (t.weight > cur) byDate.set(t.date, t.weight);
+      }
+      const dates = [...byDate.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+      if (dates.length < 2) continue;
+
+      const first = dates[0][1];
+      const last = dates[dates.length - 1][1];
+
+      if (last > first) {
+        progressing.push({ exercise: name, from: first, to: last, period: `${dates.length} sesiones` });
+      } else if (last === first && dates.length >= 3) {
+        stagnant.push({ exercise: name, weight: last, sessions_stuck: dates.length });
+      }
+    }
+
+    // Weekly volume (last 4 weeks)
+    const weeklyVolume: any[] = [];
+    const fourWeeksAgo = new Date();
+    fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
+
+    const recentCompletedSessions = sessions.filter(
+      (s: any) => new Date(s.session_date) >= fourWeeksAgo
+    );
+    const weekMap = new Map<string, number>();
+    for (const s of recentCompletedSessions) {
+      const d = new Date(s.session_date);
+      const weekStart = new Date(d);
+      weekStart.setDate(d.getDate() - d.getDay() + 1);
+      const key = weekStart.toISOString().slice(0, 10);
+      weekMap.set(key, (weekMap.get(key) ?? 0) + (s.total_volume ?? 0));
+    }
+    for (const [week, volume] of [...weekMap.entries()].sort()) {
+      weeklyVolume.push({ week, volume });
+    }
+
+    // Session frequency
+    const sessionsLast4Weeks = recentCompletedSessions.length;
+    const weeksWithData = weekMap.size || 1;
+
+    const progress = {
+      student_name: student ? `${student.nombre ?? ''} ${student.apellido ?? ''}`.trim() : 'Alumno',
+      measurements,
+      personal_records: Array.from(prMap.values()).filter((p) => p.weight > 0).slice(0, 8),
+      weekly_volume: weeklyVolume,
+      sessions_last_4_weeks: sessionsLast4Weeks,
+      sessions_per_week_avg: Math.round((sessionsLast4Weeks / weeksWithData) * 10) / 10,
+      sessions_per_week_planned: profile?.sessions_per_week ?? null,
+      progressing: progressing.slice(0, 5),
+      stagnant: stagnant.slice(0, 5),
+    };
+
+    // ─── BLOCK 3: Training ───────────────────────────────────────────────
+
+    let currentSession: any = null;
+    const recentSessionsSummary: any[] = [];
+    const exerciseHistory = new Map<string, any[]>();
+
+    for (const sess of sessions) {
+      const exercises = sessionExerciseMap.get(sess.id) ?? [];
+      const sortedExercises = [...exercises].sort(
+        (a: any, b: any) => (a.workout_exercises?.exercise_order ?? 0) - (b.workout_exercises?.exercise_order ?? 0)
+      );
+
+      const exerciseData = sortedExercises.map((ex: any) => {
+        const exSets = setsByExId.get(ex.id) ?? [];
+        const name = ex.workout_exercises?.exercise_name ?? 'Ejercicio';
+        return {
+          name,
+          sets: exSets.map((s: any) => ({
+            weight: s.weight_kg ?? 0,
+            reps: s.reps_done ?? 0,
+            completed: s.completed,
+          })),
+          max_weight: Math.max(0, ...exSets.map((s: any) => s.weight_kg ?? 0)),
+        };
+      });
 
       if (sessionId && sess.id === sessionId) {
-        // Get the workout plan name
         let routineName: string | undefined;
         if (sess.workout_plan_id) {
           const { data: plan } = await supabase
@@ -174,92 +321,133 @@ export const AIAnalysisServerService = {
           routineName = plan?.name;
         }
 
+        const dayNames = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+        const sessDate = new Date(sess.session_date);
+
         currentSession = {
           date: sess.session_date,
+          day_of_week: dayNames[sessDate.getDay()],
           routine_name: routineName,
           exercises: exerciseData,
           total_volume: sess.total_volume ?? 0,
-          pt_notes: sess.pt_notes ?? undefined,
+          pt_notes: sess.pt_notes ?? null,
         };
+
+        // Build exercise history for exercises in current session
+        for (const ex of exerciseData) {
+          const history: any[] = [];
+          for (const prevSess of sessions) {
+            if (prevSess.id === sess.id) continue;
+            const prevExercises = sessionExerciseMap.get(prevSess.id) ?? [];
+            const match = prevExercises.find((pe: any) =>
+              pe.workout_exercises?.exercise_name === ex.name
+            );
+            if (match) {
+              const prevSets = setsByExId.get(match.id) ?? [];
+              const maxW = Math.max(0, ...prevSets.map((s: any) => s.weight_kg ?? 0));
+              const setsStr = prevSets.map((s: any) => s.reps_done ?? 0).join(',');
+              history.push({
+                date: prevSess.session_date,
+                weight: maxW,
+                sets: setsStr,
+                completed: prevSets.every((s: any) => s.completed),
+              });
+            }
+          }
+          if (history.length > 0) {
+            exerciseHistory.set(ex.name, history.slice(0, 3));
+          }
+        }
       } else {
-        recentSessions.push({
+        const highlights = exerciseData
+          .slice(0, 3)
+          .map((e: any) => {
+            const topSet = e.sets[0];
+            return topSet ? `${e.name} ${topSet.weight}kg×${topSet.reps}` : e.name;
+          })
+          .join(', ');
+
+        recentSessionsSummary.push({
           date: sess.session_date,
+          routine: null,
+          highlights,
           volume: sess.total_volume ?? 0,
-          exercises: exerciseData.map((e: any) => ({
-            name: e.name,
-            max_weight: e.max_weight,
-            completed_all_reps: e.completed_all_reps,
-          })),
         });
       }
     }
 
-    // Wellness check-ins
+    const training: any = {
+      current_session: currentSession,
+      recent_sessions: recentSessionsSummary.slice(0, 5),
+    };
+    if (exerciseHistory.size > 0) {
+      training.exercise_history = Object.fromEntries(exerciseHistory);
+    }
+
+    // ─── BLOCK 4: Wellbeing ──────────────────────────────────────────────
+
     const checkins = (wellnessRes.data ?? []).map((c: any) => ({
       date: c.checkin_date,
       energy: c.energy,
-      sleep: c.sleep_quality,
+      sleep_quality: c.sleep_quality,
       mood: c.mood,
       soreness: c.soreness,
+      note: c.notes ?? null,
     }));
 
-    // Nutrition
+    // Compute weekly averages
+    const weeklyAvg: Record<string, number> = {};
+    if (checkins.length > 0) {
+      const keys = ['energy', 'sleep_quality', 'mood', 'soreness'] as const;
+      for (const key of keys) {
+        const vals = checkins.map((c: any) => c[key]).filter((v: any) => v != null);
+        weeklyAvg[key] = vals.length > 0 ? Math.round((vals.reduce((a: number, b: number) => a + b, 0) / vals.length) * 10) / 10 : 0;
+      }
+    }
+
+    // Derive flags
+    const flags: string[] = [];
+    if (weeklyAvg.sleep_quality && weeklyAvg.sleep_quality < 2.5) {
+      flags.push(`Sueno bajo esta semana (prom ${weeklyAvg.sleep_quality})`);
+    }
+    if (weeklyAvg.energy && weeklyAvg.energy < 2.5) {
+      flags.push(`Energia baja esta semana (prom ${weeklyAvg.energy})`);
+    }
+    if (weeklyAvg.soreness && weeklyAvg.soreness > 3.5) {
+      flags.push(`Dolor muscular alto esta semana (prom ${weeklyAvg.soreness})`);
+    }
+    // Check for pain notes
+    const todayCheckin = checkins[0];
+    if (todayCheckin?.note) {
+      flags.push(`Nota del alumno: "${todayCheckin.note}"`);
+    }
+
+    // Nutrition plan
     const activePlan = nutritionRes.data?.[0];
-    const nutrition = activePlan
+    const nutritionData = activePlan
       ? {
           calories: activePlan.calories_target,
           protein: activePlan.protein_g,
           carbs: activePlan.carbs_g,
           fat: activePlan.fat_g,
         }
-      : undefined;
+      : null;
 
-    // Find PRs: max weight per exercise across all sessions
-    const prMap = new Map<string, { exercise: string; weight: number; date: string }>();
-    for (const sess of sessions) {
-      const { data: exercises } = await supabase
-        .from('workout_session_exercises')
-        .select('id, workout_exercises(exercise_name)')
-        .eq('session_id', sess.id);
-
-      const exIds = (exercises ?? []).map((e: any) => e.id);
-      if (!exIds.length) continue;
-
-      const { data: setsData } = await supabase
-        .from('session_sets')
-        .select('session_exercise_id, weight_kg')
-        .in('session_exercise_id', exIds);
-
-      for (const s of setsData ?? []) {
-        const ex: any = (exercises ?? []).find((e: any) => e.id === s.session_exercise_id);
-        const name = ex?.workout_exercises?.exercise_name ?? '';
-        const weight = s.weight_kg ?? 0;
-        const existing = prMap.get(name);
-        if (!existing || weight > existing.weight) {
-          prMap.set(name, { exercise: name, weight, date: sess.session_date });
-        }
-      }
-    }
-
-    return {
-      student_name: studentName,
-      objective: primaryGoal ? (goalLabels[primaryGoal.goal_type] ?? primaryGoal.goal_type) : undefined,
-      target_weight: primaryGoal?.target_value ? parseFloat(primaryGoal.target_value) : undefined,
-      measurements,
-      current_session: currentSession,
-      recent_sessions: recentSessions,
+    const wellbeing = {
       recent_checkins: checkins,
-      personal_records: Array.from(prMap.values()).filter((p) => p.weight > 0).slice(0, 5),
-      nutrition,
-      active_alerts: [], // Could be computed server-side but we keep it simple
+      weekly_avg: Object.keys(weeklyAvg).length > 0 ? weeklyAvg : null,
+      nutrition: nutritionData,
+      flags,
     };
+
+    return { planning, progress, training, wellbeing };
   },
 
   async generateAnalysis(
     gymId: string,
     studentId: string,
     sessionId?: string,
-  ): Promise<{ content: string; tokens_input: number; tokens_output: number; model: string }> {
+  ): Promise<{ content: string; tokens_input: number; tokens_output: number; model: string; context_json: any }> {
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) {
       throw new Error('GROQ_API_KEY no esta configurada en el servidor');
@@ -271,7 +459,7 @@ export const AIAnalysisServerService = {
       throw new Error(`Limite de ${MAX_ANALYSES_PER_WEEK} analisis por semana alcanzado para este alumno`);
     }
 
-    // Gather context
+    // Gather structured context
     const context = await this.gatherContext(gymId, studentId, sessionId);
 
     // Build prompt
@@ -287,7 +475,7 @@ export const AIAnalysisServerService = {
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: userMessage },
       ],
-      max_tokens: 400,
+      max_tokens: 500,
       temperature: 0.7,
     });
 
@@ -299,6 +487,7 @@ export const AIAnalysisServerService = {
       tokens_input: usage?.prompt_tokens ?? 0,
       tokens_output: usage?.completion_tokens ?? 0,
       model,
+      context_json: context,
     };
   },
 
@@ -319,6 +508,7 @@ export const AIAnalysisServerService = {
         content: result.content,
         model_used: result.model,
         tokens_used: result.tokens_input + result.tokens_output,
+        context_json: result.context_json,
       }])
       .select()
       .single();
