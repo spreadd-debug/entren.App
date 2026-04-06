@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
 import {
-  Dumbbell, Loader2, Plus, Zap, Target, RotateCw, Clock, AlertTriangle, CalendarOff,
+  Dumbbell, Loader2, Zap, Target, RotateCw, Clock, AlertTriangle, CalendarOff,
 } from 'lucide-react';
 import { RoutineBuilderService } from '../../services/RoutineBuilderService';
 import { WorkoutPlanService } from '../../services/WorkoutPlanService';
-import { RoutineAssignmentPicker } from './RoutineAssignmentPicker';
 import type {
   RoutineAssignment, RoutineBlock, RoutineExercise, RoutineSet, RoutineDay, BlockType,
 } from '../../../shared/types';
@@ -36,7 +35,6 @@ interface TodayRoutinePreviewProps {
 
 export function TodayRoutinePreview({ studentId, gymId }: TodayRoutinePreviewProps) {
   const [loading, setLoading] = useState(true);
-  const [showPicker, setShowPicker] = useState(false);
 
   // v2 state
   const [v2Assignment, setV2Assignment] = useState<(RoutineAssignment & { routine_name: string }) | null>(null);
@@ -49,7 +47,6 @@ export function TodayRoutinePreview({ studentId, gymId }: TodayRoutinePreviewPro
 
   const loadData = async () => {
     setLoading(true);
-    setShowPicker(false);
     try {
       // Check v2 first
       const v2Assignments = await RoutineBuilderService.getAssignmentsForStudent(studentId);
@@ -219,33 +216,15 @@ export function TodayRoutinePreview({ studentId, gymId }: TodayRoutinePreviewPro
   }
 
   // ── State C: no routine assigned ─────────────────────────────────────────
-  if (showPicker) {
-    return (
-      <RoutineAssignmentPicker
-        gymId={gymId}
-        studentId={studentId}
-        onAssigned={loadData}
-        onCancel={() => setShowPicker(false)}
-      />
-    );
-  }
-
   return (
     <div className="text-center py-6">
       <Dumbbell size={32} className="mx-auto text-slate-200 dark:text-slate-700 mb-2" />
       <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
         No tiene rutina asignada
       </p>
-      <p className="text-xs text-slate-300 dark:text-slate-600 mt-1 mb-4">
-        Asigna una rutina para planificar la sesion
+      <p className="text-xs text-slate-300 dark:text-slate-600 mt-1">
+        Asigna una desde la seccion de Rutinas
       </p>
-      <button
-        onClick={() => setShowPicker(true)}
-        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-600 text-white text-sm font-bold transition-colors"
-      >
-        <Plus size={16} />
-        Asignar rutina
-      </button>
     </div>
   );
 }

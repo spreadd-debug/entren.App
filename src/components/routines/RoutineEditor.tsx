@@ -40,9 +40,10 @@ import type {
   SetType,
   WeightType,
 } from "../../../shared/types";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Users } from "lucide-react";
 import BlockCard from "./BlockCard";
 import ExercisePickerModal from "./ExercisePickerModal";
+import StudentAssignmentFlow from "./StudentAssignmentFlow";
 
 function createDefaultSets(count: number = 3): RoutineSetDraft[] {
   return Array.from({ length: count }, (_, i) => ({
@@ -91,6 +92,7 @@ export default function RoutineEditor({ routineId, gymId, onBack, onDirtyChange 
   const [editingName, setEditingName] = useState(false);
   const [editingDesc, setEditingDesc] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [assignOpen, setAssignOpen] = useState(false);
   const [addToBlockId, setAddToBlockId] = useState<string | null>(null);
   const [selectedBlockIds, setSelectedBlockIds] = useState<Set<string>>(new Set());
 
@@ -511,6 +513,14 @@ export default function RoutineEditor({ routineId, gymId, onBack, onDirtyChange 
             )}
           </div>
 
+          <button
+            type="button"
+            onClick={() => setAssignOpen(true)}
+            className="p-2 rounded-xl text-slate-400 hover:text-cyan-500 hover:bg-cyan-500/10 transition-colors"
+            title="Asignar a alumno"
+          >
+            <Users size={18} />
+          </button>
           <Button onClick={handleSave} disabled={saving} size="sm">
             {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
             Guardar
@@ -622,6 +632,15 @@ export default function RoutineEditor({ routineId, gymId, onBack, onDirtyChange 
         isOpen={pickerOpen}
         onClose={() => setPickerOpen(false)}
         onSelect={handleExercisePicked}
+      />
+
+      {/* Student assignment modal */}
+      <StudentAssignmentFlow
+        routineId={routineId}
+        routineDays={days.map((d) => ({ id: d.id, routine_id: routineId, label: d.label, order: d.order }))}
+        gymId={gymId}
+        open={assignOpen}
+        onClose={() => setAssignOpen(false)}
       />
 
       {/* Unsaved changes confirmation */}
