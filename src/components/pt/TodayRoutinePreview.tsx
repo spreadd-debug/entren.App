@@ -1,19 +1,28 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
-  Dumbbell, Loader2, Zap, Target, RotateCw, Clock, AlertTriangle, CalendarOff,
+  Dumbbell, Loader2, Zap, Target, RotateCw, Clock, AlertTriangle,
+  ChevronDown, ChevronUp, Save, Check, Coffee,
 } from 'lucide-react';
 import { RoutineBuilderService } from '../../services/RoutineBuilderService';
 import { WorkoutPlanService } from '../../services/WorkoutPlanService';
+import { useToast } from '../../context/ToastContext';
 import type {
   RoutineAssignment, RoutineBlock, RoutineExercise, RoutineSet, RoutineDay, BlockType,
 } from '../../../shared/types';
 
+// ── Constants ──────────────────────────────────────────────────────────────
+
 const WEEKDAYS_ES = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
 
-const WEEKDAY_LABELS: Record<string, string> = {
-  lunes: 'Lun', martes: 'Mar', miercoles: 'Mie', jueves: 'Jue',
-  viernes: 'Vie', sabado: 'Sab', domingo: 'Dom',
-};
+const WEEKDAYS = [
+  { key: 'lunes', label: 'Lun', long: 'Lunes' },
+  { key: 'martes', label: 'Mar', long: 'Martes' },
+  { key: 'miercoles', label: 'Mie', long: 'Miércoles' },
+  { key: 'jueves', label: 'Jue', long: 'Jueves' },
+  { key: 'viernes', label: 'Vie', long: 'Viernes' },
+  { key: 'sabado', label: 'Sab', long: 'Sábado' },
+  { key: 'domingo', label: 'Dom', long: 'Domingo' },
+];
 
 const BLOCK_TYPE_LABELS: Record<BlockType, { label: string; color: string; icon: any }> = {
   normal: { label: '', color: '', icon: null },
@@ -22,16 +31,27 @@ const BLOCK_TYPE_LABELS: Record<BlockType, { label: string; color: string; icon:
   circuit: { label: 'Circuito', color: 'text-emerald-500 bg-emerald-500/10', icon: RotateCw },
 };
 
+// ── Types ──────────────────────────────────────────────────────────────────
+
 type FullDay = RoutineDay & {
   blocks: (RoutineBlock & {
     exercises: (RoutineExercise & { sets: RoutineSet[] })[];
   })[];
 };
 
-type LoadedAssignment = RoutineAssignment & {
-  routine_name: string;
-  days: FullDay[];
-};
+type WeekdaySlot = {
+  weekday: typeof WEEKDAYS[number];
+  routineName: string;
+  day: FullDay;
+  assignmentId: string;
+  routineId: string;
+} | null;
+
+// ── Editable set (local state) ─────────────────────────────────────────────
+
+type EditableSet = RoutineSet & { _dirty?: boolean };
+
+// ── Component ──────────────────────────────────────────────────────────────
 
 interface TodayRoutinePreviewProps {
   studentId: string;
@@ -39,49 +59,68 @@ interface TodayRoutinePreviewProps {
 }
 
 export function TodayRoutinePreview({ studentId, gymId }: TodayRoutinePreviewProps) {
+  const toast = useToast();
   const [loading, setLoading] = useState(true);
 
-  // v2 state — now supports multiple assignments
-  const [v2Loaded, setV2Loaded] = useState<LoadedAssignment[]>([]);
-  const [activeAssignmentIdx, setActiveAssignmentIdx] = useState(0);
-  const [selectedDayId, setSelectedDayId] = useState<string | null>(null);
+  // Weekday slots: for each weekday, which routine day is assigned
+  const [weekdaySlots, setWeekdaySlots] = useState<WeekdaySlot[]>([]);
+  const [selectedWeekday, setSelectedWeekday] = useState('');
+  const [hasAnyMapping, setHasAnyMapping] = useState(false);
 
-  // legacy state
+  // Expanded exercises (by exercise ID)
+  const [expandedExercises, setExpandedExercises] = useState<Set<string>>(new Set());
+
+  // Editable sets (keyed by set ID)
+  const [editedSets, setEditedSets] = useState<Map<string, EditableSet>>(new Map());
+  const [saving, setSaving] = useState(false);
+
+  // Legacy state
   const [legacyPlan, setLegacyPlan] = useState<{ id: string; plan_name: string; workout_plan_id: string } | null>(null);
   const [legacyExercises, setLegacyExercises] = useState<any[]>([]);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      // Check v2 first
       const v2Assignments = await RoutineBuilderService.getAssignmentsForStudent(studentId);
+
       if (v2Assignments.length > 0) {
-        // Load full routine for each assignment
-        const loaded: LoadedAssignment[] = await Promise.all(
+        // Load full routines for all assignments
+        const loaded = await Promise.all(
           v2Assignments.map(async (a) => {
             const full = await RoutineBuilderService.loadFullRoutine(a.routine_id);
             return { ...a, days: full.days as FullDay[] };
           }),
         );
-        setV2Loaded(loaded);
 
-        // Find which assignment has today mapped
-        const todayName = WEEKDAYS_ES[new Date().getDay()];
-        let bestIdx = 0;
-        let bestDayId: string | null = null;
-
-        for (let i = 0; i < loaded.length; i++) {
-          const mapping = loaded[i].day_mapping || {};
-          const todayEntry = Object.entries(mapping).find(([_, weekday]) => weekday === todayName);
-          if (todayEntry) {
-            bestIdx = i;
-            bestDayId = todayEntry[0];
-            break;
+        // Build weekday → routine day mapping across all assignments
+        const slots: WeekdaySlot[] = WEEKDAYS.map((wd) => {
+          for (const assignment of loaded) {
+            const mapping = assignment.day_mapping || {};
+            const entry = Object.entries(mapping).find(
+              ([_, weekday]) => weekday === wd.key,
+            );
+            if (entry) {
+              const day = assignment.days.find((d) => d.id === entry[0]);
+              if (day) {
+                return {
+                  weekday: wd,
+                  routineName: assignment.routine_name,
+                  day,
+                  assignmentId: assignment.id,
+                  routineId: assignment.routine_id,
+                };
+              }
+            }
           }
-        }
+          return null;
+        });
 
-        setActiveAssignmentIdx(bestIdx);
-        setSelectedDayId(bestDayId ?? loaded[bestIdx].days[0]?.id ?? null);
+        setWeekdaySlots(slots);
+        setHasAnyMapping(slots.some((s) => s !== null));
+
+        // Default to today
+        const todayKey = WEEKDAYS_ES[new Date().getDay()];
+        setSelectedWeekday(todayKey);
 
         setLegacyPlan(null);
         setLegacyExercises([]);
@@ -98,15 +137,77 @@ export function TodayRoutinePreview({ studentId, gymId }: TodayRoutinePreviewPro
         setLegacyExercises(exercises);
       }
 
-      setV2Loaded([]);
+      setWeekdaySlots([]);
+      setHasAnyMapping(false);
     } catch (err) {
       console.error('[TodayRoutinePreview]', err);
     } finally {
       setLoading(false);
     }
+  }, [studentId]);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  // ── Set editing helpers ──────────────────────────────────────────────────
+
+  const getEditableSet = (original: RoutineSet): EditableSet => {
+    return editedSets.get(original.id) ?? original;
   };
 
-  useEffect(() => { loadData(); }, [studentId]);
+  const updateSetLocal = (setId: string, original: RoutineSet, field: string, value: number | null) => {
+    setEditedSets((prev) => {
+      const next = new Map(prev);
+      const current = next.get(setId) ?? { ...original };
+      next.set(setId, { ...current, [field]: value, _dirty: true });
+      return next;
+    });
+  };
+
+  const hasDirtyEdits = Array.from(editedSets.values()).some((s) => s._dirty);
+
+  const handleSaveEdits = async () => {
+    const dirty = Array.from(editedSets.entries()).filter(([_, s]) => s._dirty);
+    if (dirty.length === 0) return;
+
+    setSaving(true);
+    try {
+      await Promise.all(
+        dirty.map(([id, s]) =>
+          RoutineBuilderService.updateSet(id, {
+            reps: s.reps,
+            weight_kg: s.weight_kg,
+            rpe_target: s.rpe_target,
+            rir_target: s.rir_target,
+            notes: s.notes,
+          }),
+        ),
+      );
+      // Clear dirty flags
+      setEditedSets((prev) => {
+        const next = new Map(prev);
+        for (const [id, s] of next) {
+          next.set(id, { ...s, _dirty: false });
+        }
+        return next;
+      });
+      toast.success('Cambios guardados');
+    } catch {
+      toast.error('Error al guardar');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleExercise = (exId: string) => {
+    setExpandedExercises((prev) => {
+      const next = new Set(prev);
+      if (next.has(exId)) next.delete(exId);
+      else next.add(exId);
+      return next;
+    });
+  };
+
+  // ── Loading ──────────────────────────────────────────────────────────────
 
   if (loading) {
     return (
@@ -116,123 +217,110 @@ export function TodayRoutinePreview({ studentId, gymId }: TodayRoutinePreviewPro
     );
   }
 
-  // ── State A: v2 routine(s) assigned ─────────────────────────────────────────
-  if (v2Loaded.length > 0) {
-    const assignment = v2Loaded[activeAssignmentIdx];
-    const v2Days = assignment.days;
-    const activeDay = v2Days.find((d) => d.id === selectedDayId) ?? v2Days[0];
-    const hasMapping = Object.keys(assignment.day_mapping || {}).length > 0;
-    const todayName = WEEKDAYS_ES[new Date().getDay()];
-    const todayMappedDayId = Object.entries(assignment.day_mapping || {})
-      .find(([_, weekday]) => weekday === todayName)?.[0] ?? null;
-    const isRestDay = hasMapping && !todayMappedDayId;
+  // ── State A: v2 routine(s) with weekday view ─────────────────────────────
 
-    // Build weekday label for each day
-    const dayWeekdayMap: Record<string, string> = {};
-    for (const [dayId, weekday] of Object.entries(assignment.day_mapping || {}) as [string, string][]) {
-      const label = WEEKDAY_LABELS[weekday];
-      if (label) dayWeekdayMap[dayId] = label;
-    }
+  if (hasAnyMapping) {
+    const todayKey = WEEKDAYS_ES[new Date().getDay()];
+    const slotIdx = WEEKDAYS.findIndex((w) => w.key === selectedWeekday);
+    const activeSlot = weekdaySlots[slotIdx];
 
     return (
       <div className="space-y-3">
-        {/* Routine selector (if multiple assignments) */}
-        {v2Loaded.length > 1 && (
-          <div className="flex gap-1.5 overflow-x-auto pb-1">
-            {v2Loaded.map((a, i) => (
+        {/* Weekday tabs */}
+        <div className="flex gap-1 overflow-x-auto pb-1 -mx-1 px-1">
+          {WEEKDAYS.map((wd, i) => {
+            const slot = weekdaySlots[i];
+            const isToday = wd.key === todayKey;
+            const isSelected = wd.key === selectedWeekday;
+            const hasRoutine = slot !== null;
+
+            return (
               <button
-                key={a.id}
-                onClick={() => {
-                  setActiveAssignmentIdx(i);
-                  // Auto-select today's day for this assignment, or first day
-                  const mapped = Object.entries(a.day_mapping || {})
-                    .find(([_, w]) => w === todayName)?.[0] ?? null;
-                  setSelectedDayId(mapped ?? a.days[0]?.id ?? null);
-                }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
-                  i === activeAssignmentIdx
-                    ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                key={wd.key}
+                onClick={() => setSelectedWeekday(wd.key)}
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors relative ${
+                  isSelected
+                    ? hasRoutine
+                      ? 'bg-indigo-500 text-white'
+                      : 'bg-slate-600 text-white'
+                    : hasRoutine
+                      ? 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700'
                 }`}
               >
-                {a.routine_name || 'Rutina'}
+                {wd.label}
+                {isToday && (
+                  <span className={`absolute -top-1 -right-1 w-2 h-2 rounded-full ${
+                    isSelected ? 'bg-white' : 'bg-emerald-500'
+                  }`} />
+                )}
               </button>
-            ))}
-          </div>
-        )}
+            );
+          })}
+        </div>
 
-        {/* Routine name (single assignment) */}
-        {v2Loaded.length === 1 && (
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-bold text-slate-900 dark:text-white">
-              {assignment.routine_name}
-            </p>
-          </div>
-        )}
-
-        {/* Rest day warning */}
-        {isRestDay && (
-          <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20">
-            <CalendarOff size={14} className="text-amber-500 shrink-0" />
-            <p className="text-xs text-amber-700 dark:text-amber-400 font-medium">
-              Hoy no tiene rutina asignada — dia de descanso
-            </p>
-          </div>
-        )}
-
-        {/* Day tabs */}
-        {v2Days.length > 1 && (
-          <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
-            {v2Days.map((day) => {
-              const weekdayLabel = dayWeekdayMap[day.id];
-              const isMappedToday = day.id === todayMappedDayId;
-              return (
-                <button
-                  key={day.id}
-                  onClick={() => setSelectedDayId(day.id)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
-                    day.id === activeDay.id
-                      ? isMappedToday
-                        ? 'bg-emerald-500 text-white'
-                        : 'bg-indigo-500 text-white'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
-                  }`}
-                >
-                  {day.label}
-                  {weekdayLabel && (
-                    <span className="ml-1 opacity-70">({weekdayLabel})</span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        {/* No mapping warning */}
-        {!hasMapping && v2Days.length > 1 && (
-          <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
-            <AlertTriangle size={14} className="text-slate-400 shrink-0" />
-            <p className="text-xs text-slate-400">
-              No se asignaron dias de la semana — selecciona un dia manualmente
-            </p>
-          </div>
-        )}
-
-        {/* Blocks & exercises */}
-        {activeDay.blocks.length === 0 ? (
-          <p className="text-sm text-slate-400 py-4 text-center">Este dia no tiene ejercicios</p>
-        ) : (
+        {/* Active weekday content */}
+        {activeSlot ? (
           <div className="space-y-2">
-            {activeDay.blocks.map((block, bi) => (
-              <BlockPreview key={block.id} block={block} index={bi} />
-            ))}
+            {/* Routine + day label */}
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-bold text-slate-900 dark:text-white">
+                  {activeSlot.day.label}
+                </p>
+                <p className="text-[11px] text-slate-400">{activeSlot.routineName}</p>
+              </div>
+              {hasDirtyEdits && (
+                <button
+                  onClick={handleSaveEdits}
+                  disabled={saving}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 transition-colors"
+                >
+                  {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+                  Guardar
+                </button>
+              )}
+            </div>
+
+            {/* Blocks & exercises */}
+            {activeSlot.day.blocks.length === 0 ? (
+              <p className="text-sm text-slate-400 py-4 text-center">Este dia no tiene ejercicios</p>
+            ) : (
+              <div className="space-y-1.5">
+                {activeSlot.day.blocks.map((block, bi) => (
+                  <BlockPreviewEditable
+                    key={block.id}
+                    block={block}
+                    index={bi}
+                    expandedExercises={expandedExercises}
+                    onToggleExercise={toggleExercise}
+                    getEditableSet={getEditableSet}
+                    onUpdateSet={updateSetLocal}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="flex items-center gap-3 py-6 justify-center">
+            <Coffee size={20} className="text-slate-300 dark:text-slate-600" />
+            <p className="text-sm text-slate-400 dark:text-slate-500 font-medium">
+              Dia de descanso
+            </p>
           </div>
         )}
       </div>
     );
   }
 
+  // ── State A2: v2 assignments but no day mapping ──────────────────────────
+
+  if (weekdaySlots.length > 0 || (!hasAnyMapping && !legacyPlan)) {
+    // Check if we have unmapped assignments
+  }
+
   // ── State B: legacy plan assigned ────────────────────────────────────────
+
   if (legacyPlan && legacyExercises.length > 0) {
     return (
       <div className="space-y-3">
@@ -264,6 +352,7 @@ export function TodayRoutinePreview({ studentId, gymId }: TodayRoutinePreviewPro
   }
 
   // ── State C: no routine assigned ─────────────────────────────────────────
+
   return (
     <div className="text-center py-6">
       <Dumbbell size={32} className="mx-auto text-slate-200 dark:text-slate-700 mb-2" />
@@ -277,14 +366,22 @@ export function TodayRoutinePreview({ studentId, gymId }: TodayRoutinePreviewPro
   );
 }
 
-// ── Helper: block preview ──────────────────────────────────────────────────
+// ── Block Preview with expandable exercises ─────────────────────────────────
 
-function BlockPreview({
+function BlockPreviewEditable({
   block,
   index,
+  expandedExercises,
+  onToggleExercise,
+  getEditableSet,
+  onUpdateSet,
 }: {
   block: RoutineBlock & { exercises: (RoutineExercise & { sets: RoutineSet[] })[] };
   index: number;
+  expandedExercises: Set<string>;
+  onToggleExercise: (id: string) => void;
+  getEditableSet: (s: RoutineSet) => RoutineSet & { _dirty?: boolean };
+  onUpdateSet: (setId: string, original: RoutineSet, field: string, value: number | null) => void;
 }) {
   const isGrouped = block.block_type !== 'normal';
   const typeInfo = BLOCK_TYPE_LABELS[block.block_type];
@@ -314,35 +411,105 @@ function BlockPreview({
 
       {/* Exercises */}
       <div className={isGrouped ? 'px-2 pb-2' : ''}>
-        {block.exercises.map((ex, i) => (
-          <div
-            key={ex.id}
-            className="flex items-center gap-3 py-2 px-3 rounded-xl"
-          >
-            <span className="w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-500 text-[10px] font-bold flex items-center justify-center shrink-0">
-              {isGrouped ? String.fromCharCode(65 + i) : index + 1}
-            </span>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-slate-900 dark:text-white truncate">
-                {ex.exercise_name}
-              </p>
+        {block.exercises.map((ex, i) => {
+          const isExpanded = expandedExercises.has(ex.id);
+          return (
+            <div key={ex.id} className="rounded-xl">
+              {/* Exercise row (clickable) */}
+              <button
+                onClick={() => onToggleExercise(ex.id)}
+                className="flex items-center gap-3 py-2.5 px-3 rounded-xl w-full text-left hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+              >
+                <span className="w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-500 text-[10px] font-bold flex items-center justify-center shrink-0">
+                  {isGrouped ? String.fromCharCode(65 + i) : index + 1}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-slate-900 dark:text-white truncate">
+                    {ex.exercise_name}
+                  </p>
+                  {ex.notes && (
+                    <p className="text-[11px] text-slate-400 truncate">{ex.notes}</p>
+                  )}
+                </div>
+                <span className="text-xs text-slate-400 shrink-0 mr-1">
+                  {formatV2SetsSummary(ex.sets)}
+                </span>
+                {isExpanded
+                  ? <ChevronUp size={14} className="text-slate-300 shrink-0" />
+                  : <ChevronDown size={14} className="text-slate-300 shrink-0" />
+                }
+              </button>
+
+              {/* Expanded set details */}
+              {isExpanded && ex.sets.length > 0 && (
+                <div className="mx-3 mb-2 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 overflow-hidden">
+                  {/* Header */}
+                  <div className="grid grid-cols-[2rem_1fr_1fr_1fr] gap-1 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    <span>#</span>
+                    <span>Reps</span>
+                    <span>Peso (kg)</span>
+                    <span>RPE</span>
+                  </div>
+                  {/* Rows */}
+                  {ex.sets.map((set) => {
+                    const editable = getEditableSet(set);
+                    const isDirty = (editable as any)._dirty;
+                    return (
+                      <div
+                        key={set.id}
+                        className={`grid grid-cols-[2rem_1fr_1fr_1fr] gap-1 px-3 py-1.5 border-t border-slate-100 dark:border-slate-700 items-center ${
+                          isDirty ? 'bg-amber-50/50 dark:bg-amber-500/5' : ''
+                        }`}
+                      >
+                        <span className="text-xs text-slate-400 font-semibold">{set.set_number}</span>
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          className="w-full px-2 py-1 rounded-md bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-sm text-slate-900 dark:text-white text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          value={editable.reps ?? ''}
+                          onChange={(e) => onUpdateSet(set.id, set, 'reps', e.target.value ? parseInt(e.target.value) : null)}
+                        />
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          step="0.5"
+                          className="w-full px-2 py-1 rounded-md bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-sm text-slate-900 dark:text-white text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          value={editable.weight_kg ?? ''}
+                          onChange={(e) => onUpdateSet(set.id, set, 'weight_kg', e.target.value ? parseFloat(e.target.value) : null)}
+                        />
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          min="1"
+                          max="10"
+                          className="w-full px-2 py-1 rounded-md bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-sm text-slate-900 dark:text-white text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          value={editable.rpe_target ?? ''}
+                          onChange={(e) => onUpdateSet(set.id, set, 'rpe_target', e.target.value ? parseInt(e.target.value) : null)}
+                        />
+                      </div>
+                    );
+                  })}
+                  {/* Rest between sets */}
+                  {ex.rest_between_sets_sec && (
+                    <div className="px-3 py-1.5 border-t border-slate-100 dark:border-slate-700 text-[11px] text-slate-400 flex items-center gap-1">
+                      <Clock size={10} /> Descanso entre series: {ex.rest_between_sets_sec}s
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-            <span className="text-xs text-slate-400 shrink-0">
-              {formatV2Sets(ex.sets)}
-            </span>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
 }
 
-// ── Helper: format sets summary ────────────────────────────────────────────
+// ── Helpers ─────────────────────────────────────────────────────────────────
 
-function formatV2Sets(sets: RoutineSet[]): string {
+function formatV2SetsSummary(sets: RoutineSet[]): string {
   if (sets.length === 0) return '—';
 
-  // Check if all sets are identical
   const allSame = sets.every(
     (s) => s.reps === sets[0].reps && s.weight_kg === sets[0].weight_kg,
   );
@@ -353,7 +520,7 @@ function formatV2Sets(sets: RoutineSet[]): string {
     return `${sets.length} × ${reps}${weight ? ` × ${weight}` : ''}`;
   }
 
-  return `${sets.length} series (variadas)`;
+  return `${sets.length} series`;
 }
 
 function formatLegacySets(ex: any): string {

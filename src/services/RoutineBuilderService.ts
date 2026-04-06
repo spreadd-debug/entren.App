@@ -367,6 +367,19 @@ export const RoutineBuilderService = {
     return newRoutine.id;
   },
 
+  // ─── Lightweight set updates (for session prep edits) ─────────────────────
+
+  async updateSet(
+    setId: string,
+    updates: { reps?: number | null; weight_kg?: number | null; rpe_target?: number | null; rir_target?: number | null; notes?: string | null },
+  ): Promise<void> {
+    const { error } = await supabase
+      .from("routine_sets")
+      .update(updates)
+      .eq("id", setId);
+    if (error) throw error;
+  },
+
   // ─── Assignments ──────────────────────────────────────────────────────────
 
   async getAssignmentsForRoutine(routineId: string): Promise<RoutineAssignment[]> {
