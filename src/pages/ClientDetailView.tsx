@@ -17,6 +17,8 @@ import { useToast } from '../context/ToastContext';
 import { getWorkoutFreshness } from '../config/workoutConfig';
 
 import { PlanProfileService } from '../services/pt/PlanProfileService';
+import { RoutineBuilderService } from '../services/RoutineBuilderService';
+import type { RoutineAssignment } from '../../shared/types';
 import { AnthropometryPanel } from '../components/pt/AnthropometryPanel';
 import { MeasurementsPanel } from '../components/pt/MeasurementsPanel';
 import { GoalsPanel } from '../components/pt/GoalsPanel';
@@ -86,6 +88,9 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({
   const [hasPlan, setHasPlan] = useState<boolean | null>(null);
   const [planProfile, setPlanProfile] = useState<import('../../shared/types').StudentPlanProfile | null>(null);
 
+  // V2 routine assignments
+  const [v2Assignments, setV2Assignments] = useState<(RoutineAssignment & { routine_name: string })[]>([]);
+
   useEffect(() => {
     PlanProfileService.get(student.id)
       .then((p) => { setPlanProfile(p); setHasPlan(!!p); })
@@ -125,18 +130,20 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({
   const loadWorkoutData = async () => {
     try {
       setIsLoadingWorkout(true);
-      const [plansData, optionsData, exercisesData, requestData, adherenceData] = await Promise.allSettled([
+      const [plansData, optionsData, exercisesData, requestData, adherenceData, v2Data] = await Promise.allSettled([
         WorkoutPlanService.getPlans(gymId),
         WorkoutPlanService.getStudentWorkoutOptions(student.id),
         WorkoutPlanService.getStudentWorkout(student.id),
         WorkoutRequestService.getOpenRequest(student.id),
         WorkoutSessionService.getAdherenceStats(student.id, 30),
+        RoutineBuilderService.getAssignmentsForStudent(student.id),
       ]);
       setWorkoutPlans(plansData.status === 'fulfilled' && Array.isArray(plansData.value) ? plansData.value : []);
       setWorkoutOptions(optionsData.status === 'fulfilled' && Array.isArray(optionsData.value) ? optionsData.value : []);
       setStudentWorkoutExercises(exercisesData.status === 'fulfilled' && Array.isArray(exercisesData.value) ? exercisesData.value : []);
       setPendingUpdateRequest(requestData.status === 'fulfilled' ? requestData.value : null);
       setAdherenceStats(adherenceData.status === 'fulfilled' ? adherenceData.value : null);
+      setV2Assignments(v2Data.status === 'fulfilled' && Array.isArray(v2Data.value) ? v2Data.value : []);
     } catch { /* ignore */ }
     setIsLoadingWorkout(false);
   };
@@ -707,10 +714,51 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({
 
       {activeTab === 'workouts' && (
         <div className="space-y-4">
+          {/* V2 Routine Assignments */}
+          {v2Assignments.length > 0 && (
+            <Card className="p-4 space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-50 dark:border-slate-700 pb-2">
+                <h3 className="font-bold text-slate-900 dark:text-white">Rutinas asignadas</h3>
+                <span className="text-xs text-slate-400">{v2Assignments.length} rutina{v2Assignments.length !== 1 ? 's' : ''}</span>
+              </div>
+              <div className="space-y-2">
+                {v2Assignments.map((a) => {
+                  const mappedDays = Object.values(a.day_mapping || {}) as string[];
+                  const WEEKDAY_SHORT: Record<string, string> = {
+                    lunes: 'Lun', martes: 'Mar', miercoles: 'Mié', jueves: 'Jue',
+                    viernes: 'Vie', sabado: 'Sáb', domingo: 'Dom',
+                  };
+                  return (
+                    <div key={a.id} className="p-3 bg-indigo-50 dark:bg-indigo-500/10 rounded-xl border border-indigo-200 dark:border-indigo-500/20 space-y-2">
+                      <div className="flex items-center gap-3">
+                        <Dumbbell size={16} className="text-indigo-500 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{a.routine_name || 'Rutina sin nombre'}</p>
+                          <p className="text-xs text-slate-400">
+                            {mappedDays.length > 0
+                              ? mappedDays.map((d) => WEEKDAY_SHORT[d] || d).join(', ')
+                              : 'Sin dias asignados'}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => navigate(`/routines/${a.routine_id}`)}
+                          className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-500/20 hover:bg-indigo-200 dark:hover:bg-indigo-500/30 transition-colors shrink-0"
+                        >
+                          Ver rutina
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          )}
+
+          {/* Legacy workout options */}
           <Card className="p-4 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-50 dark:border-slate-700 pb-2">
               <div>
-                <h3 className="font-bold text-slate-900 dark:text-white">Rutinas disponibles</h3>
+                <h3 className="font-bold text-slate-900 dark:text-white">Rutinas disponibles {v2Assignments.length > 0 ? '(legacy)' : ''}</h3>
                 {adherenceStats && adherenceStats.totalSessions > 0 && (
                   <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
                     Adherencia 30d:{' '}

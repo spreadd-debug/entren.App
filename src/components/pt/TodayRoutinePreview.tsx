@@ -28,6 +28,11 @@ type FullDay = RoutineDay & {
   })[];
 };
 
+type LoadedAssignment = RoutineAssignment & {
+  routine_name: string;
+  days: FullDay[];
+};
+
 interface TodayRoutinePreviewProps {
   studentId: string;
   gymId: string;
@@ -36,9 +41,9 @@ interface TodayRoutinePreviewProps {
 export function TodayRoutinePreview({ studentId, gymId }: TodayRoutinePreviewProps) {
   const [loading, setLoading] = useState(true);
 
-  // v2 state
-  const [v2Assignment, setV2Assignment] = useState<(RoutineAssignment & { routine_name: string }) | null>(null);
-  const [v2Days, setV2Days] = useState<FullDay[]>([]);
+  // v2 state — now supports multiple assignments
+  const [v2Loaded, setV2Loaded] = useState<LoadedAssignment[]>([]);
+  const [activeAssignmentIdx, setActiveAssignmentIdx] = useState(0);
   const [selectedDayId, setSelectedDayId] = useState<string | null>(null);
 
   // legacy state
@@ -51,17 +56,32 @@ export function TodayRoutinePreview({ studentId, gymId }: TodayRoutinePreviewPro
       // Check v2 first
       const v2Assignments = await RoutineBuilderService.getAssignmentsForStudent(studentId);
       if (v2Assignments.length > 0) {
-        const assignment = v2Assignments[0];
-        setV2Assignment(assignment);
+        // Load full routine for each assignment
+        const loaded: LoadedAssignment[] = await Promise.all(
+          v2Assignments.map(async (a) => {
+            const full = await RoutineBuilderService.loadFullRoutine(a.routine_id);
+            return { ...a, days: full.days as FullDay[] };
+          }),
+        );
+        setV2Loaded(loaded);
 
-        const full = await RoutineBuilderService.loadFullRoutine(assignment.routine_id);
-        setV2Days(full.days as FullDay[]);
-
-        // Resolve today's day via day_mapping
+        // Find which assignment has today mapped
         const todayName = WEEKDAYS_ES[new Date().getDay()];
-        const mappedDayId = Object.entries(assignment.day_mapping || {})
-          .find(([_, weekday]) => weekday === todayName)?.[0] ?? null;
-        setSelectedDayId(mappedDayId ?? full.days[0]?.id ?? null);
+        let bestIdx = 0;
+        let bestDayId: string | null = null;
+
+        for (let i = 0; i < loaded.length; i++) {
+          const mapping = loaded[i].day_mapping || {};
+          const todayEntry = Object.entries(mapping).find(([_, weekday]) => weekday === todayName);
+          if (todayEntry) {
+            bestIdx = i;
+            bestDayId = todayEntry[0];
+            break;
+          }
+        }
+
+        setActiveAssignmentIdx(bestIdx);
+        setSelectedDayId(bestDayId ?? loaded[bestIdx].days[0]?.id ?? null);
 
         setLegacyPlan(null);
         setLegacyExercises([]);
@@ -78,8 +98,7 @@ export function TodayRoutinePreview({ studentId, gymId }: TodayRoutinePreviewPro
         setLegacyExercises(exercises);
       }
 
-      setV2Assignment(null);
-      setV2Days([]);
+      setV2Loaded([]);
     } catch (err) {
       console.error('[TodayRoutinePreview]', err);
     } finally {
@@ -97,30 +116,59 @@ export function TodayRoutinePreview({ studentId, gymId }: TodayRoutinePreviewPro
     );
   }
 
-  // ── State A: v2 routine assigned ─────────────────────────────────────────
-  if (v2Assignment && v2Days.length > 0) {
+  // ── State A: v2 routine(s) assigned ─────────────────────────────────────────
+  if (v2Loaded.length > 0) {
+    const assignment = v2Loaded[activeAssignmentIdx];
+    const v2Days = assignment.days;
     const activeDay = v2Days.find((d) => d.id === selectedDayId) ?? v2Days[0];
-    const hasMapping = Object.keys(v2Assignment.day_mapping || {}).length > 0;
+    const hasMapping = Object.keys(assignment.day_mapping || {}).length > 0;
     const todayName = WEEKDAYS_ES[new Date().getDay()];
-    const todayMappedDayId = Object.entries(v2Assignment.day_mapping || {})
+    const todayMappedDayId = Object.entries(assignment.day_mapping || {})
       .find(([_, weekday]) => weekday === todayName)?.[0] ?? null;
     const isRestDay = hasMapping && !todayMappedDayId;
 
     // Build weekday label for each day
     const dayWeekdayMap: Record<string, string> = {};
-    for (const [dayId, weekday] of Object.entries(v2Assignment.day_mapping || {})) {
+    for (const [dayId, weekday] of Object.entries(assignment.day_mapping || {}) as [string, string][]) {
       const label = WEEKDAY_LABELS[weekday];
       if (label) dayWeekdayMap[dayId] = label;
     }
 
     return (
       <div className="space-y-3">
-        {/* Routine name */}
-        <div className="flex items-center justify-between">
-          <p className="text-sm font-bold text-slate-900 dark:text-white">
-            {v2Assignment.routine_name}
-          </p>
-        </div>
+        {/* Routine selector (if multiple assignments) */}
+        {v2Loaded.length > 1 && (
+          <div className="flex gap-1.5 overflow-x-auto pb-1">
+            {v2Loaded.map((a, i) => (
+              <button
+                key={a.id}
+                onClick={() => {
+                  setActiveAssignmentIdx(i);
+                  // Auto-select today's day for this assignment, or first day
+                  const mapped = Object.entries(a.day_mapping || {})
+                    .find(([_, w]) => w === todayName)?.[0] ?? null;
+                  setSelectedDayId(mapped ?? a.days[0]?.id ?? null);
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
+                  i === activeAssignmentIdx
+                    ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                }`}
+              >
+                {a.routine_name || 'Rutina'}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Routine name (single assignment) */}
+        {v2Loaded.length === 1 && (
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-bold text-slate-900 dark:text-white">
+              {assignment.routine_name}
+            </p>
+          </div>
+        )}
 
         {/* Rest day warning */}
         {isRestDay && (
@@ -300,10 +348,9 @@ function formatV2Sets(sets: RoutineSet[]): string {
   );
 
   if (allSame) {
-    const reps = sets[0].reps ?? sets[0].time_sec ? `${sets[0].time_sec}s` : '?';
+    const reps = sets[0].reps ?? (sets[0].time_sec ? `${sets[0].time_sec}s` : '?');
     const weight = sets[0].weight_kg ? `${sets[0].weight_kg}kg` : '';
-    const repsStr = sets[0].reps ?? reps;
-    return `${sets.length} × ${repsStr}${weight ? ` × ${weight}` : ''}`;
+    return `${sets.length} × ${reps}${weight ? ` × ${weight}` : ''}`;
   }
 
   return `${sets.length} series (variadas)`;
