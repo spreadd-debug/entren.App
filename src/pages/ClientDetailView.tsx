@@ -84,10 +84,11 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({
   const [copiedLink, setCopiedLink] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [hasPlan, setHasPlan] = useState<boolean | null>(null);
+  const [planProfile, setPlanProfile] = useState<import('../../shared/types').StudentPlanProfile | null>(null);
 
   useEffect(() => {
     PlanProfileService.get(student.id)
-      .then((p) => setHasPlan(!!p))
+      .then((p) => { setPlanProfile(p); setHasPlan(!!p); })
       .catch(() => setHasPlan(false));
   }, [student.id]);
 
@@ -554,7 +555,9 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({
                 <div className="flex-1 min-w-0">
                   <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Plan</p>
                   <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
-                    {clientPlan?.name ?? (student as any).planName ?? 'Sin plan'}
+                    {planProfile?.sessions_per_week
+                      ? `${planProfile.sessions_per_week} veces por semana`
+                      : clientPlan?.name ?? (student as any).planName ?? 'Sin plan'}
                   </p>
                 </div>
               </div>
