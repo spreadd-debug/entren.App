@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
-  Dumbbell, Loader2, Plus, Zap, Target, RotateCw, Clock,
+  Dumbbell, Loader2, Plus, Zap, Target, RotateCw, Clock, AlertTriangle, CalendarOff,
 } from 'lucide-react';
 import { RoutineBuilderService } from '../../services/RoutineBuilderService';
 import { WorkoutPlanService } from '../../services/WorkoutPlanService';
@@ -10,6 +10,11 @@ import type {
 } from '../../../shared/types';
 
 const WEEKDAYS_ES = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+
+const WEEKDAY_LABELS: Record<string, string> = {
+  lunes: 'Lun', martes: 'Mar', miercoles: 'Mie', jueves: 'Jue',
+  viernes: 'Vie', sabado: 'Sab', domingo: 'Dom',
+};
 
 const BLOCK_TYPE_LABELS: Record<BlockType, { label: string; color: string; icon: any }> = {
   normal: { label: '', color: '', icon: null },
@@ -98,6 +103,18 @@ export function TodayRoutinePreview({ studentId, gymId }: TodayRoutinePreviewPro
   // ── State A: v2 routine assigned ─────────────────────────────────────────
   if (v2Assignment && v2Days.length > 0) {
     const activeDay = v2Days.find((d) => d.id === selectedDayId) ?? v2Days[0];
+    const hasMapping = Object.keys(v2Assignment.day_mapping || {}).length > 0;
+    const todayName = WEEKDAYS_ES[new Date().getDay()];
+    const todayMappedDayId = Object.entries(v2Assignment.day_mapping || {})
+      .find(([_, weekday]) => weekday === todayName)?.[0] ?? null;
+    const isRestDay = hasMapping && !todayMappedDayId;
+
+    // Build weekday label for each day
+    const dayWeekdayMap: Record<string, string> = {};
+    for (const [dayId, weekday] of Object.entries(v2Assignment.day_mapping || {})) {
+      const label = WEEKDAY_LABELS[weekday];
+      if (label) dayWeekdayMap[dayId] = label;
+    }
 
     return (
       <div className="space-y-3">
@@ -108,22 +125,51 @@ export function TodayRoutinePreview({ studentId, gymId }: TodayRoutinePreviewPro
           </p>
         </div>
 
+        {/* Rest day warning */}
+        {isRestDay && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20">
+            <CalendarOff size={14} className="text-amber-500 shrink-0" />
+            <p className="text-xs text-amber-700 dark:text-amber-400 font-medium">
+              Hoy no tiene rutina asignada — dia de descanso
+            </p>
+          </div>
+        )}
+
         {/* Day tabs */}
         {v2Days.length > 1 && (
           <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
-            {v2Days.map((day) => (
-              <button
-                key={day.id}
-                onClick={() => setSelectedDayId(day.id)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
-                  day.id === activeDay.id
-                    ? 'bg-indigo-500 text-white'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
-                }`}
-              >
-                {day.label}
-              </button>
-            ))}
+            {v2Days.map((day) => {
+              const weekdayLabel = dayWeekdayMap[day.id];
+              const isMappedToday = day.id === todayMappedDayId;
+              return (
+                <button
+                  key={day.id}
+                  onClick={() => setSelectedDayId(day.id)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
+                    day.id === activeDay.id
+                      ? isMappedToday
+                        ? 'bg-emerald-500 text-white'
+                        : 'bg-indigo-500 text-white'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  {day.label}
+                  {weekdayLabel && (
+                    <span className="ml-1 opacity-70">({weekdayLabel})</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* No mapping warning */}
+        {!hasMapping && v2Days.length > 1 && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+            <AlertTriangle size={14} className="text-slate-400 shrink-0" />
+            <p className="text-xs text-slate-400">
+              No se asignaron dias de la semana — selecciona un dia manualmente
+            </p>
           </div>
         )}
 

@@ -1,6 +1,17 @@
+import { supabase } from '../../db/supabase';
 import type { StudentPlanProfile } from '../../../shared/types';
 
 export const PlanProfileService = {
+
+  /** Fetch all plan profiles for a gym (direct supabase query for batch use). */
+  async getAllForGym(gymId: string): Promise<StudentPlanProfile[]> {
+    const { data, error } = await supabase
+      .from('student_plan_profiles')
+      .select('*')
+      .eq('gym_id', gymId);
+    if (error) throw error;
+    return (data as StudentPlanProfile[]) || [];
+  },
 
   async get(studentId: string): Promise<StudentPlanProfile | null> {
     const res = await fetch(`/api/plan-profiles/${studentId}`);

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ShiftService } from '../services/ShiftService';
 import { PTPaymentService } from '../services/pt/PTPaymentService';
+import { PlanProfileService } from '../services/pt/PlanProfileService';
 import { Student, ShiftWithStudents, PTShiftPayment, PaymentMethod } from '../../shared/types';
 import { useToast } from '../context/ToastContext';
 import {
@@ -19,9 +20,17 @@ import {
   Wallet,
   CheckCircle2,
   AlertCircle,
+  RefreshCw,
+  Loader2,
 } from 'lucide-react';
 
 // ── Constantes ──────────────────────────────────────────────────────────────
+
+/** Maps plan profile day keys (english lowercase) to day_of_week numbers (0=Sun) */
+const PROFILE_DAY_TO_DOW: Record<string, number> = {
+  monday: 1, tuesday: 2, wednesday: 3, thursday: 4,
+  friday: 5, saturday: 6, sunday: 0,
+};
 
 const DAYS = [
   { value: 1, label: 'Lunes', short: 'Lun', letter: 'L' },
@@ -217,6 +226,78 @@ export default function PTCalendarView({ gymId, students }: PTCalendarViewProps)
     setPaymentModal(null);
   };
 
+  // ── Sync from plan profiles ───────────────────────────────────────────────
+
+  const [syncing, setSyncing] = useState(false);
+
+  const handleSyncFromProfiles = async () => {
+    setSyncing(true);
+    try {
+      const profiles = await PlanProfileService.getAllForGym(gymId);
+      if (profiles.length === 0) {
+        toast.warning('Ningun alumno tiene plan de entrenamiento configurado');
+        setSyncing(false);
+        return;
+      }
+
+      // Build lookup: for each student, which day_of_week values already have a shift with them enrolled
+      const existingMap = new Map<string, Set<number>>();
+      for (const shift of shifts) {
+        for (const enrolled of shift.enrolledStudents) {
+          if (!existingMap.has(enrolled.id)) existingMap.set(enrolled.id, new Set());
+          existingMap.get(enrolled.id)!.add(shift.day_of_week);
+        }
+      }
+
+      let created = 0;
+      for (const profile of profiles) {
+        if (!profile.available_days || profile.available_days.length === 0) continue;
+
+        const studentName = getStudentName(profile.student_id);
+        if (!studentName) continue;
+
+        for (const dayKey of profile.available_days) {
+          const dow = PROFILE_DAY_TO_DOW[dayKey];
+          if (dow === undefined) continue;
+
+          // Skip if student already has a shift on this day
+          if (existingMap.get(profile.student_id)?.has(dow)) continue;
+
+          const newShift = await ShiftService.createShift({
+            gym_id: gymId,
+            name: `Sesión con ${studentName}`,
+            day_of_week: dow,
+            start_time: '09:00',
+            end_time: '10:00',
+            capacity: 1,
+          });
+          await ShiftService.assignStudent(newShift.id, profile.student_id);
+          created++;
+        }
+      }
+
+      await loadShifts();
+      await loadPaymentsForWeek();
+
+      if (created > 0) {
+        toast.success(`${created} turno${created > 1 ? 's' : ''} creado${created > 1 ? 's' : ''} desde planes`);
+      } else {
+        toast.success('Todos los turnos ya estaban creados');
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('Error al sincronizar');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const getStudentName = (studentId: string): string => {
+    const s = students.find(st => st.id === studentId);
+    if (!s) return '';
+    return `${(s as any).nombre ?? ''} ${(s as any).apellido ?? ''}`.trim();
+  };
+
   // ── Loading ───────────────────────────────────────────────────────────────
 
   if (isLoading) {
@@ -268,6 +349,20 @@ export default function PTCalendarView({ gymId, students }: PTCalendarViewProps)
           <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium mt-0.5">Pagos hoy</p>
         </div>
       </div>
+
+      {/* ── Sync button ─────────────────────────────────────────────── */}
+      <button
+        onClick={handleSyncFromProfiles}
+        disabled={syncing}
+        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl border border-dashed border-violet-300 dark:border-violet-500/30 text-violet-600 dark:text-violet-400 text-sm font-semibold hover:bg-violet-50 dark:hover:bg-violet-500/10 transition-colors disabled:opacity-50"
+      >
+        {syncing ? (
+          <Loader2 size={15} className="animate-spin" />
+        ) : (
+          <RefreshCw size={15} />
+        )}
+        {syncing ? 'Sincronizando...' : 'Sincronizar turnos desde planes de alumnos'}
+      </button>
 
       {/* ── Mobile day selector ────────────────────────────────────────── */}
       <div className="md:hidden">
