@@ -1,13 +1,15 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   ArrowLeft, PlayCircle, Loader2, HeartPulse, Dumbbell,
-  BarChart3, AlertTriangle, Sparkles, RefreshCw,
+  BarChart3, AlertTriangle, Sparkles, RefreshCw, ClipboardList,
 } from 'lucide-react';
 import { Card, Button } from '../components/UI';
 import { WellnessQuickView } from '../components/pt/WellnessQuickView';
 import { ExerciseHistoryTable } from '../components/pt/ExerciseHistoryTable';
 import { ProgressionMetricsCards } from '../components/pt/ProgressionMetricsCards';
 import { AlertsList } from '../components/pt/AlertsList';
+import { PlanProfileSummary } from '../components/pt/PlanProfileSummary';
+import { TodayRoutinePreview } from '../components/pt/TodayRoutinePreview';
 import { PreSessionService } from '../services/pt/PreSessionService';
 import type { PreSessionData } from '../services/pt/PreSessionService';
 import { AIAnalysisService } from '../services/pt/AIAnalysisService';
@@ -137,6 +139,9 @@ const PreSessionDashboardView: React.FC<PreSessionDashboardViewProps> = ({
         </div>
       </div>
 
+      {/* Plan Profile Summary */}
+      <PlanProfileSummary studentId={student.id} />
+
       {/* Block 1: AI Analysis */}
       {aiAnalysis ? (
         <Card className="p-4 border-indigo-200 dark:border-indigo-500/20 bg-indigo-50/30 dark:bg-indigo-500/5">
@@ -192,6 +197,12 @@ const PreSessionDashboardView: React.FC<PreSessionDashboardViewProps> = ({
           <AlertsList alerts={dangerAlerts} />
         </Card>
       )}
+
+      {/* Today's Routine */}
+      <Card className="p-4">
+        <SectionHeader icon={ClipboardList} title="Rutina de hoy" subtitle="Plan de entrenamiento" />
+        <TodayRoutinePreview studentId={student.id} gymId={gymId} />
+      </Card>
 
       {/* Block 2: Wellness */}
       <Card className="p-4">
