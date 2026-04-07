@@ -47,6 +47,13 @@ type WeekdaySlot = {
   routineId: string;
 } | null;
 
+type UnmappedDay = {
+  routineName: string;
+  day: FullDay;
+  assignmentId: string;
+  routineId: string;
+};
+
 // ── Editable set (local state) ─────────────────────────────────────────────
 
 type EditableSet = RoutineSet & { _dirty?: boolean };
@@ -73,6 +80,10 @@ export function TodayRoutinePreview({ studentId, gymId }: TodayRoutinePreviewPro
   // Editable sets (keyed by set ID)
   const [editedSets, setEditedSets] = useState<Map<string, EditableSet>>(new Map());
   const [saving, setSaving] = useState(false);
+
+  // Unmapped days (routine days not in any day_mapping)
+  const [unmappedDays, setUnmappedDays] = useState<UnmappedDay[]>([]);
+  const [selectedUnmappedDay, setSelectedUnmappedDay] = useState<UnmappedDay | null>(null);
 
   // Legacy state
   const [legacyPlan, setLegacyPlan] = useState<{ id: string; plan_name: string; workout_plan_id: string } | null>(null);
@@ -117,6 +128,29 @@ export function TodayRoutinePreview({ studentId, gymId }: TodayRoutinePreviewPro
 
         setWeekdaySlots(slots);
         setHasAnyMapping(slots.some((s) => s !== null));
+
+        // Compute unmapped days: days not referenced in any day_mapping
+        const mappedDayIds = new Set<string>();
+        for (const assignment of loaded) {
+          for (const dayId of Object.keys(assignment.day_mapping || {})) {
+            mappedDayIds.add(dayId);
+          }
+        }
+        const unmapped: UnmappedDay[] = [];
+        for (const assignment of loaded) {
+          for (const day of assignment.days) {
+            if (!mappedDayIds.has(day.id)) {
+              unmapped.push({
+                routineName: assignment.routine_name,
+                day,
+                assignmentId: assignment.id,
+                routineId: assignment.routine_id,
+              });
+            }
+          }
+        }
+        setUnmappedDays(unmapped);
+        setSelectedUnmappedDay(null);
 
         // Default to today
         const todayKey = WEEKDAYS_ES[new Date().getDay()];
@@ -302,11 +336,28 @@ export function TodayRoutinePreview({ studentId, gymId }: TodayRoutinePreviewPro
             )}
           </div>
         ) : (
-          <div className="flex items-center gap-3 py-6 justify-center">
-            <Coffee size={20} className="text-slate-300 dark:text-slate-600" />
-            <p className="text-sm text-slate-400 dark:text-slate-500 font-medium">
-              Dia de descanso
-            </p>
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 py-6 justify-center">
+              <Coffee size={20} className="text-slate-300 dark:text-slate-600" />
+              <p className="text-sm text-slate-400 dark:text-slate-500 font-medium">
+                Dia de descanso
+              </p>
+            </div>
+
+            {unmappedDays.length > 0 && (
+              <UnmappedDaysSection
+                unmappedDays={unmappedDays}
+                selectedDay={selectedUnmappedDay}
+                onSelectDay={setSelectedUnmappedDay}
+                expandedExercises={expandedExercises}
+                onToggleExercise={toggleExercise}
+                getEditableSet={getEditableSet}
+                onUpdateSet={updateSetLocal}
+                hasDirtyEdits={hasDirtyEdits}
+                saving={saving}
+                onSave={handleSaveEdits}
+              />
+            )}
           </div>
         )}
       </div>
@@ -315,8 +366,26 @@ export function TodayRoutinePreview({ studentId, gymId }: TodayRoutinePreviewPro
 
   // ── State A2: v2 assignments but no day mapping ──────────────────────────
 
-  if (weekdaySlots.length > 0 || (!hasAnyMapping && !legacyPlan)) {
-    // Check if we have unmapped assignments
+  if (!hasAnyMapping && unmappedDays.length > 0) {
+    return (
+      <div className="space-y-3">
+        <p className="text-xs text-slate-400 font-medium">
+          Rutinas asignadas (sin días configurados)
+        </p>
+        <UnmappedDaysSection
+          unmappedDays={unmappedDays}
+          selectedDay={selectedUnmappedDay}
+          onSelectDay={setSelectedUnmappedDay}
+          expandedExercises={expandedExercises}
+          onToggleExercise={toggleExercise}
+          getEditableSet={getEditableSet}
+          onUpdateSet={updateSetLocal}
+          hasDirtyEdits={hasDirtyEdits}
+          saving={saving}
+          onSave={handleSaveEdits}
+        />
+      </div>
+    );
   }
 
   // ── State B: legacy plan assigned ────────────────────────────────────────
@@ -362,6 +431,94 @@ export function TodayRoutinePreview({ studentId, gymId }: TodayRoutinePreviewPro
       <p className="text-xs text-slate-300 dark:text-slate-600 mt-1">
         Asigna una desde la seccion de Rutinas
       </p>
+    </div>
+  );
+}
+
+// ── Unmapped Days Section ──────────────────────────────────────────────────
+
+function UnmappedDaysSection({
+  unmappedDays,
+  selectedDay,
+  onSelectDay,
+  expandedExercises,
+  onToggleExercise,
+  getEditableSet,
+  onUpdateSet,
+  hasDirtyEdits,
+  saving,
+  onSave,
+}: {
+  unmappedDays: UnmappedDay[];
+  selectedDay: UnmappedDay | null;
+  onSelectDay: (day: UnmappedDay | null) => void;
+  expandedExercises: Set<string>;
+  onToggleExercise: (id: string) => void;
+  getEditableSet: (s: RoutineSet) => RoutineSet & { _dirty?: boolean };
+  onUpdateSet: (setId: string, original: RoutineSet, field: string, value: number | null) => void;
+  hasDirtyEdits: boolean;
+  saving: boolean;
+  onSave: () => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+        <Dumbbell size={12} />
+        Otras rutinas disponibles
+      </p>
+      <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+        {unmappedDays.map((ud) => {
+          const isSelected = selectedDay?.day.id === ud.day.id && selectedDay?.assignmentId === ud.assignmentId;
+          return (
+            <button
+              key={`${ud.assignmentId}-${ud.day.id}`}
+              onClick={() => onSelectDay(isSelected ? null : ud)}
+              className={`px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors border shrink-0 ${
+                isSelected
+                  ? 'bg-amber-500 text-white border-amber-500'
+                  : 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-500/20 hover:bg-amber-100 dark:hover:bg-amber-500/15'
+              }`}
+            >
+              {ud.day.label}
+              <span className="text-[10px] opacity-70 ml-1">({ud.routineName})</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {selectedDay && (
+        <div className="space-y-2">
+          {hasDirtyEdits && (
+            <div className="flex justify-end">
+              <button
+                onClick={onSave}
+                disabled={saving}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 transition-colors"
+              >
+                {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+                Guardar
+              </button>
+            </div>
+          )}
+          {selectedDay.day.blocks.length === 0 ? (
+            <p className="text-sm text-slate-400 py-4 text-center">Este día no tiene ejercicios</p>
+          ) : (
+            <div className="space-y-1.5">
+              {selectedDay.day.blocks.map((block, bi) => (
+                <BlockPreviewEditable
+                  key={block.id}
+                  block={block}
+                  index={bi}
+                  expandedExercises={expandedExercises}
+                  onToggleExercise={onToggleExercise}
+                  getEditableSet={getEditableSet}
+                  onUpdateSet={onUpdateSet}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

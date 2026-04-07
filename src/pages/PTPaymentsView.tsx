@@ -9,9 +9,17 @@ import {
   CheckCircle2,
   XCircle,
   ChevronDown,
+  Plus,
+  ChevronRight,
+  Search,
+  X,
+  ArrowLeft,
 } from 'lucide-react';
 import { PTPaymentService } from '../services/pt/PTPaymentService';
-import { PTShiftPayment } from '../../shared/types';
+import { ShiftService } from '../services/ShiftService';
+import { supabase } from '../db/supabase';
+import { PTShiftPayment, PaymentMethod, Shift } from '../../shared/types';
+import { useToast } from '../context/ToastContext';
 
 interface PTPaymentsViewProps {
   gymId: string;
@@ -36,10 +44,25 @@ const METHOD_ICONS: Record<string, React.ReactNode> = {
   mercadopago: <Smartphone size={16} />,
 };
 
+const DAY_NAMES = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+
 export default function PTPaymentsView({ gymId }: PTPaymentsViewProps) {
+  const toast = useToast();
   const [payments, setPayments] = useState<PTShiftPayment[]>([]);
   const [stats, setStats] = useState({ todayIncome: 0, monthIncome: 0, monthPaid: 0, monthUnpaid: 0 });
   const [loading, setLoading] = useState(true);
+
+  // ── Register modal state ────────────────────────────────────────────
+  const [registerStep, setRegisterStep] = useState<'closed' | 'pick-student' | 'pick-shift' | 'payment'>('closed');
+  const [allStudents, setAllStudents] = useState<Array<{ id: string; displayName: string; firstLetter: string }>>([]);
+  const [studentSearch, setStudentSearch] = useState('');
+  const [selectedStudent, setSelectedStudent] = useState<{ id: string; displayName: string } | null>(null);
+  const [studentShifts, setStudentShifts] = useState<Shift[]>([]);
+  const [selectedShift, setSelectedShift] = useState<Shift | null>(null);
+  const [regAmount, setRegAmount] = useState('');
+  const [regMethod, setRegMethod] = useState<PaymentMethod>('cash');
+  const [regSaving, setRegSaving] = useState(false);
+
   const [filterMonth, setFilterMonth] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -65,6 +88,87 @@ export default function PTPaymentsView({ gymId }: PTPaymentsViewProps) {
   };
 
   useEffect(() => { load(); }, [gymId, filterMonth]);
+
+  // ── Register modal helpers ──────────────────────────────────────────
+  const openRegister = async () => {
+    setStudentSearch('');
+    setSelectedStudent(null);
+    setSelectedShift(null);
+    setRegAmount('');
+    setRegMethod('cash');
+    // Load active students
+    const { data } = await supabase
+      .from('students')
+      .select('id, nombre, apellido')
+      .eq('gym_id', gymId)
+      .eq('status', 'activo')
+      .order('nombre');
+    setAllStudents((data ?? []).map((s: any) => ({
+      id: s.id,
+      displayName: `${s.nombre ?? ''} ${s.apellido ?? ''}`.trim() || 'Sin nombre',
+      firstLetter: (s.nombre ?? '?').charAt(0).toUpperCase(),
+    })));
+    setRegisterStep('pick-student');
+  };
+
+  const handlePickStudent = async (student: { id: string; displayName: string }) => {
+    setSelectedStudent(student);
+    // Load shifts this student is enrolled in
+    const shiftsWithStudents = await ShiftService.getShiftsWithStudents(gymId);
+    const enrolled = shiftsWithStudents.filter(s =>
+      s.enrolledStudents.some((e: any) => e.id === student.id),
+    );
+    setStudentShifts(enrolled);
+    if (enrolled.length === 1) {
+      // Auto-select if only one shift
+      setSelectedShift(enrolled[0]);
+      setRegisterStep('payment');
+    } else if (enrolled.length === 0) {
+      // No shifts — still allow picking any shift
+      setStudentShifts(shiftsWithStudents);
+      setRegisterStep('pick-shift');
+    } else {
+      setRegisterStep('pick-shift');
+    }
+  };
+
+  const handlePickShift = (shift: Shift) => {
+    setSelectedShift(shift);
+    setRegisterStep('payment');
+  };
+
+  const handleConfirmPayment = async () => {
+    if (!selectedStudent || !selectedShift) return;
+    const numAmount = Number(regAmount);
+    if (!numAmount || numAmount <= 0) {
+      toast.error('Ingresá un monto válido');
+      return;
+    }
+    setRegSaving(true);
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      await PTPaymentService.markPaid({
+        gymId,
+        shiftId: selectedShift.id,
+        studentId: selectedStudent.id,
+        paymentDate: today,
+        amount: numAmount,
+        paymentMethod: regMethod,
+      });
+      toast.success('Cobro registrado');
+      setRegisterStep('closed');
+      load();
+    } catch (err: any) {
+      toast.error(err?.message ?? 'Error al registrar cobro');
+    }
+    setRegSaving(false);
+  };
+
+  const filteredRegStudents = useMemo(() => {
+    if (!studentSearch.trim()) return allStudents;
+    const q = studentSearch.toLowerCase();
+    return allStudents.filter(s => s.displayName.toLowerCase().includes(q));
+  }, [allStudents, studentSearch]);
 
   // Group payments by date
   const groupedByDate = useMemo(() => {
@@ -152,6 +256,18 @@ export default function PTPaymentsView({ gymId }: PTPaymentsViewProps) {
           </p>
         </div>
       </div>
+
+      {/* ── CTA Registrar Cobro ─────────────────────────────────── */}
+      <button
+        onClick={openRegister}
+        className="w-full flex items-center gap-3 px-5 py-4 bg-violet-500 hover:bg-violet-400 active:bg-violet-600 text-white rounded-2xl font-bold shadow-md shadow-violet-500/25 hover:shadow-lg hover:shadow-violet-500/30 transition-all active:scale-[0.98]"
+      >
+        <div className="w-8 h-8 rounded-xl bg-white/15 flex items-center justify-center shrink-0">
+          <Plus size={18} strokeWidth={2.5} />
+        </div>
+        <span className="flex-1 text-left text-sm">Registrar Cobro</span>
+        <ChevronRight size={18} className="opacity-60" />
+      </button>
 
       {/* ── Paid / Unpaid summary ───────────────────────────────── */}
       <div className="grid grid-cols-2 gap-3">
@@ -281,6 +397,168 @@ export default function PTPaymentsView({ gymId }: PTPaymentsViewProps) {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* ── Register Payment Modal ──────────────────────────────── */}
+      {registerStep !== 'closed' && (
+        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/40 backdrop-blur-sm p-0 md:p-4" onClick={() => setRegisterStep('closed')}>
+          <div
+            className="bg-white dark:bg-slate-900 w-full md:max-w-sm md:rounded-2xl rounded-t-2xl shadow-2xl border border-slate-200 dark:border-slate-800 max-h-[85vh] flex flex-col"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="px-5 pt-5 pb-3 border-b border-slate-100 dark:border-slate-800 shrink-0 flex items-center gap-3">
+              {registerStep !== 'pick-student' && (
+                <button
+                  onClick={() => setRegisterStep(registerStep === 'payment' ? (studentShifts.length === 1 ? 'pick-student' : 'pick-shift') : 'pick-student')}
+                  className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                >
+                  <ArrowLeft size={16} />
+                </button>
+              )}
+              <div className="flex-1 min-w-0">
+                <h3 className="text-sm font-black text-slate-900 dark:text-white">
+                  {registerStep === 'pick-student' && 'Elegí un alumno'}
+                  {registerStep === 'pick-shift' && 'Elegí el turno'}
+                  {registerStep === 'payment' && 'Registrar cobro'}
+                </h3>
+                {selectedStudent && registerStep !== 'pick-student' && (
+                  <p className="text-xs text-slate-400 dark:text-slate-500 truncate">{selectedStudent.displayName}</p>
+                )}
+              </div>
+              <button onClick={() => setRegisterStep('closed')} className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Step 1: Pick student */}
+            {registerStep === 'pick-student' && (
+              <div className="flex-1 overflow-y-auto">
+                <div className="p-4 pb-2">
+                  <div className="relative">
+                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Buscar alumno..."
+                      value={studentSearch}
+                      onChange={e => setStudentSearch(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500/30"
+                      autoFocus
+                    />
+                  </div>
+                </div>
+                <div className="px-4 pb-4 space-y-1 max-h-80 overflow-y-auto">
+                  {filteredRegStudents.map(s => (
+                    <button
+                      key={s.id}
+                      onClick={() => handlePickStudent(s)}
+                      className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-left"
+                    >
+                      <div className="w-9 h-9 rounded-xl bg-violet-500/10 flex items-center justify-center text-violet-600 dark:text-violet-400 font-black text-sm shrink-0">
+                        {s.firstLetter}
+                      </div>
+                      <span className="text-sm font-bold text-slate-900 dark:text-white truncate">{s.displayName}</span>
+                    </button>
+                  ))}
+                  {filteredRegStudents.length === 0 && (
+                    <p className="text-center text-sm text-slate-400 py-6">Sin resultados</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Step 2: Pick shift */}
+            {registerStep === 'pick-shift' && (
+              <div className="flex-1 overflow-y-auto p-4 space-y-1">
+                {studentShifts.length === 0 ? (
+                  <p className="text-center text-sm text-slate-400 py-6">Este alumno no tiene turnos asignados</p>
+                ) : (
+                  studentShifts.map(shift => (
+                    <button
+                      key={shift.id}
+                      onClick={() => handlePickShift(shift)}
+                      className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-left"
+                    >
+                      <div className="w-9 h-9 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
+                        <DollarSign size={16} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{shift.name}</p>
+                        <p className="text-xs text-slate-400">{DAY_NAMES[shift.day_of_week]} · {shift.start_time}–{shift.end_time}</p>
+                      </div>
+                      <ChevronRight size={16} className="text-slate-300 dark:text-slate-700 shrink-0" />
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+
+            {/* Step 3: Payment form */}
+            {registerStep === 'payment' && (
+              <div className="p-5 space-y-4">
+                {selectedShift && (
+                  <div className="rounded-xl bg-slate-50 dark:bg-slate-800 px-3 py-2 text-center">
+                    <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                      {selectedShift.name} · {DAY_NAMES[selectedShift.day_of_week]}
+                    </p>
+                  </div>
+                )}
+
+                {/* Amount */}
+                <div>
+                  <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Monto</label>
+                  <div className="relative mt-1">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">$</span>
+                    <input
+                      type="number"
+                      value={regAmount}
+                      onChange={e => setRegAmount(e.target.value)}
+                      placeholder="0"
+                      autoFocus
+                      className="w-full pl-8 pr-3 py-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xl font-black text-slate-900 dark:text-white tabular-nums focus:outline-none focus:ring-2 focus:ring-violet-500/30"
+                    />
+                  </div>
+                </div>
+
+                {/* Payment method */}
+                <div>
+                  <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Medio de pago</label>
+                  <div className="grid grid-cols-3 gap-2 mt-1.5">
+                    {([
+                      { id: 'cash' as PaymentMethod, label: 'Efectivo', Icon: Wallet },
+                      { id: 'transfer' as PaymentMethod, label: 'Transf.', Icon: CreditCard },
+                      { id: 'mercadopago' as PaymentMethod, label: 'M.Pago', Icon: Smartphone },
+                    ]).map(({ id, label, Icon }) => (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => setRegMethod(id)}
+                        className={`flex flex-col items-center gap-1.5 py-3 rounded-xl border-2 font-bold text-xs transition-all ${
+                          regMethod === id
+                            ? 'border-violet-500 bg-violet-500/10 text-violet-600 dark:text-violet-400'
+                            : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-500 hover:border-slate-300 dark:hover:border-slate-600'
+                        }`}
+                      >
+                        <Icon size={18} />
+                        <span className="uppercase tracking-wide text-[10px]">{label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Confirm */}
+                <button
+                  onClick={handleConfirmPayment}
+                  disabled={regSaving}
+                  className="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white font-bold text-sm transition-all shadow-md shadow-emerald-500/25 disabled:opacity-50 active:scale-[0.97] flex items-center justify-center gap-2 mt-2"
+                >
+                  <CheckCircle2 size={16} />
+                  {regSaving ? 'Guardando...' : 'Confirmar cobro'}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

@@ -13,17 +13,21 @@ import {
   Heart,
   TrendingUp,
   BarChart3,
+  DollarSign,
+  Plus,
 } from 'lucide-react';
 import { Card, Button } from '../components/UI';
 import { Student } from '../../shared/types';
 import { WorkoutSessionService } from '../services/WorkoutSessionService';
 import { GoalsService } from '../services/pt/GoalsService';
 import { WellnessCheckInService } from '../services/pt/WellnessCheckInService';
+import { PTPaymentService } from '../services/pt/PTPaymentService';
 
 interface PTDashboardViewProps {
   onNavigate: (view: string) => void;
   students: Student[];
   onSelectStudent: (student: Student) => void;
+  gymId: string;
 }
 
 const AVATAR_PALETTES = [
@@ -36,12 +40,22 @@ const AVATAR_PALETTES = [
 const avatarColor = (name: string) =>
   AVATAR_PALETTES[name.charCodeAt(0) % AVATAR_PALETTES.length];
 
+const currency = (value: number) =>
+  new Intl.NumberFormat('es-AR', {
+    style: 'currency',
+    currency: 'ARS',
+    maximumFractionDigits: 0,
+  }).format(value);
+
 export const PTDashboardView: React.FC<PTDashboardViewProps> = ({
   onNavigate,
   students,
   onSelectStudent,
+  gymId,
 }) => {
   const safeStudents = Array.isArray(students) ? students : [];
+
+  const [paymentStats, setPaymentStats] = useState({ todayIncome: 0, monthIncome: 0, monthPaid: 0, monthUnpaid: 0 });
 
   const [inactiveClients, setInactiveClients] = useState<Array<{ student: any; daysSince: number }>>([]);
   const [upcomingGoals, setUpcomingGoals] = useState<Array<{ studentName: string; studentId: string; goalType: string; targetDate: string; targetValue: string | null }>>([]);
@@ -74,6 +88,13 @@ export const PTDashboardView: React.FC<PTDashboardViewProps> = ({
     const d = new Date(String(raw));
     return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
   }).length;
+
+  // Load payment stats
+  useEffect(() => {
+    if (gymId) {
+      PTPaymentService.getStats(gymId).then(setPaymentStats).catch(() => {});
+    }
+  }, [gymId]);
 
   // Load insights: inactive clients + upcoming goals
   useEffect(() => {
@@ -210,6 +231,40 @@ export const PTDashboardView: React.FC<PTDashboardViewProps> = ({
             {activeCount} cliente{activeCount !== 1 ? 's' : ''}
           </span>
         </div>
+      </div>
+
+      {/* ── Cobros resumen ─────────────────────────────────────────── */}
+      <div className="space-y-2.5">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-slate-900 dark:bg-slate-800 rounded-2xl p-4 flex flex-col gap-1.5">
+            <div className="flex items-center gap-1.5">
+              <DollarSign size={12} className="text-slate-500" />
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.12em]">Cobrado Hoy</p>
+            </div>
+            <p className="text-2xl font-black text-white tabular-nums tracking-tight leading-none">
+              {currency(paymentStats.todayIncome)}
+            </p>
+          </div>
+          <div className="bg-emerald-500 rounded-2xl p-4 flex flex-col gap-1.5 shadow-md shadow-emerald-500/20">
+            <div className="flex items-center gap-1.5">
+              <TrendingUp size={12} className="text-emerald-900/50" />
+              <p className="text-[10px] font-black text-emerald-900/70 uppercase tracking-[0.12em]">Cobrado Mes</p>
+            </div>
+            <p className="text-2xl font-black text-white tabular-nums tracking-tight leading-none">
+              {currency(paymentStats.monthIncome)}
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={() => onNavigate('payments')}
+          className="w-full flex items-center gap-3 px-4 py-3 bg-violet-500 hover:bg-violet-400 active:bg-violet-600 text-white rounded-2xl font-bold shadow-md shadow-violet-500/25 hover:shadow-lg hover:shadow-violet-500/30 transition-all active:scale-[0.98]"
+        >
+          <div className="w-8 h-8 rounded-xl bg-white/15 flex items-center justify-center shrink-0">
+            <Plus size={16} strokeWidth={2.5} />
+          </div>
+          <span className="flex-1 text-left text-sm">Registrar Cobro</span>
+          <ChevronRight size={16} className="opacity-60" />
+        </button>
       </div>
 
       {/* ── KPI Metrics ──────────────────────────────────────────── */}

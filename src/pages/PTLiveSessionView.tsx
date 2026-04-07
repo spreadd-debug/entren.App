@@ -202,28 +202,7 @@ export const PTLiveSessionView: React.FC<PTLiveSessionViewProps> = ({
           console.error('Error loading v2 assignments:', err);
         }
 
-        // Load legacy options only if no v2 routines exist
-        const hasV2 = allOptions.some((o) => o.type === 'v2');
-        if (!hasV2) {
-          try {
-            const legacyOptions = await WorkoutPlanService.getStudentWorkoutOptions(student.id);
-            for (const opt of legacyOptions as WorkoutOption[]) {
-              allOptions.push({ type: 'legacy', option: opt });
-            }
-
-            if (!autoSelectKey && legacyOptions.length > 0) {
-              const todayDow = new Date().getDay();
-              const todayPlan = legacyOptions.find((o: any) => o.days_of_week?.includes(todayDow));
-              if (legacyOptions.length === 1) {
-                autoSelectKey = `legacy-${legacyOptions[0].workout_plan_id}`;
-              } else if (todayPlan) {
-                autoSelectKey = `legacy-${(todayPlan as any).workout_plan_id}`;
-              }
-            }
-          } catch (err) {
-            console.error('Error loading legacy options:', err);
-          }
-        }
+        // Legacy routines are deprecated for PT users — skip them entirely
 
         setSessionOptions(allOptions);
         if (autoSelectKey) setSelectedOptionKey(autoSelectKey);

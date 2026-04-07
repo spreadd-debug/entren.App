@@ -18,7 +18,8 @@
       "WebFetch(domain:wger.de)",
       "WebFetch(domain:api.wger.de)",
       "WebFetch(domain:exercisedb-api.vercel.app)",
-      "Bash(find /c/Users/Mauro/Desktop/entren.App/shared -type f -name *.ts -o -name *.tsx)"
+      "Bash(find /c/Users/Mauro/Desktop/entren.App/shared -type f -name *.ts -o -name *.tsx)",
+      "Bash(git commit -m ':*)"
     ]
   }
 }

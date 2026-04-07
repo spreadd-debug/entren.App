@@ -28,7 +28,14 @@
       "Read(//c/Users/Mauro/Desktop/entren.App/**)",
       "Bash(ls dist/assets/*.map)",
       "Bash(npx source-map-cli:*)",
-      "WebFetch(domain:project-irts3.vercel.app)"
+      "WebFetch(domain:project-irts3.vercel.app)",
+      "Bash(grep -E \"\\\\.\\(sql|ts\\)$\")",
+      "Bash(grep -r \"workout_plans\\\\|workout_exercises\\\\|exercise_library\" /c/Users/Mauro/Desktop/entren.App/scripts/*.sql)",
+      "Bash(grep -A 50 \"CREATE TABLE.*workout\" /c/Users/Mauro/Desktop/entren.App/scripts/*.sql)",
+      "Bash(grep -A 30 \"CREATE TABLE.*exercise_library\\\\|CREATE TABLE.*workout_exercises\\\\|CREATE TABLE.*workout_plans\" /c/Users/Mauro/Desktop/entren.App/scripts/*.sql)",
+      "Bash(grep -l \"motion\\\\|framer\" /c/Users/Mauro/Desktop/entren.App/src/**/*.tsx)",
+      "Bash(git checkout:*)",
+      "Bash(find src:*)"
     ]
   }
 }

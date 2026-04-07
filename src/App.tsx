@@ -886,6 +886,7 @@ function PTApp({ gymId, onLogout }: {
                 onNavigate={handleNavigate}
                 students={students}
                 onSelectStudent={handleSelectStudent}
+                gymId={gymId}
               />
             )
           } />

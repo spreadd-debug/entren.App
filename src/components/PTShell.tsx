@@ -28,7 +28,7 @@ export const PTShell: React.FC<PTShellProps> = ({
   title,
   onLogout,
 }) => {
-  const navItems = [
+  const allNavItems = [
     { id: 'dashboard', label: 'Inicio',   icon: LayoutDashboard },
     { id: 'students',  label: 'Clientes', icon: Users },
     { id: 'planning',  label: 'Smart',    icon: Brain },
@@ -37,6 +37,11 @@ export const PTShell: React.FC<PTShellProps> = ({
     { id: 'workouts',  label: 'Rutinas',  icon: Dumbbell },
     { id: 'settings',  label: 'Ajustes',  icon: Settings },
   ];
+
+  // Mobile bottom nav: only 5 items (Cobros lives in Inicio, Ajustes in header)
+  const mobileNavItems = allNavItems.filter(
+    (item) => item.id !== 'payments' && item.id !== 'settings',
+  );
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col md:flex-row">
@@ -64,7 +69,7 @@ export const PTShell: React.FC<PTShellProps> = ({
 
         {/* Nav */}
         <nav className="flex-1 px-3 space-y-0.5 overflow-y-auto">
-          {navItems.map((item) => {
+          {allNavItems.map((item) => {
             const isActive = currentView === item.id;
             return (
               <button
@@ -187,7 +192,7 @@ export const PTShell: React.FC<PTShellProps> = ({
 
       {/* ── Mobile Bottom Nav ────────────────────────────────────── */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-t border-slate-100 dark:border-slate-800 px-1 py-2 flex items-center">
-        {navItems.map((item) => {
+        {mobileNavItems.map((item) => {
           const isActive = currentView === item.id;
           return (
             <button
