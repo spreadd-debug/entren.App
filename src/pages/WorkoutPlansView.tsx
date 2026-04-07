@@ -481,8 +481,14 @@ export default function WorkoutPlansView({ gymId }: { gymId: string }) {
 
       const studentIds = (students ?? []).map((s: any) => s.id);
 
-      // 2. Asignaciones activas con nombre del plan
-      const { data: assignments } = await supabase
+      // 2a. V2 routine assignments (preferred)
+      const { data: v2Assignments } = await supabase
+        .from("routine_assignments")
+        .select("student_id, routine_id, assigned_at, routines(name)")
+        .eq("active", true);
+
+      // 2b. Legacy assignments (fallback)
+      const { data: legacyAssignments } = await supabase
         .from("student_workout_assignments")
         .select("student_id, workout_plan_id, assigned_at, workout_plans(name)")
         .eq("gym_id", gymId)
@@ -513,26 +519,42 @@ export default function WorkoutPlansView({ gymId }: { gymId: string }) {
         });
       }
 
-      // 5. Merge: una fila por alumno con su asignación más reciente
-      const assignmentsByStudent = new Map<string, any>();
-      (assignments ?? []).forEach((a: any) => {
-        const existing = assignmentsByStudent.get(a.student_id);
-        const aDate = a.assigned_at ?? "";
-        const existingDate = existing ? (existing.assigned_at ?? "") : "";
-        if (!existing || aDate > existingDate) {
-          assignmentsByStudent.set(a.student_id, a);
+      // 5. Merge: prefer v2 assignments, fallback to legacy
+      const v2ByStudent = new Map<string, any>();
+      (v2Assignments ?? []).forEach((a: any) => {
+        const existing = v2ByStudent.get(a.student_id);
+        if (!existing || (a.assigned_at ?? "") > (existing.assigned_at ?? "")) {
+          v2ByStudent.set(a.student_id, a);
+        }
+      });
+
+      const legacyByStudent = new Map<string, any>();
+      (legacyAssignments ?? []).forEach((a: any) => {
+        const existing = legacyByStudent.get(a.student_id);
+        if (!existing || (a.assigned_at ?? "") > (existing.assigned_at ?? "")) {
+          legacyByStudent.set(a.student_id, a);
         }
       });
 
       const rows = (students ?? []).map((s: any) => {
-        const assignment = assignmentsByStudent.get(s.id) ?? null;
+        const v2 = v2ByStudent.get(s.id);
+        const legacy = legacyByStudent.get(s.id);
         const request = requestsByStudent.get(s.id) ?? null;
         const adh = adherenceMap.get(s.id);
+
+        // Prefer v2 routine name over legacy
+        const plan_name = v2
+          ? (v2.routines?.name ?? null)
+          : (legacy?.workout_plans?.name ?? null);
+        const updated_at = v2
+          ? (v2.assigned_at ?? null)
+          : (legacy?.assigned_at ?? null);
+
         return {
           id: s.id,
           name: `${s.nombre ?? ""} ${s.apellido ?? ""}`.trim(),
-          plan_name: assignment?.workout_plans?.name ?? null,
-          updated_at: assignment?.assigned_at ?? null,
+          plan_name,
+          updated_at,
           hasPendingRequest: !!request,
           request,
           adherence: adh
