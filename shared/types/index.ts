@@ -184,7 +184,7 @@ export interface WorkoutSession {
   id: string;
   gym_id: string;
   student_id: string;
-  workout_plan_id: string;
+  workout_plan_id: string | null;
   session_date: string;   // "YYYY-MM-DD"
   completed_at: string | null;
   created_at: string;
@@ -195,16 +195,19 @@ export interface WorkoutSession {
   total_volume: number | null;
   pt_notes: string | null;
   status: 'in_progress' | 'completed';
+  // V2 routine support
+  routine_id: string | null;
+  routine_day_id: string | null;
 }
 
 /** Estado de un ejercicio dentro de una sesión (checklist) */
 export interface WorkoutSessionExercise {
   id: string;
   session_id: string;
-  workout_exercise_id: string;
+  workout_exercise_id: string | null;
   completed: boolean;
   created_at: string;
-  // Datos del ejercicio (join de workout_exercises)
+  // Datos del ejercicio (join de workout_exercises OR cached for v2)
   exercise_name: string;
   sets: number | null;
   reps: string | null;
@@ -213,6 +216,8 @@ export interface WorkoutSessionExercise {
   notes: string | null;
   video_url: string | null;
   exercise_order: number;
+  // V2 routine support
+  routine_exercise_id: string | null;
 }
 
 /** Registro de una serie dentro de un ejercicio de sesión */

@@ -754,8 +754,8 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({
             </Card>
           )}
 
-          {/* Legacy workout options */}
-          <Card className="p-4 space-y-4">
+          {/* Legacy workout options — hidden when v2 assignments exist */}
+          {v2Assignments.length === 0 && <Card className="p-4 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-50 dark:border-slate-700 pb-2">
               <div>
                 <h3 className="font-bold text-slate-900 dark:text-white">Rutinas disponibles {v2Assignments.length > 0 ? '(legacy)' : ''}</h3>
@@ -876,7 +876,7 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({
                 ))}
               </div>
             )}
-          </Card>
+          </Card>}
         </div>
       )}
 

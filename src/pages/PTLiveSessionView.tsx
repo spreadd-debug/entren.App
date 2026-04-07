@@ -4,11 +4,35 @@ import {
   Clock, Trophy, ChevronDown, ChevronUp, MessageSquare,
   Loader2, Save, X, Weight, BarChart3,
 } from 'lucide-react';
-import { Student, WorkoutOption, SessionSet } from '../../shared/types';
+import { Student, WorkoutOption, SessionSet, RoutineAssignment } from '../../shared/types';
 import { PTSessionService, PTSessionFull, PTSessionExercise } from '../services/pt/PTSessionService';
 import { WorkoutPlanService } from '../services/WorkoutPlanService';
+import { RoutineBuilderService } from '../services/RoutineBuilderService';
 import { AIAnalysisService } from '../services/pt/AIAnalysisService';
 import { useToast } from '../context/ToastContext';
+
+// V2 routine option (displayed alongside legacy options)
+interface V2RoutineOption {
+  type: 'v2';
+  routineId: string;
+  routineName: string;
+  assignmentId: string;
+  dayId: string;
+  dayLabel: string;
+  exercises: Array<{
+    routine_exercise_id: string;
+    exercise_name: string;
+    order: number;
+    sets: any[];
+  }>;
+}
+
+// Unified option type for the selection screen
+type SessionOption =
+  | { type: 'legacy'; option: WorkoutOption }
+  | V2RoutineOption;
+
+const WEEKDAYS_ES = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'] as const;
 
 interface PTLiveSessionViewProps {
   student: Student;
@@ -53,8 +77,8 @@ export const PTLiveSessionView: React.FC<PTLiveSessionViewProps> = ({
   const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<PTSessionFull | null>(null);
-  const [workoutOptions, setWorkoutOptions] = useState<WorkoutOption[]>([]);
-  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
+  const [sessionOptions, setSessionOptions] = useState<SessionOption[]>([]);
+  const [selectedOptionKey, setSelectedOptionKey] = useState<string | null>(null);
   const [expandedExercise, setExpandedExercise] = useState<string | null>(null);
   const [ptNotes, setPtNotes] = useState('');
   const [showNotesModal, setShowNotesModal] = useState(false);
@@ -103,27 +127,108 @@ export const PTLiveSessionView: React.FC<PTLiveSessionViewProps> = ({
     onBack();
   };
 
-  // ─── Load workout options ───────────────────────────────────────────────
+  // ─── Load workout options (v2 + legacy) ─────────────────────────────────
 
   useEffect(() => {
     const load = async () => {
       try {
-        const options = await WorkoutPlanService.getStudentWorkoutOptions(student.id);
-        setWorkoutOptions(options as WorkoutOption[]);
+        const allOptions: SessionOption[] = [];
+        const todayWeekday = WEEKDAYS_ES[new Date().getDay()];
+        let autoSelectKey: string | null = null;
 
-        // Auto-select if only one plan, or find today's plan
-        const todayDow = new Date().getDay();
-        const todayPlan = options.find((o: any) =>
-          o.days_of_week?.includes(todayDow),
-        );
+        // Load v2 routine assignments
+        try {
+          const v2Assignments = await RoutineBuilderService.getAssignmentsForStudent(student.id);
+          for (const assignment of v2Assignments) {
+            const full = await RoutineBuilderService.loadFullRoutine(assignment.routine_id);
+            const mapping = (assignment.day_mapping || {}) as Record<string, string>;
 
-        if (options.length === 1) {
-          setSelectedPlanId(options[0].workout_plan_id);
-        } else if (todayPlan) {
-          setSelectedPlanId((todayPlan as any).workout_plan_id);
+            // Find which day is mapped to today
+            const todayEntry = (Object.entries(mapping) as [string, string][]).find(
+              ([, weekday]) => weekday === todayWeekday,
+            );
+
+            // If there's a mapping for today, add that specific day
+            if (todayEntry) {
+              const [dayId] = todayEntry;
+              const day = full.days.find((d) => d.id === dayId);
+              if (day) {
+                const exercises = day.blocks.flatMap((b) =>
+                  b.exercises.map((ex) => ({
+                    routine_exercise_id: ex.id,
+                    exercise_name: ex.exercise_name,
+                    order: ex.order,
+                    sets: ex.sets,
+                  })),
+                );
+                const opt: V2RoutineOption = {
+                  type: 'v2',
+                  routineId: assignment.routine_id,
+                  routineName: full.routine.name,
+                  assignmentId: assignment.id,
+                  dayId: day.id,
+                  dayLabel: day.label,
+                  exercises,
+                };
+                allOptions.push(opt);
+                // Auto-select today's v2 routine
+                autoSelectKey = `v2-${assignment.routine_id}-${day.id}`;
+              }
+            }
+
+            // Also add all other days as selectable options
+            for (const day of full.days) {
+              if (todayEntry && day.id === todayEntry[0]) continue; // already added
+              const exercises = day.blocks.flatMap((b) =>
+                b.exercises.map((ex) => ({
+                  routine_exercise_id: ex.id,
+                  exercise_name: ex.exercise_name,
+                  order: ex.order,
+                  sets: ex.sets,
+                })),
+              );
+              allOptions.push({
+                type: 'v2',
+                routineId: assignment.routine_id,
+                routineName: full.routine.name,
+                assignmentId: assignment.id,
+                dayId: day.id,
+                dayLabel: day.label,
+                exercises,
+              });
+            }
+          }
+        } catch (err) {
+          console.error('Error loading v2 assignments:', err);
         }
+
+        // Load legacy options only if no v2 routines exist
+        const hasV2 = allOptions.some((o) => o.type === 'v2');
+        if (!hasV2) {
+          try {
+            const legacyOptions = await WorkoutPlanService.getStudentWorkoutOptions(student.id);
+            for (const opt of legacyOptions as WorkoutOption[]) {
+              allOptions.push({ type: 'legacy', option: opt });
+            }
+
+            if (!autoSelectKey && legacyOptions.length > 0) {
+              const todayDow = new Date().getDay();
+              const todayPlan = legacyOptions.find((o: any) => o.days_of_week?.includes(todayDow));
+              if (legacyOptions.length === 1) {
+                autoSelectKey = `legacy-${legacyOptions[0].workout_plan_id}`;
+              } else if (todayPlan) {
+                autoSelectKey = `legacy-${(todayPlan as any).workout_plan_id}`;
+              }
+            }
+          } catch (err) {
+            console.error('Error loading legacy options:', err);
+          }
+        }
+
+        setSessionOptions(allOptions);
+        if (autoSelectKey) setSelectedOptionKey(autoSelectKey);
       } catch (err) {
-        console.error('Error loading workout options:', err);
+        console.error('Error loading options:', err);
       } finally {
         setLoading(false);
       }
@@ -133,23 +238,47 @@ export const PTLiveSessionView: React.FC<PTLiveSessionViewProps> = ({
 
   // ─── Start session ──────────────────────────────────────────────────────
 
+  // Find the selected option object
+  const selectedOption = sessionOptions.find((opt) => {
+    if (opt.type === 'v2') return `v2-${opt.routineId}-${opt.dayId}` === selectedOptionKey;
+    return `legacy-${opt.option.workout_plan_id}` === selectedOptionKey;
+  });
+
   const handleStartSession = useCallback(async () => {
-    if (!selectedPlanId) return;
+    if (!selectedOption) return;
     setLoading(true);
     try {
-      const exercises = await WorkoutPlanService.getExercises(selectedPlanId);
-      const result = await PTSessionService.startSession(
-        gymId,
-        student.id,
-        selectedPlanId,
-        exercises,
-      );
+      let result: PTSessionFull;
+
+      if (selectedOption.type === 'v2') {
+        result = await PTSessionService.startSessionV2(
+          gymId,
+          student.id,
+          selectedOption.routineId,
+          selectedOption.dayId,
+          selectedOption.exercises,
+        );
+      } else {
+        const planId = selectedOption.option.workout_plan_id;
+        const exercises = await WorkoutPlanService.getExercises(planId);
+        result = await PTSessionService.startSession(
+          gymId,
+          student.id,
+          planId,
+          exercises,
+        );
+      }
+
       setSession(result);
 
-      // Load last performance for pre-filling
-      const weIds = result.exercises.map((e) => e.workout_exercise_id);
-      const perf = await PTSessionService.getLastPerformance(student.id, weIds);
-      setLastPerformance(perf);
+      // Load last performance for pre-filling (only for legacy exercises with workout_exercise_id)
+      const weIds = result.exercises
+        .map((e) => e.workout_exercise_id)
+        .filter((id): id is string => !!id);
+      if (weIds.length > 0) {
+        const perf = await PTSessionService.getLastPerformance(student.id, weIds);
+        setLastPerformance(perf);
+      }
 
       // Auto-expand first exercise
       if (result.exercises.length > 0) {
@@ -160,7 +289,7 @@ export const PTLiveSessionView: React.FC<PTLiveSessionViewProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [selectedPlanId, gymId, student.id, toast]);
+  }, [selectedOption, gymId, student.id, toast]);
 
   // ─── Save set ───────────────────────────────────────────────────────────
 
@@ -275,7 +404,7 @@ export const PTLiveSessionView: React.FC<PTLiveSessionViewProps> = ({
             </p>
           </div>
 
-          {workoutOptions.length === 0 ? (
+          {sessionOptions.length === 0 ? (
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 text-center">
               <p className="text-slate-500 text-sm">
                 Este cliente no tiene rutinas asignadas.
@@ -289,16 +418,30 @@ export const PTLiveSessionView: React.FC<PTLiveSessionViewProps> = ({
             </div>
           ) : (
             <div className="space-y-2">
-              {workoutOptions.map((opt) => {
-                const isSelected = selectedPlanId === opt.workout_plan_id;
-                const daysLabel = opt.days_of_week?.length
-                  ? opt.days_of_week.map((d) => ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'][d]).join(', ')
-                  : 'Cualquier día';
+              {sessionOptions.map((opt) => {
+                const key = opt.type === 'v2'
+                  ? `v2-${opt.routineId}-${opt.dayId}`
+                  : `legacy-${opt.option.workout_plan_id}`;
+                const isSelected = selectedOptionKey === key;
+
+                const name = opt.type === 'v2'
+                  ? `${opt.routineName} — ${opt.dayLabel}`
+                  : opt.option.plan_name;
+
+                const subtitle = opt.type === 'v2'
+                  ? `${opt.exercises.length} ejercicios`
+                  : (opt.option.days_of_week?.length
+                    ? opt.option.days_of_week.map((d) => ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'][d]).join(', ')
+                    : 'Cualquier día');
+
+                const isTodayMatch = opt.type === 'v2'
+                  ? selectedOptionKey === key && sessionOptions.indexOf(opt) === 0
+                  : false;
 
                 return (
                   <button
-                    key={opt.id}
-                    onClick={() => setSelectedPlanId(opt.workout_plan_id)}
+                    key={key}
+                    onClick={() => setSelectedOptionKey(key)}
                     className={`w-full text-left p-4 rounded-2xl border-2 transition-all ${
                       isSelected
                         ? 'border-violet-500 bg-violet-500/5 dark:bg-violet-500/10'
@@ -312,12 +455,19 @@ export const PTLiveSessionView: React.FC<PTLiveSessionViewProps> = ({
                         <Dumbbell size={18} />
                       </div>
                       <div className="min-w-0">
-                        <p className={`font-bold truncate ${
-                          isSelected ? 'text-violet-600 dark:text-violet-400' : 'text-slate-900 dark:text-white'
-                        }`}>
-                          {opt.plan_name}
-                        </p>
-                        <p className="text-xs text-slate-500">{daysLabel}</p>
+                        <div className="flex items-center gap-2">
+                          <p className={`font-bold truncate ${
+                            isSelected ? 'text-violet-600 dark:text-violet-400' : 'text-slate-900 dark:text-white'
+                          }`}>
+                            {name}
+                          </p>
+                          {isTodayMatch && (
+                            <span className="text-[10px] font-bold bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 px-1.5 py-0.5 rounded-md shrink-0">
+                              HOY
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-500">{subtitle}</p>
                       </div>
                       {isSelected && (
                         <CheckCircle2 size={20} className="text-violet-500 ml-auto shrink-0" />
@@ -329,7 +479,7 @@ export const PTLiveSessionView: React.FC<PTLiveSessionViewProps> = ({
             </div>
           )}
 
-          {selectedPlanId && (
+          {selectedOptionKey && (
             <button
               onClick={handleStartSession}
               className="w-full py-4 bg-violet-500 hover:bg-violet-600 active:bg-violet-700 text-white rounded-2xl font-black text-base transition-all shadow-lg shadow-violet-500/20 active:scale-[0.98] flex items-center justify-center gap-2"
@@ -360,7 +510,18 @@ export const PTLiveSessionView: React.FC<PTLiveSessionViewProps> = ({
                   {studentName.trim()}
                 </h1>
                 <p className="text-xs text-slate-500 truncate">
-                  {workoutOptions.find((o) => o.workout_plan_id === session.session.workout_plan_id)?.plan_name ?? 'Sesión'}
+                  {(() => {
+                    if (session.session.routine_id) {
+                      const v2 = sessionOptions.find((o): o is V2RoutineOption =>
+                        o.type === 'v2' && o.routineId === session.session.routine_id,
+                      );
+                      return v2 ? `${v2.routineName} — ${v2.dayLabel}` : 'Rutina';
+                    }
+                    const leg = sessionOptions.find((o) =>
+                      o.type === 'legacy' && o.option.workout_plan_id === session.session.workout_plan_id,
+                    );
+                    return leg?.type === 'legacy' ? leg.option.plan_name : 'Sesión';
+                  })()}
                 </p>
               </div>
             </div>

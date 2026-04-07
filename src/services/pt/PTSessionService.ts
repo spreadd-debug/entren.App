@@ -1,5 +1,6 @@
 import { supabase } from '../../db/supabase';
 import { WorkoutSession, WorkoutSessionExercise, SessionSet } from '../../../shared/types';
+import type { RoutineExercise, RoutineSet } from '../../../shared/types';
 
 export interface PTSessionExercise extends WorkoutSessionExercise {
   sets_data: SessionSet[];
@@ -65,6 +66,79 @@ export const PTSessionService = {
         workout_exercise_id: ex.id,
         completed: false,
       }));
+      await supabase.from('workout_session_exercises').insert(items);
+    }
+
+    return this.loadFullSession(session);
+  },
+
+  // ─── Start Session from V2 Routine ──────────────────────────────────────
+
+  async startSessionV2(
+    gymId: string,
+    studentId: string,
+    routineId: string,
+    routineDayId: string,
+    exercises: Array<{
+      routine_exercise_id: string;
+      exercise_name: string;
+      order: number;
+      sets: RoutineSet[];
+    }>,
+  ): Promise<PTSessionFull> {
+    // Check for existing in-progress session today
+    const { data: existing } = await supabase
+      .from('workout_sessions')
+      .select('*')
+      .eq('student_id', studentId)
+      .eq('session_date', todayDate())
+      .eq('status', 'in_progress')
+      .limit(1);
+
+    if (existing?.[0]) {
+      return this.loadFullSession(existing[0]);
+    }
+
+    // Create new session (workout_plan_id = null for v2)
+    const { data: session, error } = await supabase
+      .from('workout_sessions')
+      .insert({
+        gym_id: gymId,
+        student_id: studentId,
+        workout_plan_id: null,
+        routine_id: routineId,
+        routine_day_id: routineDayId,
+        session_date: todayDate(),
+        started_at: new Date().toISOString(),
+        status: 'in_progress',
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    // Create exercise entries with cached metadata
+    if (exercises.length > 0) {
+      const items = exercises.map((ex) => {
+        // Build planned info from routine sets
+        const plannedSets = ex.sets.length;
+        const repsInfo = ex.sets[0]?.reps
+          ? String(ex.sets[0].reps) + (ex.sets[0].reps_max ? `-${ex.sets[0].reps_max}` : '')
+          : null;
+        const weightInfo = ex.sets[0]?.weight_kg ? `${ex.sets[0].weight_kg}kg` : null;
+
+        return {
+          session_id: session.id,
+          workout_exercise_id: null,
+          routine_exercise_id: ex.routine_exercise_id,
+          exercise_name_cache: ex.exercise_name,
+          sets_planned_cache: plannedSets,
+          reps_planned_cache: repsInfo,
+          weight_planned_cache: weightInfo,
+          exercise_order_cache: ex.order,
+          completed: false,
+        };
+      });
       await supabase.from('workout_session_exercises').insert(items);
     }
 
@@ -229,23 +303,45 @@ export const PTSessionService = {
       setsByExercise.set(s.session_exercise_id, arr);
     }
 
+    const isV2 = !!session.routine_id;
+
     const exercises: PTSessionExercise[] = (rawExercises ?? [])
-      .map((item: any) => ({
-        id: item.id,
-        session_id: item.session_id,
-        workout_exercise_id: item.workout_exercise_id,
-        completed: item.completed,
-        created_at: item.created_at,
-        exercise_name: item.workout_exercises?.exercise_name ?? '',
-        sets: item.workout_exercises?.sets ?? null,
-        reps: item.workout_exercises?.reps ?? null,
-        weight: item.workout_exercises?.weight ?? null,
-        rest_seconds: item.workout_exercises?.rest_seconds ?? null,
-        notes: item.workout_exercises?.notes ?? null,
-        video_url: item.workout_exercises?.video_url ?? null,
-        exercise_order: item.workout_exercises?.exercise_order ?? 0,
-        sets_data: setsByExercise.get(item.id) ?? [],
-      }))
+      .map((item: any) => {
+        // V2 routine exercises use cached metadata; legacy uses joined workout_exercises
+        const name = isV2
+          ? (item.exercise_name_cache ?? '')
+          : (item.workout_exercises?.exercise_name ?? '');
+        const sets = isV2
+          ? (item.sets_planned_cache ?? null)
+          : (item.workout_exercises?.sets ?? null);
+        const reps = isV2
+          ? (item.reps_planned_cache ?? null)
+          : (item.workout_exercises?.reps ?? null);
+        const weight = isV2
+          ? (item.weight_planned_cache ?? null)
+          : (item.workout_exercises?.weight ?? null);
+        const order = isV2
+          ? (item.exercise_order_cache ?? 0)
+          : (item.workout_exercises?.exercise_order ?? 0);
+
+        return {
+          id: item.id,
+          session_id: item.session_id,
+          workout_exercise_id: item.workout_exercise_id ?? item.routine_exercise_id ?? '',
+          completed: item.completed,
+          created_at: item.created_at,
+          exercise_name: name,
+          sets,
+          reps,
+          weight,
+          rest_seconds: isV2 ? null : (item.workout_exercises?.rest_seconds ?? null),
+          notes: isV2 ? null : (item.workout_exercises?.notes ?? null),
+          video_url: isV2 ? null : (item.workout_exercises?.video_url ?? null),
+          exercise_order: order,
+          routine_exercise_id: item.routine_exercise_id ?? null,
+          sets_data: setsByExercise.get(item.id) ?? [],
+        };
+      })
       .sort((a: PTSessionExercise, b: PTSessionExercise) =>
         a.exercise_order - b.exercise_order,
       );
