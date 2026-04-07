@@ -8,6 +8,8 @@ import { AnthropometryService } from "../services/pt/AnthropometryService";
 import { MeasurementsService } from "../services/pt/MeasurementsService";
 import { GoalsService } from "../services/pt/GoalsService";
 import { SessionNotesService } from "../services/pt/SessionNotesService";
+import { PTSessionService } from "../services/pt/PTSessionService";
+import { buildExerciseHistory } from "../services/pt/PreSessionService";
 import { getWorkoutFreshness } from "../config/workoutConfig";
 import {
   Dumbbell,
@@ -42,6 +44,9 @@ import StudentPortalPTView from "./StudentPortalPTView";
 
 // Nombres de días en español (0=Dom, 1=Lun, ..., 6=Sáb)
 const DAY_NAMES = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+const DAY_NAMES_FULL = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+// Order for displaying day chips: Lun-Dom
+const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
 
 interface StudentPortalViewProps {
   studentId: string;
@@ -98,6 +103,14 @@ export default function StudentPortalView({
     lastSessionDate: string | null;
   } | null>(null);
   const [todayExercises, setTodayExercises] = useState<any[]>([]);
+
+  // ─── Vista semanal ────────────────────────────────────────────────────────
+  const [viewingDay, setViewingDay] = useState<number>(new Date().getDay());
+  const [previewExercises, setPreviewExercises] = useState<any[]>([]);
+  const [loadingPreview, setLoadingPreview] = useState(false);
+
+  // ─── Historial por ejercicio ("última vez") ───────────────────────────────
+  const [lastPerfMap, setLastPerfMap] = useState<Record<string, { weight: number; reps: number; date: string }>>({});
 
   // ─── Modal de video ────────────────────────────────────────────────────────
   const [videoModal, setVideoModal] = useState<{
@@ -168,6 +181,31 @@ export default function StudentPortalView({
         } else if (data.options.length > 0) {
           setSelectedOptionId(data.options[0].id);
         }
+
+        // Cargar historial de ejercicios ("última vez") desde sesiones PT
+        try {
+          const sessions = await PTSessionService.getSessionsWithSets(studentId, 15);
+          if (sessions.length > 0) {
+            const history = buildExerciseHistory(sessions);
+            const perfMap: Record<string, { weight: number; reps: number; date: string }> = {};
+            for (const ex of history) {
+              if (ex.sessions.length > 0) {
+                const lastSession = ex.sessions[0]; // ya ordenadas desc
+                const bestSet = lastSession.sets.find(s => s.weight_kg != null && s.reps_done != null);
+                if (bestSet) {
+                  perfMap[ex.exerciseName.toLowerCase()] = {
+                    weight: bestSet.weight_kg ?? 0,
+                    reps: bestSet.reps_done ?? 0,
+                    date: lastSession.date,
+                  };
+                }
+              }
+            }
+            setLastPerfMap(perfMap);
+          }
+        } catch (e) {
+          console.error("Failed to load exercise history:", e);
+        }
       } catch (error) {
         console.error(error);
         toast.error("No se pudo cargar el portal del alumno");
@@ -179,6 +217,27 @@ export default function StudentPortalView({
     };
     load();
   }, [studentId]);
+
+  // ─── Cargar ejercicios al cambiar de día (vista semanal) ─────────────────
+  useEffect(() => {
+    const todayDay = new Date().getDay();
+    if (viewingDay === todayDay) {
+      setPreviewExercises([]);
+      return;
+    }
+    const dayOption = options.find(o => o.days_of_week?.includes(viewingDay));
+    if (!dayOption) {
+      setPreviewExercises([]);
+      return;
+    }
+    let cancelled = false;
+    setLoadingPreview(true);
+    WorkoutPlanService.getExercises(dayOption.workout_plan_id)
+      .then(exercises => { if (!cancelled) setPreviewExercises(exercises); })
+      .catch(() => { if (!cancelled) setPreviewExercises([]); })
+      .finally(() => { if (!cancelled) setLoadingPreview(false); });
+    return () => { cancelled = true; };
+  }, [viewingDay, options]);
 
   // ─── Timer tick ───────────────────────────────────────────────────────────
   useEffect(() => {
@@ -236,6 +295,30 @@ export default function StudentPortalView({
 
   /** La opción actualmente seleccionada (para iniciar sesión) */
   const selectedOption = options.find((o) => o.id === selectedOptionId) ?? options[0] ?? null;
+
+  /** Vista semanal — día que se está viendo vs hoy */
+  const todayDay = new Date().getDay();
+  const isViewingToday = viewingDay === todayDay;
+  const viewingOption = options.find(o => o.days_of_week?.includes(viewingDay)) ?? null;
+  /** Set de días que tienen rutina asignada */
+  const daysWithRoutine = useMemo(() => {
+    const s = new Set<number>();
+    for (const opt of options) {
+      if (opt.days_of_week) opt.days_of_week.forEach(d => s.add(d));
+    }
+    return s;
+  }, [options]);
+
+  /** Helper: "última vez" para un ejercicio */
+  const getLastPerf = (exerciseName: string) => lastPerfMap[exerciseName.toLowerCase()] ?? null;
+
+  /** Formato relativo de fecha para "hace X días" */
+  const formatRelative = (dateStr: string) => {
+    const diff = Math.floor((Date.now() - new Date(dateStr + 'T12:00:00').getTime()) / (1000 * 60 * 60 * 24));
+    if (diff === 0) return 'hoy';
+    if (diff === 1) return 'ayer';
+    return `hace ${diff} días`;
+  };
 
   /** Antigüedad de la rutina más reciente del alumno */
   const routineFreshness = useMemo(() => {
@@ -383,6 +466,7 @@ export default function StudentPortalView({
         sessionNotes={sessionNotes}
         adherenceStats={adherenceStats}
         onAnthropometryUpdate={setAnthropometry}
+        lastPerfMap={lastPerfMap}
       />
     );
   }
@@ -871,17 +955,20 @@ export default function StudentPortalView({
             </div>
             <div className="flex-1 min-w-0">
               <h2 className={`text-sm font-black ${textPrimary}`}>
-                Entrenamiento de hoy
+                {isViewingToday ? "Entrenamiento de hoy" : `Entrenamiento del ${DAY_NAMES_FULL[viewingDay]}`}
               </h2>
-              {activeSession && (
+              {isViewingToday && activeSession && (
                 <p className={`text-xs ${textSecondary}`}>
                   {sessionAlreadyCompleted
                     ? "Sesión completada ✓"
                     : `${completedCount} de ${totalCount} ejercicios`}
                 </p>
               )}
+              {!isViewingToday && viewingOption && (
+                <p className={`text-xs ${textSecondary}`}>{viewingOption.plan_name}</p>
+              )}
             </div>
-            {activeSession && totalCount > 0 && (
+            {isViewingToday && activeSession && totalCount > 0 && (
               <div className="shrink-0">
                 <div className="relative w-9 h-9">
                   <svg className="w-9 h-9 -rotate-90" viewBox="0 0 36 36">
@@ -900,6 +987,42 @@ export default function StudentPortalView({
             )}
           </div>
 
+          {/* Chips de días de la semana */}
+          {options.length > 0 && (
+            <div className="px-4 py-2.5 flex gap-1.5 overflow-x-auto no-scrollbar border-b border-slate-100 dark:border-slate-800">
+              {DAY_ORDER.map(d => {
+                const hasRoutine = daysWithRoutine.has(d);
+                const isToday = d === todayDay;
+                const isSelected = d === viewingDay;
+                return (
+                  <button
+                    key={d}
+                    onClick={() => hasRoutine || isToday ? setViewingDay(d) : undefined}
+                    disabled={!hasRoutine && !isToday}
+                    className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                      isSelected
+                        ? isPT
+                          ? 'bg-violet-500 text-white shadow-sm shadow-violet-500/30'
+                          : 'bg-cyan-500 text-slate-950 shadow-sm shadow-cyan-500/30'
+                        : hasRoutine
+                          ? isToday
+                            ? isPT
+                              ? 'bg-violet-500/15 text-violet-300 ring-1 ring-violet-500/40'
+                              : 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 ring-1 ring-cyan-500/30'
+                            : isPT
+                              ? 'bg-white/5 text-violet-300/70 hover:bg-white/10'
+                              : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                          : 'bg-transparent text-slate-300 dark:text-slate-700 cursor-not-allowed'
+                    }`}
+                  >
+                    {DAY_NAMES[d]}
+                    {isToday && !isSelected && <span className="ml-0.5 text-[8px]">•</span>}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           {/* Contenido: sin opciones */}
           {options.length === 0 && (
             <div className="px-4 py-10 text-center space-y-2">
@@ -909,8 +1032,66 @@ export default function StudentPortalView({
             </div>
           )}
 
-          {/* Contenido: sesión NO iniciada → selector de rutina */}
-          {options.length > 0 && !activeSession && (
+          {/* ─── Viendo otro día (preview read-only) ─── */}
+          {options.length > 0 && !isViewingToday && (
+            <div>
+              {!viewingOption ? (
+                <div className="px-4 py-8 text-center space-y-1">
+                  <p className={`text-sm font-bold ${textSecondary}`}>Día de descanso</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-600">No hay rutina asignada para el {DAY_NAMES_FULL[viewingDay].toLowerCase()}.</p>
+                </div>
+              ) : loadingPreview ? (
+                <div className="px-4 py-8 text-center">
+                  <p className={`text-sm ${textSecondary}`}>Cargando...</p>
+                </div>
+              ) : previewExercises.length === 0 ? (
+                <div className="px-4 py-8 text-center">
+                  <p className="text-sm text-slate-400 dark:text-slate-500">No hay ejercicios cargados.</p>
+                </div>
+              ) : (
+                <div className={`divide-y ${cardDivider}`}>
+                  {previewExercises.map((ex: any, idx: number) => {
+                    const perf = getLastPerf(ex.exercise_name);
+                    return (
+                      <div key={ex.id ?? idx} className="px-4 py-3 flex items-center gap-3">
+                        <div className={`shrink-0 w-6 h-6 rounded-lg ${iconBg} flex items-center justify-center`}>
+                          <span className={`text-[10px] font-black ${iconColor}`}>{idx + 1}</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm font-bold truncate ${textPrimary}`}>{ex.exercise_name}</p>
+                          <p className={`text-xs ${textSecondary}`}>
+                            {[
+                              ex.sets && `${ex.sets} series`,
+                              ex.reps && `${ex.reps} reps`,
+                              ex.weight,
+                            ].filter(Boolean).join(" · ") || "Sin datos"}
+                          </p>
+                          {perf && (
+                            <p className="text-[11px] text-amber-500 dark:text-amber-400 mt-0.5">
+                              Última vez: {perf.weight}kg × {perf.reps} · {formatRelative(perf.date)}
+                            </p>
+                          )}
+                        </div>
+                        {ex.video_url && (
+                          <button
+                            type="button"
+                            onClick={() => setVideoModal({ isOpen: true, exerciseName: ex.exercise_name, videoUrl: ex.video_url })}
+                            className={`shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl ${isPT ? 'bg-violet-500/10 text-violet-300 border-violet-500/20 hover:bg-violet-500/20' : 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20 hover:bg-cyan-500/20'} text-xs font-bold border transition-colors`}
+                          >
+                            <Image size={13} />
+                            Ver
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ─── Viendo hoy: sesión NO iniciada → selector de rutina ─── */}
+          {options.length > 0 && isViewingToday && !activeSession && (
             <div className="px-4 py-4 space-y-3">
               {/* Opciones disponibles */}
               {options.length === 1 ? (
@@ -923,15 +1104,6 @@ export default function StudentPortalView({
                         <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{options[0].plan_description}</p>
                       )}
                     </div>
-                    {options[0].days_of_week && options[0].days_of_week.length > 0 && (
-                      <div className="flex gap-0.5 shrink-0 flex-wrap justify-end">
-                        {options[0].days_of_week.map((d) => (
-                          <span key={d} className={`px-1.5 py-0.5 rounded-md ${chipActive} text-[10px] font-bold`}>
-                            {DAY_NAMES[d]}
-                          </span>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 </div>
               ) : (
@@ -940,7 +1112,6 @@ export default function StudentPortalView({
                     Elegí tu rutina de hoy
                   </p>
                   {options.map((option) => {
-                    const todayDay = new Date().getDay();
                     const isTodayPlan = option.days_of_week?.includes(todayDay);
                     return (
                       <button
@@ -974,19 +1145,6 @@ export default function StudentPortalView({
                             {option.plan_description && (
                               <p className="text-xs text-slate-400 dark:text-slate-500 truncate">{option.plan_description}</p>
                             )}
-                            {option.days_of_week && option.days_of_week.length > 0 && (
-                              <div className="flex gap-0.5 mt-1 flex-wrap">
-                                {option.days_of_week.map((d) => (
-                                  <span key={d} className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
-                                    d === new Date().getDay()
-                                      ? isPT ? "bg-violet-500/15 text-violet-300" : "bg-cyan-500/15 text-cyan-600 dark:text-cyan-400"
-                                      : "bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400"
-                                  }`}>
-                                    {DAY_NAMES[d]}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
                           </div>
                         </div>
                       </button>
@@ -1006,70 +1164,78 @@ export default function StudentPortalView({
             </div>
           )}
 
-          {/* Contenido: sesión activa → checklist */}
-          {activeSession && (
+          {/* ─── Viendo hoy: sesión activa → checklist ─── */}
+          {isViewingToday && activeSession && (
             <div className={`divide-y ${cardDivider}`}>
               {sessionItems.length > 0 ? (
-                sessionItems.map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => handleToggleExercise(item)}
-                    disabled={sessionAlreadyCompleted}
-                    className={`w-full px-4 py-3.5 flex items-center gap-3 text-left transition-colors ${
-                      sessionAlreadyCompleted
-                        ? "cursor-default"
-                        : `${isPT ? 'hover:bg-white/5' : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'} ${isPT ? 'active:bg-white/10' : 'active:bg-slate-100 dark:active:bg-slate-800'}`
-                    }`}
-                  >
-                    {/* Checkbox circular */}
-                    <div className={`shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
-                      item.completed
-                        ? "bg-emerald-500 border-emerald-500"
-                        : isPT ? "border-violet-400/30" : "border-slate-300 dark:border-slate-600"
-                    }`}>
-                      {item.completed && <CheckCircle2 size={14} className="text-white" strokeWidth={3} />}
-                    </div>
-
-                    {/* Info del ejercicio */}
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-bold truncate transition-colors ${
+                sessionItems.map((item) => {
+                  const perf = getLastPerf(item.exercise_name);
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => handleToggleExercise(item)}
+                      disabled={sessionAlreadyCompleted}
+                      className={`w-full px-4 py-3.5 flex items-center gap-3 text-left transition-colors ${
+                        sessionAlreadyCompleted
+                          ? "cursor-default"
+                          : `${isPT ? 'hover:bg-white/5' : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'} ${isPT ? 'active:bg-white/10' : 'active:bg-slate-100 dark:active:bg-slate-800'}`
+                      }`}
+                    >
+                      {/* Checkbox circular */}
+                      <div className={`shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
                         item.completed
-                          ? isPT ? "text-violet-300/40 line-through" : "text-slate-400 dark:text-slate-500 line-through"
-                          : textPrimary
+                          ? "bg-emerald-500 border-emerald-500"
+                          : isPT ? "border-violet-400/30" : "border-slate-300 dark:border-slate-600"
                       }`}>
-                        {item.exercise_name}
-                      </p>
-                      <p className={`text-xs ${textSecondary}`}>
-                        {[
-                          item.sets && `${item.sets} series`,
-                          item.reps && `${item.reps} reps`,
-                          item.weight,
-                        ].filter(Boolean).join(" · ") || "Sin datos"}
-                      </p>
-                      {item.notes && (
-                        <p className="text-xs text-slate-400 dark:text-slate-600 italic mt-0.5">{item.notes}</p>
-                      )}
-                    </div>
+                        {item.completed && <CheckCircle2 size={14} className="text-white" strokeWidth={3} />}
+                      </div>
 
-                    {/* Botón de video */}
-                    {item.video_url && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setVideoModal({ isOpen: true, exerciseName: item.exercise_name, videoUrl: item.video_url! });
-                        }}
-                        className={`shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl ${isPT ? 'bg-violet-500/10 text-violet-300 border-violet-500/20 hover:bg-violet-500/20' : 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20 hover:bg-cyan-500/20'} text-xs font-bold border transition-colors`}
-                      >
-                        <Image size={13} />
-                        Ejemplo
-                      </button>
-                    )}
-                    {!item.video_url && (
-                      <ChevronRight size={16} className="text-slate-200 dark:text-slate-700 shrink-0" />
-                    )}
-                  </button>
-                ))
+                      {/* Info del ejercicio */}
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-bold truncate transition-colors ${
+                          item.completed
+                            ? isPT ? "text-violet-300/40 line-through" : "text-slate-400 dark:text-slate-500 line-through"
+                            : textPrimary
+                        }`}>
+                          {item.exercise_name}
+                        </p>
+                        <p className={`text-xs ${textSecondary}`}>
+                          {[
+                            item.sets && `${item.sets} series`,
+                            item.reps && `${item.reps} reps`,
+                            item.weight,
+                          ].filter(Boolean).join(" · ") || "Sin datos"}
+                        </p>
+                        {perf && !item.completed && (
+                          <p className="text-[11px] text-amber-500 dark:text-amber-400 mt-0.5">
+                            Última vez: {perf.weight}kg × {perf.reps} · {formatRelative(perf.date)}
+                          </p>
+                        )}
+                        {item.notes && (
+                          <p className="text-xs text-slate-400 dark:text-slate-600 italic mt-0.5">{item.notes}</p>
+                        )}
+                      </div>
+
+                      {/* Botón de video */}
+                      {item.video_url && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setVideoModal({ isOpen: true, exerciseName: item.exercise_name, videoUrl: item.video_url! });
+                          }}
+                          className={`shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl ${isPT ? 'bg-violet-500/10 text-violet-300 border-violet-500/20 hover:bg-violet-500/20' : 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20 hover:bg-cyan-500/20'} text-xs font-bold border transition-colors`}
+                        >
+                          <Image size={13} />
+                          Ejemplo
+                        </button>
+                      )}
+                      {!item.video_url && (
+                        <ChevronRight size={16} className="text-slate-200 dark:text-slate-700 shrink-0" />
+                      )}
+                    </button>
+                  );
+                })
               ) : (
                 <p className="px-4 py-8 text-center text-sm text-slate-400 dark:text-slate-600">
                   No hay ejercicios cargados.
@@ -1079,7 +1245,7 @@ export default function StudentPortalView({
           )}
 
           {/* Botón finalizar sesión */}
-          {activeSession && !sessionAlreadyCompleted && totalCount > 0 && (
+          {isViewingToday && activeSession && !sessionAlreadyCompleted && totalCount > 0 && (
             <div className="px-4 pb-4 pt-2">
               <button
                 onClick={handleCompleteSession}
@@ -1101,7 +1267,7 @@ export default function StudentPortalView({
           )}
 
           {/* Sesión ya completada */}
-          {sessionAlreadyCompleted && (
+          {isViewingToday && sessionAlreadyCompleted && (
             <div className="px-4 pb-4 pt-2">
               <div className="flex items-center justify-center gap-2 py-3 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-sm font-bold">
                 <Trophy size={15} />

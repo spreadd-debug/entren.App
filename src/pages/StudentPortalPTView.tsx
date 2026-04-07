@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Dumbbell,
   Image,
@@ -24,6 +24,7 @@ import {
   Camera,
   X,
 } from "lucide-react";
+import { WorkoutPlanService } from "../services/WorkoutPlanService";
 import { ExerciseVideoModal } from "../components/ExerciseVideoModal";
 import {
   WorkoutOption,
@@ -46,6 +47,8 @@ import EvolutionSection from "../components/pt/EvolutionSection";
 import { ProgressPhoto, PhotoAngle } from "../../shared/types";
 
 const DAY_NAMES = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+const DAY_NAMES_FULL = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
 
 interface AdherenceStats {
   totalSessions: number;
@@ -76,6 +79,7 @@ export interface StudentPortalPTViewProps {
   sessionNotes: SessionNote[];
   adherenceStats: AdherenceStats | null;
   onAnthropometryUpdate?: (data: ClientAnthropometry[]) => void;
+  lastPerfMap?: Record<string, { weight: number; reps: number; date: string }>;
 }
 
 // ─── Theme constants ───────────────────────────────────────────────────────────
@@ -206,7 +210,13 @@ export default function StudentPortalPTView({
   sessionNotes,
   adherenceStats,
   onAnthropometryUpdate,
+  lastPerfMap = {},
 }: StudentPortalPTViewProps) {
+  // Weekly view state
+  const [viewingDay, setViewingDay] = useState<number>(new Date().getDay());
+  const [previewExercises, setPreviewExercises] = useState<any[]>([]);
+  const [loadingPreview, setLoadingPreview] = useState(false);
+
   // Secondary cards state — all collapsed by default
   const [showRoutine, setShowRoutine] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
@@ -358,7 +368,16 @@ export default function StudentPortalPTView({
   // Today's routine
   const sessionCompleted = !!activeSession?.completed_at;
   const todayDay = new Date().getDay();
+  const isViewingToday = viewingDay === todayDay;
   const todayOption = options.find((o) => o.days_of_week?.includes(todayDay)) ?? options[0] ?? null;
+  const viewingOption = options.find(o => o.days_of_week?.includes(viewingDay)) ?? null;
+  const daysWithRoutine = useMemo(() => {
+    const s = new Set<number>();
+    for (const opt of options) {
+      if (opt.days_of_week) opt.days_of_week.forEach(d => s.add(d));
+    }
+    return s;
+  }, [options]);
 
   const exercisesToShow = activeSession
     ? sessionItems
@@ -373,6 +392,37 @@ export default function StudentPortalPTView({
         exercise_order: e.exercise_order ?? e.exerciseOrder ?? 0,
         completed: false,
       }));
+
+  /** Helper: "última vez" para un ejercicio */
+  const getLastPerf = (exerciseName: string) => lastPerfMap[exerciseName.toLowerCase()] ?? null;
+
+  /** Formato relativo de fecha */
+  const formatRelative = (dateStr: string) => {
+    const diff = Math.floor((Date.now() - new Date(dateStr + 'T12:00:00').getTime()) / (1000 * 60 * 60 * 24));
+    if (diff === 0) return 'hoy';
+    if (diff === 1) return 'ayer';
+    return `hace ${diff} días`;
+  };
+
+  // Load exercises when switching days
+  useEffect(() => {
+    if (isViewingToday) {
+      setPreviewExercises([]);
+      return;
+    }
+    const dayOpt = options.find(o => o.days_of_week?.includes(viewingDay));
+    if (!dayOpt) {
+      setPreviewExercises([]);
+      return;
+    }
+    let cancelled = false;
+    setLoadingPreview(true);
+    WorkoutPlanService.getExercises(dayOpt.workout_plan_id)
+      .then(exercises => { if (!cancelled) setPreviewExercises(exercises); })
+      .catch(() => { if (!cancelled) setPreviewExercises([]); })
+      .finally(() => { if (!cancelled) setLoadingPreview(false); });
+    return () => { cancelled = true; };
+  }, [viewingDay, options, isViewingToday]);
 
   // ─── Hero metric data ─────────────────────────────────────────────────────────
 
@@ -864,8 +914,8 @@ export default function StudentPortalPTView({
         <div className="space-y-1.5 pt-1">
           <p className="text-[10px] font-bold text-slate-400 dark:text-slate-600 uppercase tracking-wider px-1 mb-1">Más info</p>
 
-          {/* ── Rutina de hoy (movido desde zona 2) ──────────────────────── */}
-          {todayOption && (
+          {/* ── Rutina semanal ──────────────────────────────────────────── */}
+          {options.length > 0 && (
             <div className={`${cardSecondary} overflow-hidden`}>
               <button
                 onClick={() => setShowRoutine((v) => !v)}
@@ -873,9 +923,11 @@ export default function StudentPortalPTView({
               >
                 <Dumbbell size={13} className="text-violet-500 shrink-0" />
                 <span className="flex-1 text-left text-[13px] font-semibold text-slate-700 dark:text-slate-300 truncate">
-                  Rutina de hoy · {todayOption.plan_name}
+                  {isViewingToday
+                    ? `Rutina de hoy${todayOption ? ` · ${todayOption.plan_name}` : ''}`
+                    : `Rutina del ${DAY_NAMES_FULL[viewingDay]}${viewingOption ? ` · ${viewingOption.plan_name}` : ''}`}
                 </span>
-                {sessionCompleted && (
+                {isViewingToday && sessionCompleted && (
                   <span className="text-[10px] font-bold text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded-md mr-1">
                     Hecho
                   </span>
@@ -888,67 +940,138 @@ export default function StudentPortalPTView({
 
               {showRoutine && (
                 <div className={`border-t ${cardBorder}`}>
-                  {exercisesToShow.length === 0 ? (
-                    <div className="px-4 py-4 text-center">
-                      <p className="text-sm text-slate-400 dark:text-slate-500">No hay ejercicios cargados aún.</p>
-                    </div>
-                  ) : (
-                    <div className={`divide-y ${cardDivider}`}>
-                      {exercisesToShow.map((item: any, idx: number) => (
-                        <div
-                          key={item.id ?? idx}
-                          className="px-4 py-2.5 flex items-center gap-3"
+                  {/* Day chips */}
+                  <div className="px-3 py-2 flex gap-1 overflow-x-auto no-scrollbar border-b border-slate-100 dark:border-slate-800/80">
+                    {DAY_ORDER.map(d => {
+                      const hasRoutine = daysWithRoutine.has(d);
+                      const isToday = d === todayDay;
+                      const isSelected = d === viewingDay;
+                      return (
+                        <button
+                          key={d}
+                          onClick={() => hasRoutine || isToday ? setViewingDay(d) : undefined}
+                          disabled={!hasRoutine && !isToday}
+                          className={`shrink-0 px-2.5 py-1 rounded-md text-[11px] font-bold transition-all ${
+                            isSelected
+                              ? 'bg-violet-500 text-white shadow-sm shadow-violet-500/30'
+                              : hasRoutine
+                                ? isToday
+                                  ? 'bg-violet-500/15 text-violet-400 ring-1 ring-violet-500/40'
+                                  : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                : 'text-slate-300 dark:text-slate-700 cursor-not-allowed'
+                          }`}
                         >
-                          <div className="shrink-0 w-6 h-6 rounded-lg bg-violet-500/10 flex items-center justify-center">
-                            <span className="text-[10px] font-black text-violet-400">{idx + 1}</span>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className={`text-sm font-bold truncate ${
-                              item.completed
-                                ? "text-slate-400 dark:text-slate-600 line-through"
-                                : "text-slate-900 dark:text-white"
-                            }`}>
-                              {item.exercise_name}
-                            </p>
-                            <p className="text-xs text-slate-400 dark:text-slate-500">
-                              {[
-                                item.sets && `${item.sets} series`,
-                                item.reps && `${item.reps} reps`,
-                                item.weight,
-                              ].filter(Boolean).join(" · ") || "Sin datos"}
-                            </p>
-                            {item.notes && (
-                              <p className="text-xs text-slate-400 dark:text-slate-600 italic mt-0.5">{item.notes}</p>
-                            )}
-                          </div>
-                          {item.video_url && (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setVideoModal({
-                                  isOpen: true,
-                                  exerciseName: item.exercise_name,
-                                  videoUrl: item.video_url!,
-                                })
-                              }
-                              className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20 hover:bg-violet-500/20 text-xs font-bold border transition-colors"
-                            >
-                              <Image size={13} />
-                              Ver
-                            </button>
-                          )}
+                          {DAY_NAMES[d]}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Exercise list */}
+                  {(() => {
+                    // Determine which exercises to show
+                    const currentOption = isViewingToday ? todayOption : viewingOption;
+                    const exercises = isViewingToday
+                      ? exercisesToShow
+                      : previewExercises.map((e: any) => ({
+                          id: e.id,
+                          exercise_name: e.exercise_name ?? e.exerciseName ?? e.name ?? "",
+                          sets: e.sets, reps: e.reps, weight: e.weight,
+                          notes: e.notes,
+                          video_url: e.video_url ?? e.videoUrl ?? null,
+                          completed: false,
+                        }));
+
+                    if (!currentOption) {
+                      return (
+                        <div className="px-4 py-4 text-center">
+                          <p className="text-sm text-slate-400 dark:text-slate-500">Día de descanso</p>
+                          <p className="text-xs text-slate-400 dark:text-slate-600 mt-0.5">
+                            No hay rutina para el {DAY_NAMES_FULL[viewingDay].toLowerCase()}.
+                          </p>
                         </div>
-                      ))}
-                      {sessionCompleted && (
-                        <div className="px-4 py-3">
-                          <div className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-sm font-bold">
-                            <Trophy size={15} />
-                            ¡Entrenamiento completado!
-                          </div>
+                      );
+                    }
+
+                    if (!isViewingToday && loadingPreview) {
+                      return (
+                        <div className="px-4 py-4 text-center">
+                          <p className="text-sm text-slate-400 dark:text-slate-500">Cargando...</p>
                         </div>
-                      )}
-                    </div>
-                  )}
+                      );
+                    }
+
+                    if (exercises.length === 0) {
+                      return (
+                        <div className="px-4 py-4 text-center">
+                          <p className="text-sm text-slate-400 dark:text-slate-500">No hay ejercicios cargados aún.</p>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className={`divide-y ${cardDivider}`}>
+                        {exercises.map((item: any, idx: number) => {
+                          const perf = getLastPerf(item.exercise_name);
+                          return (
+                            <div key={item.id ?? idx} className="px-4 py-2.5 flex items-center gap-3">
+                              <div className="shrink-0 w-6 h-6 rounded-lg bg-violet-500/10 flex items-center justify-center">
+                                <span className="text-[10px] font-black text-violet-400">{idx + 1}</span>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className={`text-sm font-bold truncate ${
+                                  item.completed
+                                    ? "text-slate-400 dark:text-slate-600 line-through"
+                                    : "text-slate-900 dark:text-white"
+                                }`}>
+                                  {item.exercise_name}
+                                </p>
+                                <p className="text-xs text-slate-400 dark:text-slate-500">
+                                  {[
+                                    item.sets && `${item.sets} series`,
+                                    item.reps && `${item.reps} reps`,
+                                    item.weight,
+                                  ].filter(Boolean).join(" · ") || "Sin datos"}
+                                </p>
+                                {perf && !item.completed && (
+                                  <p className="text-[11px] text-amber-500 dark:text-amber-400 mt-0.5">
+                                    Última vez: {perf.weight}kg × {perf.reps} · {formatRelative(perf.date)}
+                                  </p>
+                                )}
+                                {item.notes && (
+                                  <p className="text-xs text-slate-400 dark:text-slate-600 italic mt-0.5">{item.notes}</p>
+                                )}
+                              </div>
+                              {item.video_url && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setVideoModal({
+                                      isOpen: true,
+                                      exerciseName: item.exercise_name,
+                                      videoUrl: item.video_url!,
+                                    })
+                                  }
+                                  className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20 hover:bg-violet-500/20 text-xs font-bold border transition-colors"
+                                >
+                                  <Image size={13} />
+                                  Ver
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
+                        {isViewingToday && sessionCompleted && (
+                          <div className="px-4 py-3">
+                            <div className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-sm font-bold">
+                              <Trophy size={15} />
+                              ¡Entrenamiento completado!
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
             </div>

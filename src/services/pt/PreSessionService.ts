@@ -80,7 +80,7 @@ export const PreSessionService = {
 
 // ─── Internal Helpers ──────────────────────────────────────────────────────
 
-function buildExerciseHistory(sessions: PTSessionFull[]): ExerciseHistory[] {
+export function buildExerciseHistory(sessions: PTSessionFull[]): ExerciseHistory[] {
   const byExercise = AlertEngineService.groupByExercise(sessions);
   const result: ExerciseHistory[] = [];
 
