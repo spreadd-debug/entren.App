@@ -10,7 +10,11 @@ import {
   GymPlanTier,
 } from '../../shared/types';
 
-const API_BASE = '/api';
+import { isNative } from '../lib/platform';
+
+const API_BASE = isNative()
+  ? `${import.meta.env.VITE_API_URL}/api`
+  : '/api';
 const DEFAULT_GYM_ID = '11111111-1111-1111-1111-111111111111';
 
 async function fetchJson(url: string, options?: RequestInit) {

@@ -19,7 +19,10 @@
       "WebFetch(domain:api.wger.de)",
       "WebFetch(domain:exercisedb-api.vercel.app)",
       "Bash(find /c/Users/Mauro/Desktop/entren.App/shared -type f -name *.ts -o -name *.tsx)",
-      "Bash(git commit -m ':*)"
+      "Bash(git commit -m ':*)",
+      "Bash(wc -l /c/Users/Mauro/Desktop/entren.App/src/pages/*.tsx)",
+      "Bash(find /c/Users/Mauro/Desktop/entren.App/src -type f \\\\\\( -name \"*.ts\" -o -name \"*.tsx\" \\\\\\) -exec grep -l \"StudentRoutineService\\\\|RoutineService\\\\|assignRoutine\\\\|bulkAssign\" {} \\\\;)",
+      "Bash(npx cap:*)"
     ]
   }
 }
