@@ -5,7 +5,7 @@ interface Props { children: React.ReactNode; fallbackLabel?: string; }
 interface State { hasError: boolean; message: string; componentStack: string; }
 
 export class ErrorBoundary extends React.Component<Props, State> {
-  state = { hasError: false, message: '', componentStack: '' };
+  state: State = { hasError: false, message: '', componentStack: '' };
 
   static getDerivedStateFromError(error: Error): Partial<State> {
     return { hasError: true, message: error.message };
@@ -65,6 +65,6 @@ export class ErrorBoundary extends React.Component<Props, State> {
         </div>
       );
     }
-    return <>{(this as any).props.children}</>;
+    return <>{this.props.children}</>;
   }
 }

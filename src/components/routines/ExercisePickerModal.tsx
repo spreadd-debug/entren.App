@@ -22,7 +22,7 @@ export default function ExercisePickerModal({ isOpen, onClose, onSelect }: Exerc
   const [results, setResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => {
     if (isOpen) {

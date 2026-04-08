@@ -220,7 +220,6 @@ const EXACT: Record<string, string> = {
   "Dumbbell Kickback": "Patada de Tríceps con Mancuerna",
   "Cable Kickback": "Patada de Tríceps en Polea",
   "Close-Grip Bench Press": "Press de Banca Agarre Cerrado",
-  "Close-Grip Barbell Bench Press": "Press de Banca Agarre Cerrado con Barra",
   "Machine Tricep Extension": "Extensión de Tríceps en Máquina",
   "Diamond Push-Ups": "Flexiones en Diamante",
 

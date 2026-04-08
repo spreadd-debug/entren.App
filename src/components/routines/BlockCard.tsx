@@ -41,6 +41,7 @@ function createEmptySet(setNumber: number) {
 }
 
 interface BlockCardProps {
+  key?: string | number;
   block: RoutineBlockDraft;
   blockIndex: number;
   onChange: (updated: RoutineBlockDraft) => void;

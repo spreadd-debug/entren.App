@@ -81,7 +81,7 @@ function normalizeStudent(student: any, plans: Plan[] = []): Student {
     planName:
       student.planName ??
       student.plan_nombre ??
-      matchedPlan?.nombre ??
+      matchedPlan?.name ??
       'Sin plan',
     next_due_date,
     nextDueDate: next_due_date,
@@ -98,7 +98,7 @@ function normalizeStudent(student: any, plans: Plan[] = []): Student {
       student.debt ??
         student.precio_personalizado ??
         student.customPrice ??
-        matchedPlan?.precio ??
+        matchedPlan?.price ??
         0
     ),
   };
@@ -138,10 +138,11 @@ export const api = {
       } catch (error) {
         console.error('dashboard.getStats failed:', error);
         return {
-          activeStudents: 0,
-          expiredStudents: 0,
-          expiringStudents: 0,
-          monthlyRevenue: 0,
+          activeCount: 0,
+          expiredCount: 0,
+          expiringCount: 0,
+          monthlyIncome: 0,
+          pendingStudents: [],
         } as DashboardStats;
       }
     },
@@ -278,12 +279,9 @@ export const api = {
       } catch (error) {
         console.error('automation.getStatus failed:', error);
         return {
-          lastRunAt: null,
-          nextRunAt: null,
-          lastRunSummary: null,
-          pendingCount: 0,
-          sentCount: 0,
-          failedCount: 0,
+          lastRun: null,
+          nextRun: null,
+          lastResult: null,
         } as AutomationStatus;
       }
     },

@@ -216,7 +216,6 @@ const EXACT: Record<string, string> = {
   "Dumbbell Kickback": "Patada de Tríceps con Mancuerna",
   "Cable Kickback": "Patada de Tríceps en Polea",
   "Close-Grip Bench Press": "Press de Banca Agarre Cerrado",
-  "Close-Grip Barbell Bench Press": "Press de Banca Agarre Cerrado con Barra",
   "Machine Tricep Extension": "Extensión de Tríceps en Máquina",
   "Diamond Push-Ups": "Flexiones en Diamante",
 
@@ -361,7 +360,6 @@ const EXACT: Record<string, string> = {
   "Jerk": "Envión",
   "Block Clean": "Cargada desde Bloques",
   "Block Snatch": "Arranque desde Bloques",
-  "Overhead Squat": "Sentadilla con Barra Sobre la Cabeza",
 
   // ── Strongman ──────────────────────────────────────────────────────────────
   "Farmer's Walk": "Caminata del Granjero",
@@ -391,8 +389,6 @@ const EXACT: Record<string, string> = {
   "Lateral Bound": "Salto Lateral",
   "Medicine Ball Slam": "Lanzamiento de Pelota Medicinal al Suelo",
   "Medicine Ball Throw": "Lanzamiento de Pelota Medicinal",
-  "Box Jump": "Salto al Cajón",
-  "Broad Jump": "Salto en Longitud",
   "Hurdle Jump": "Salto de Valla",
   "Plyo Push-Up": "Flexiones Pliométricas",
   "Clap Push-Up": "Flexiones con Palmada",

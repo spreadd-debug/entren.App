@@ -492,6 +492,7 @@ export default function PTCalendarView({ gymId, students }: PTCalendarViewProps)
 // ── DayColumn ───────────────────────────────────────────────────────────────
 
 interface DayColumnProps {
+  key?: React.Key;
   day: typeof DAYS[0];
   shifts: ShiftWithStudents[];
   isToday: boolean;

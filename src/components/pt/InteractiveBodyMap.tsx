@@ -106,7 +106,7 @@ export const InteractiveBodyMap: React.FC<InteractiveBodyMapProps> = ({ latest, 
       .filter(zone => zone.fields.some(f => getValue(f.key) != null))
       .map(zone => ({
         name: zone.label,
-        muscles: [zone.muscle],
+        muscles: [zone.muscle] as any[],
         frequency: activeZone?.label === zone.label ? 2 : 1,
       }));
 

@@ -1065,11 +1065,12 @@ function GymRow({
   onQuickAction,
   loadingGymId,
 }: {
+  key?: React.Key;
   sub: GymSubscription;
   payments: GymBillingPayment[];
   onEdit: () => void;
   onRegisterPayment: () => void;
-  onQuickAction: (gymId: string, action: string) => void;
+  onQuickAction: (gymId: string, action: string) => Promise<void> | void;
   loadingGymId: string | null;
 }) {
   const [expanded, setExpanded] = useState(false);

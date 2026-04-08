@@ -17,6 +17,10 @@ export const StatusBadge: React.FC<BadgeProps> = ({ status }) => {
       'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20',
     inactive:
       'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700',
+    pausado:
+      'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20',
+    baja:
+      'bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 border-zinc-500/20',
   };
 
   const labels: Record<StudentStatus, string> = {
@@ -24,6 +28,8 @@ export const StatusBadge: React.FC<BadgeProps> = ({ status }) => {
     expiring: 'Por vencer',
     expired: 'Vencido',
     inactive: 'Inactivo',
+    pausado: 'Pausado',
+    baja: 'Baja',
   };
 
   return (

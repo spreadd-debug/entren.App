@@ -423,9 +423,8 @@ export const DemoTour: React.FC<DemoTourProps> = ({ onNavigate, onExit, onRegist
       {!isFinal && (
         <button
           onClick={onExit}
-          style={{ position: 'fixed', top: 12, right: 12, zIndex: 10002 }}
+          style={{ position: 'fixed', top: 12, right: 12, zIndex: 10002, fontSize: 11 }}
           className="flex items-center gap-1 px-2.5 py-1.5 rounded-full font-semibold text-slate-400 hover:text-white bg-slate-900/80 hover:bg-slate-800 border border-slate-700/60 transition-all backdrop-blur-sm"
-          style={{ fontSize: 11 }}
         >
           <X size={11} />
           Saltar

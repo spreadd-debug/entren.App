@@ -73,7 +73,7 @@ export const DefaultersView: React.FC<DefaultersViewProps> = ({
         const nextDueDate = student.next_due_date ?? student.nextDueDate ?? null;
         const matchingPlan = safePlans.find((p: any) => p.id === student.plan_id || p.id === student.planId);
         const debt = Number(
-          student.debt ?? student.precio_personalizado ?? matchingPlan?.precio ?? student.plan_precio ?? 0
+          student.debt ?? student.precio_personalizado ?? (matchingPlan as any)?.precio ?? student.plan_precio ?? 0
         );
         const dueDate = new Date(String(nextDueDate));
         dueDate.setHours(0, 0, 0, 0);
@@ -85,7 +85,7 @@ export const DefaultersView: React.FC<DefaultersViewProps> = ({
           ...student,
           displayName,
           firstLetter: (nombre || '?').charAt(0).toUpperCase(),
-          planDisplay: student.planName ?? student.plan_nombre ?? matchingPlan?.nombre ?? 'Sin plan',
+          planDisplay: student.planName ?? student.plan_nombre ?? (matchingPlan as any)?.nombre ?? 'Sin plan',
           dueDateDisplay: nextDueDate,
           debtDisplay: debt,
           diffDays,

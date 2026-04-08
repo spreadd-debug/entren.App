@@ -359,11 +359,12 @@ function PaymentModal({ sub, onClose, onSaved }: PaymentModalProps) {
 // ── Gym Row ───────────────────────────────────────────────────────────────────
 
 interface GymRowProps {
+  key?: React.Key;
   sub: GymSubscription;
   payments: GymBillingPayment[];
   onEdit: () => void;
   onRegisterPayment: () => void;
-  onQuickAction: (gymId: string, action: 'activate' | 'suspend' | 'cancel' | 'trial' | 'past-due') => void;
+  onQuickAction: (gymId: string, action: 'activate' | 'suspend' | 'cancel' | 'trial' | 'past-due') => Promise<void> | void;
   loadingAction: string | null;
 }
 

@@ -38,7 +38,7 @@ router.get('/', async (req, res) => {
     const supabase = getAdminClient();
     const { data, error } = await supabase.auth.admin.listUsers();
     if (error) return res.status(400).json({ error: error.message });
-    const staff = data.users
+    const staff = (data.users as any[])
       .filter(u => u.user_metadata?.gym_id === gymId && u.user_metadata?.role === 'staff')
       .map(u => ({ id: u.id, email: u.email ?? '', name: u.user_metadata?.name ?? '' }));
     res.json(staff);

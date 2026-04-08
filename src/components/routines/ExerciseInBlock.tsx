@@ -14,6 +14,7 @@ import type { RoutineExerciseDraft, RoutineSetDraft, SetType, WeightType } from 
 import SetRow from "./SetRow";
 
 interface ExerciseInBlockProps {
+  key?: string | number;
   exercise: RoutineExerciseDraft;
   letterLabel?: string; // "A", "B", "C" for supersets
   onChange: (updated: RoutineExerciseDraft) => void;

@@ -191,14 +191,14 @@ export function TodayRoutinePreview({ studentId, gymId }: TodayRoutinePreviewPro
 
   const updateSetLocal = (setId: string, original: RoutineSet, field: string, value: number | null) => {
     setEditedSets((prev) => {
-      const next = new Map(prev);
-      const current = next.get(setId) ?? { ...original };
+      const next = new Map<string, EditableSet>(prev);
+      const current: EditableSet = next.get(setId) ?? { ...original };
       next.set(setId, { ...current, [field]: value, _dirty: true });
       return next;
     });
   };
 
-  const hasDirtyEdits = Array.from(editedSets.values()).some((s) => s._dirty);
+  const hasDirtyEdits = Array.from(editedSets.values()).some((s: EditableSet) => s._dirty);
 
   const handleSaveEdits = async () => {
     const dirty = Array.from(editedSets.entries()).filter(([_, s]) => s._dirty);
@@ -219,8 +219,8 @@ export function TodayRoutinePreview({ studentId, gymId }: TodayRoutinePreviewPro
       );
       // Clear dirty flags
       setEditedSets((prev) => {
-        const next = new Map(prev);
-        for (const [id, s] of next) {
+        const next = new Map<string, EditableSet>(prev);
+        for (const [id, s] of next.entries()) {
           next.set(id, { ...s, _dirty: false });
         }
         return next;
@@ -503,6 +503,7 @@ function BlockPreviewEditable({
   getEditableSet,
   onUpdateSet,
 }: {
+  key?: string | number;
   block: RoutineBlock & { exercises: (RoutineExercise & { sets: RoutineSet[] })[] };
   index: number;
   expandedExercises: Set<string>;
