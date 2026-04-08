@@ -1,10 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Dumbbell, Loader2, Zap, Target, RotateCw, Clock, AlertTriangle,
-  ChevronDown, ChevronUp, Save, Check, Coffee,
+  Dumbbell, Loader2, Zap, Target, RotateCw, Clock,
+  ChevronDown, ChevronUp, Save, Coffee,
 } from 'lucide-react';
 import { RoutineBuilderService } from '../../services/RoutineBuilderService';
-import { WorkoutPlanService } from '../../services/WorkoutPlanService';
 import { useToast } from '../../context/ToastContext';
 import type {
   RoutineAssignment, RoutineBlock, RoutineExercise, RoutineSet, RoutineDay, BlockType,
@@ -58,6 +57,18 @@ type UnmappedDay = {
 
 type EditableSet = RoutineSet & { _dirty?: boolean };
 
+// ── Module-level cache (persists across mount/unmount cycles) ──────────────
+
+type CachedData = {
+  weekdaySlots: WeekdaySlot[];
+  hasAnyMapping: boolean;
+  unmappedDays: UnmappedDay[];
+  ts: number;
+};
+
+const dataCache = new Map<string, CachedData>();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 // ── Component ──────────────────────────────────────────────────────────────
 
 interface TodayRoutinePreviewProps {
@@ -85,100 +96,90 @@ export function TodayRoutinePreview({ studentId, gymId }: TodayRoutinePreviewPro
   const [unmappedDays, setUnmappedDays] = useState<UnmappedDay[]>([]);
   const [selectedUnmappedDay, setSelectedUnmappedDay] = useState<UnmappedDay | null>(null);
 
-  // Legacy state
-  const [legacyPlan, setLegacyPlan] = useState<{ id: string; plan_name: string; workout_plan_id: string } | null>(null);
-  const [legacyExercises, setLegacyExercises] = useState<any[]>([]);
+  const isMounted = useRef(true);
+  useEffect(() => { isMounted.current = true; return () => { isMounted.current = false; }; }, []);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const buildSlotsFromAssignments = useCallback(async (v2Assignments: (RoutineAssignment & { routine_name: string })[]) => {
+    const loaded = await Promise.all(
+      v2Assignments.map(async (a) => {
+        const full = await RoutineBuilderService.loadFullRoutine(a.routine_id);
+        return { ...a, days: full.days as FullDay[] };
+      }),
+    );
+
+    const slots: WeekdaySlot[] = WEEKDAYS.map((wd) => {
+      for (const assignment of loaded) {
+        const mapping = assignment.day_mapping || {};
+        const entry = Object.entries(mapping).find(([_, weekday]) => weekday === wd.key);
+        if (entry) {
+          const day = assignment.days.find((d) => d.id === entry[0]);
+          if (day) return { weekday: wd, routineName: assignment.routine_name, day, assignmentId: assignment.id, routineId: assignment.routine_id };
+        }
+      }
+      return null;
+    });
+
+    const mappedDayIds = new Set<string>();
+    for (const assignment of loaded) {
+      for (const dayId of Object.keys(assignment.day_mapping || {})) mappedDayIds.add(dayId);
+    }
+    const unmapped: UnmappedDay[] = [];
+    for (const assignment of loaded) {
+      for (const day of assignment.days) {
+        if (!mappedDayIds.has(day.id)) unmapped.push({ routineName: assignment.routine_name, day, assignmentId: assignment.id, routineId: assignment.routine_id });
+      }
+    }
+
+    return { weekdaySlots: slots, hasAnyMapping: slots.some((s) => s !== null), unmappedDays: unmapped };
+  }, []);
+
+  const applyData = useCallback((data: CachedData) => {
+    if (!isMounted.current) return;
+    setWeekdaySlots(data.weekdaySlots);
+    setHasAnyMapping(data.hasAnyMapping);
+    setUnmappedDays(data.unmappedDays);
+    setSelectedUnmappedDay(null);
+    setSelectedWeekday((prev) => prev || WEEKDAYS_ES[new Date().getDay()]);
+    setLoading(false);
+  }, []);
+
+  const loadData = useCallback(async (background = false) => {
+    // Show cached data instantly if available
+    const cached = dataCache.get(studentId);
+    if (cached && !background) {
+      applyData(cached);
+      // If cache is fresh, just revalidate in background
+      if (Date.now() - cached.ts < CACHE_TTL) {
+        loadData(true);
+        return;
+      }
+    }
+
+    if (!background) setLoading(true);
+
     try {
       const v2Assignments = await RoutineBuilderService.getAssignmentsForStudent(studentId);
 
       if (v2Assignments.length > 0) {
-        // Load full routines for all assignments
-        const loaded = await Promise.all(
-          v2Assignments.map(async (a) => {
-            const full = await RoutineBuilderService.loadFullRoutine(a.routine_id);
-            return { ...a, days: full.days as FullDay[] };
-          }),
-        );
-
-        // Build weekday → routine day mapping across all assignments
-        const slots: WeekdaySlot[] = WEEKDAYS.map((wd) => {
-          for (const assignment of loaded) {
-            const mapping = assignment.day_mapping || {};
-            const entry = Object.entries(mapping).find(
-              ([_, weekday]) => weekday === wd.key,
-            );
-            if (entry) {
-              const day = assignment.days.find((d) => d.id === entry[0]);
-              if (day) {
-                return {
-                  weekday: wd,
-                  routineName: assignment.routine_name,
-                  day,
-                  assignmentId: assignment.id,
-                  routineId: assignment.routine_id,
-                };
-              }
-            }
-          }
-          return null;
-        });
-
-        setWeekdaySlots(slots);
-        setHasAnyMapping(slots.some((s) => s !== null));
-
-        // Compute unmapped days: days not referenced in any day_mapping
-        const mappedDayIds = new Set<string>();
-        for (const assignment of loaded) {
-          for (const dayId of Object.keys(assignment.day_mapping || {})) {
-            mappedDayIds.add(dayId);
-          }
-        }
-        const unmapped: UnmappedDay[] = [];
-        for (const assignment of loaded) {
-          for (const day of assignment.days) {
-            if (!mappedDayIds.has(day.id)) {
-              unmapped.push({
-                routineName: assignment.routine_name,
-                day,
-                assignmentId: assignment.id,
-                routineId: assignment.routine_id,
-              });
-            }
-          }
-        }
-        setUnmappedDays(unmapped);
-        setSelectedUnmappedDay(null);
-
-        // Default to today
-        const todayKey = WEEKDAYS_ES[new Date().getDay()];
-        setSelectedWeekday(todayKey);
-
-        setLegacyPlan(null);
-        setLegacyExercises([]);
-        setLoading(false);
+        const result = await buildSlotsFromAssignments(v2Assignments);
+        const cacheEntry: CachedData = { ...result, ts: Date.now() };
+        dataCache.set(studentId, cacheEntry);
+        applyData(cacheEntry);
         return;
       }
 
-      // Fallback to legacy
-      const options = await WorkoutPlanService.getStudentWorkoutOptions(studentId);
-      if (options.length > 0) {
-        const option = options[0];
-        setLegacyPlan(option);
-        const exercises = await WorkoutPlanService.getExercises(option.workout_plan_id);
-        setLegacyExercises(exercises);
-      }
-
+      // No assignments
+      if (!isMounted.current) return;
       setWeekdaySlots([]);
       setHasAnyMapping(false);
+      setUnmappedDays([]);
+      dataCache.delete(studentId);
     } catch (err) {
-      console.error('[TodayRoutinePreview]', err);
+      if (!background) console.error('[TodayRoutinePreview]', err);
     } finally {
-      setLoading(false);
+      if (isMounted.current && !background) setLoading(false);
     }
-  }, [studentId]);
+  }, [studentId, applyData, buildSlotsFromAssignments]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -224,6 +225,7 @@ export function TodayRoutinePreview({ studentId, gymId }: TodayRoutinePreviewPro
         }
         return next;
       });
+      dataCache.delete(studentId); // invalidate cache after edits
       toast.success('Cambios guardados');
     } catch {
       toast.error('Error al guardar');
@@ -388,39 +390,7 @@ export function TodayRoutinePreview({ studentId, gymId }: TodayRoutinePreviewPro
     );
   }
 
-  // ── State B: legacy plan assigned ────────────────────────────────────────
-
-  if (legacyPlan && legacyExercises.length > 0) {
-    return (
-      <div className="space-y-3">
-        <p className="text-sm font-bold text-slate-900 dark:text-white">
-          {legacyPlan.plan_name}
-        </p>
-        <div className="space-y-1.5">
-          {legacyExercises.map((ex: any, i: number) => (
-            <div
-              key={ex.id}
-              className="flex items-center gap-3 py-2 px-3 rounded-xl bg-slate-50 dark:bg-slate-800/50"
-            >
-              <span className="w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-500 text-[10px] font-bold flex items-center justify-center shrink-0">
-                {i + 1}
-              </span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-slate-900 dark:text-white truncate">
-                  {ex.exercise_name}
-                </p>
-              </div>
-              <span className="text-xs text-slate-400 shrink-0">
-                {formatLegacySets(ex)}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  // ── State C: no routine assigned ─────────────────────────────────────────
+  // ── No routine assigned ──────────────────────────────────────────────────
 
   return (
     <div className="text-center py-6">
@@ -680,10 +650,3 @@ function formatV2SetsSummary(sets: RoutineSet[]): string {
   return `${sets.length} series`;
 }
 
-function formatLegacySets(ex: any): string {
-  const parts: string[] = [];
-  if (ex.sets) parts.push(`${ex.sets}×`);
-  if (ex.reps) parts.push(ex.reps);
-  if (ex.weight) parts.push(`${ex.weight}`);
-  return parts.join(' ') || '—';
-}
