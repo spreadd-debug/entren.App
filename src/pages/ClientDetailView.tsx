@@ -1,20 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft, Phone, Edit2, MessageSquare, Trash2, Save, X,
-  Dumbbell, PlayCircle, Bell, Plus, CheckCircle2, HeartPulse,
+  Dumbbell, PlayCircle, Bell, HeartPulse,
   Ruler, Target, FileText, Activity, KeyRound, Copy, Check, RefreshCw, Share2,
-  TrendingUp, Calendar, Clock, Apple, Camera, ClipboardList,
+  TrendingUp, Calendar, Apple, Camera, ClipboardList,
 } from 'lucide-react';
 import { Card, StatusBadge, Button, Input } from '../components/UI';
 import { useNavigate } from 'react-router-dom';
-import { Student, Plan, WorkoutOption, WorkoutUpdateRequest } from '../../shared/types';
+import { Student, Plan, WorkoutUpdateRequest } from '../../shared/types';
 import { api } from '../services/api';
-import { WorkoutPlanService } from '../services/WorkoutPlanService';
 import { WorkoutRequestService } from '../services/WorkoutRequestService';
 import { WorkoutSessionService } from '../services/WorkoutSessionService';
-import { ExerciseVideoModal } from '../components/ExerciseVideoModal';
 import { useToast } from '../context/ToastContext';
-import { getWorkoutFreshness } from '../config/workoutConfig';
 
 import { PlanProfileService } from '../services/pt/PlanProfileService';
 import { RoutineBuilderService } from '../services/RoutineBuilderService';
@@ -27,8 +24,6 @@ import { WellnessCheckInPanel } from '../components/pt/WellnessCheckInPanel';
 import { NutritionPlanPanel } from '../components/pt/NutritionPlanPanel';
 import { ProgressPhotosPanel } from '../components/pt/ProgressPhotosPanel';
 import { StudentSummaryCard } from '../components/pt/StudentSummaryCard';
-
-const DAY_NAMES_SHORT = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
 type Tab = 'overview' | 'anthropometry' | 'measurements' | 'goals' | 'notes' | 'nutrition' | 'wellness' | 'photos' | 'workouts';
 
@@ -68,19 +63,11 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({
   const [pendingDelete, setPendingDelete] = useState(false);
 
   // Workout state
-  const [workoutPlans, setWorkoutPlans] = useState<any[]>([]);
-  const [workoutOptions, setWorkoutOptions] = useState<WorkoutOption[]>([]);
-  const [studentWorkoutExercises, setStudentWorkoutExercises] = useState<any[]>([]);
   const [pendingUpdateRequest, setPendingUpdateRequest] = useState<WorkoutUpdateRequest | null>(null);
-  const [selectedWorkoutPlanId, setSelectedWorkoutPlanId] = useState('');
   const [isLoadingWorkout, setIsLoadingWorkout] = useState(true);
-  const [isAddingOption, setIsAddingOption] = useState(false);
   const [adherenceStats, setAdherenceStats] = useState<{
     totalSessions: number; completedSessions: number; adherencePercent: number; lastSessionDate: string | null;
   } | null>(null);
-  const [videoModal, setVideoModal] = useState<{ isOpen: boolean; exerciseName: string; videoUrl: string }>({
-    isOpen: false, exerciseName: '', videoUrl: '',
-  });
   const [accessCode, setAccessCode] = useState<string | null>((student as any).access_code ?? null);
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -130,17 +117,11 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({
   const loadWorkoutData = async () => {
     try {
       setIsLoadingWorkout(true);
-      const [plansData, optionsData, exercisesData, requestData, adherenceData, v2Data] = await Promise.allSettled([
-        WorkoutPlanService.getPlans(gymId),
-        WorkoutPlanService.getStudentWorkoutOptions(student.id),
-        WorkoutPlanService.getStudentWorkout(student.id),
+      const [requestData, adherenceData, v2Data] = await Promise.allSettled([
         WorkoutRequestService.getOpenRequest(student.id),
         WorkoutSessionService.getAdherenceStats(student.id, 30),
         RoutineBuilderService.getAssignmentsForStudent(student.id),
       ]);
-      setWorkoutPlans(plansData.status === 'fulfilled' && Array.isArray(plansData.value) ? plansData.value : []);
-      setWorkoutOptions(optionsData.status === 'fulfilled' && Array.isArray(optionsData.value) ? optionsData.value : []);
-      setStudentWorkoutExercises(exercisesData.status === 'fulfilled' && Array.isArray(exercisesData.value) ? exercisesData.value : []);
       setPendingUpdateRequest(requestData.status === 'fulfilled' ? requestData.value : null);
       setAdherenceStats(adherenceData.status === 'fulfilled' ? adherenceData.value : null);
       setV2Assignments(v2Data.status === 'fulfilled' && Array.isArray(v2Data.value) ? v2Data.value : []);
@@ -150,30 +131,6 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({
 
   useEffect(() => { loadWorkoutData(); }, [student.id]);
 
-  const handleAddOption = async () => {
-    if (!selectedWorkoutPlanId) return;
-    try {
-      setIsAddingOption(true);
-      await WorkoutPlanService.addWorkoutOption(gymId, student.id, selectedWorkoutPlanId);
-      await loadWorkoutData();
-      setSelectedWorkoutPlanId('');
-      toast.success('Rutina agregada');
-    } catch {
-      toast.error('No se pudo agregar');
-    }
-    setIsAddingOption(false);
-  };
-
-  const handleRemoveOption = async (assignmentId: string) => {
-    try {
-      await WorkoutPlanService.removeWorkoutOption(assignmentId);
-      await loadWorkoutData();
-      toast.success('Opcion eliminada');
-    } catch {
-      toast.error('No se pudo eliminar');
-    }
-  };
-
   const handleResolveRequest = async () => {
     if (!pendingUpdateRequest) return;
     try {
@@ -181,19 +138,6 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({
       setPendingUpdateRequest(null);
       toast.success('Solicitud atendida');
     } catch {
-      toast.error('No se pudo actualizar');
-    }
-  };
-
-  const handleToggleOptionDay = async (option: WorkoutOption, day: number) => {
-    const current = option.days_of_week ?? [];
-    const newDays = current.includes(day) ? current.filter(d => d !== day) : [...current, day].sort((a, b) => a - b);
-    const updatedDays = newDays.length > 0 ? newDays : null;
-    setWorkoutOptions(prev => prev.map(o => o.id === option.id ? { ...o, days_of_week: updatedDays } : o));
-    try {
-      await WorkoutPlanService.updateWorkoutOptionDays(option.id, updatedDays);
-    } catch {
-      setWorkoutOptions(prev => prev.map(o => o.id === option.id ? { ...o, days_of_week: option.days_of_week } : o));
       toast.error('No se pudo actualizar');
     }
   };
@@ -435,7 +379,7 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({
             <Dumbbell size={14} className="text-violet-500" />
           </div>
           <p className="text-xl font-black text-slate-900 dark:text-white leading-none">
-            {workoutOptions.length}
+            {v2Assignments.length}
           </p>
           <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mt-1">Rutinas</p>
         </div>
@@ -494,7 +438,7 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({
           )}
 
           {/* Session action buttons */}
-          {workoutOptions.length > 0 && (
+          {v2Assignments.length > 0 && (
             <div className="flex gap-2">
               <button
                 onClick={() => navigate(`/clients/${student.id}/prepare`)}
@@ -754,138 +698,16 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({
             </Card>
           )}
 
-          {/* Legacy workout options — hidden when v2 assignments exist */}
-          {v2Assignments.length === 0 && <Card className="p-4 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-50 dark:border-slate-700 pb-2">
-              <div>
-                <h3 className="font-bold text-slate-900 dark:text-white">Rutinas disponibles {v2Assignments.length > 0 ? '(legacy)' : ''}</h3>
-                {adherenceStats && adherenceStats.totalSessions > 0 && (
-                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
-                    Adherencia 30d:{' '}
-                    <span className={`font-bold ${
-                      adherenceStats.adherencePercent >= 80 ? 'text-emerald-600 dark:text-emerald-400' :
-                      adherenceStats.adherencePercent >= 50 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'
-                    }`}>{adherenceStats.adherencePercent}%</span>
-                    {' '}({adherenceStats.completedSessions}/{adherenceStats.totalSessions})
-                  </p>
-                )}
-              </div>
-              {pendingUpdateRequest && (
-                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 shrink-0">
-                  <Bell size={11} /> Pide nueva rutina
-                </span>
-              )}
-            </div>
-
-            {isLoadingWorkout ? (
-              <div className="flex items-center justify-center py-6">
-                <span className="w-5 h-5 border-2 border-slate-300 border-t-violet-500 rounded-full animate-spin" />
-              </div>
-            ) : workoutOptions.length > 0 ? (
-              <div className="space-y-3">
-                {workoutOptions.map(option => {
-                  const freshness = getWorkoutFreshness(option.updated_at);
-                  return (
-                    <div key={option.id} className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 space-y-2.5">
-                      <div className="flex items-center gap-3">
-                        <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${freshness.dotClass}`} />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{option.plan_name}</p>
-                          <p className={`text-xs ${freshness.colorClass}`}>
-                            {freshness.daysOld !== null ? `Actualizada hace ${freshness.daysOld} dia${freshness.daysOld === 1 ? '' : 's'}` : 'Sin fecha'}
-                          </p>
-                        </div>
-                        <button onClick={() => handleRemoveOption(option.id)} className="p-1.5 rounded-lg text-slate-300 dark:text-slate-600 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors shrink-0" title="Quitar">
-                          <X size={14} />
-                        </button>
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1.5">Dias habilitados</p>
-                        <div className="flex gap-1 flex-wrap">
-                          {[1, 2, 3, 4, 5, 6, 0].map(day => {
-                            const isActive = option.days_of_week?.includes(day) ?? false;
-                            return (
-                              <button
-                                key={day} type="button" onClick={() => handleToggleOptionDay(option, day)}
-                                className={`px-2 py-1 rounded-lg text-[11px] font-bold transition-all ${
-                                  isActive ? 'bg-violet-500 text-white shadow-sm' : 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-300 dark:hover:bg-slate-600'
-                                }`}
-                              >
-                                {DAY_NAMES_SHORT[day]}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="text-center py-6">
-                <Dumbbell size={28} className="mx-auto text-slate-200 dark:text-slate-700 mb-2" />
-                <p className="text-sm text-slate-400 dark:text-slate-500">Sin rutinas asignadas</p>
-              </div>
-            )}
-
-            {pendingUpdateRequest && (
-              <button onClick={handleResolveRequest} className="w-full flex items-center justify-center gap-2 py-2.5 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 bg-emerald-500/5 hover:bg-emerald-500/10 rounded-xl border border-emerald-500/20 transition-colors">
-                <CheckCircle2 size={13} /> Marcar solicitud como atendida
-              </button>
-            )}
-
-            <div className="pt-1 space-y-2 border-t border-slate-100 dark:border-slate-700">
-              <select
-                className="w-full px-4 h-12 rounded-2xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 dark:text-white text-sm"
-                value={selectedWorkoutPlanId} onChange={e => setSelectedWorkoutPlanId(e.target.value)}
-              >
-                <option value="">Agregar rutina disponible...</option>
-                {workoutPlans.filter((p: any) => !workoutOptions.some(o => o.workout_plan_id === p.id)).map((plan: any) => (
-                  <option key={plan.id} value={plan.id}>{plan.name}</option>
-                ))}
-              </select>
-              <Button variant="secondary" fullWidth onClick={handleAddOption} disabled={!selectedWorkoutPlanId || isAddingOption}>
-                <Plus size={15} className="inline mr-1" />
-                {isAddingOption ? 'Agregando...' : 'Agregar como opcion'}
-              </Button>
-            </div>
-
-            {studentWorkoutExercises.length > 0 && (
-              <div className="space-y-1 border-t border-slate-100 dark:border-slate-700 pt-3">
-                <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">
-                  Ejercicios ({workoutOptions[0]?.plan_name ?? 'Rutina'})
-                </p>
-                {studentWorkoutExercises.map((ex: any, i: number) => (
-                  <div key={ex.id} className="flex items-center justify-between py-2.5 border-b border-slate-50 dark:border-slate-700 last:border-0 gap-3">
-                    <div>
-                      <p className="text-sm font-bold text-slate-900 dark:text-white">{i + 1}. {ex.exercise_name}</p>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400">{ex.sets || '-'} series · {ex.reps || '-'} reps · {ex.weight || '-'}</p>
-                    </div>
-                    {ex.video_url ? (
-                      <button
-                        type="button"
-                        onClick={() => setVideoModal({ isOpen: true, exerciseName: ex.exercise_name, videoUrl: ex.video_url })}
-                        className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 transition-colors text-xs font-bold shrink-0"
-                      >
-                        <PlayCircle size={15} /> Ver video
-                      </button>
-                    ) : (
-                      <Dumbbell size={16} className="text-slate-300 dark:text-slate-600 shrink-0" />
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>}
+          {/* Empty state */}
+          {v2Assignments.length === 0 && (
+            <Card className="p-6 text-center">
+              <Dumbbell size={28} className="mx-auto text-slate-200 dark:text-slate-700 mb-2" />
+              <p className="text-sm text-slate-400 dark:text-slate-500">Sin rutinas asignadas</p>
+            </Card>
+          )}
         </div>
       )}
 
-      <ExerciseVideoModal
-        isOpen={videoModal.isOpen}
-        onClose={() => setVideoModal({ isOpen: false, exerciseName: '', videoUrl: '' })}
-        exerciseName={videoModal.exerciseName}
-        videoUrl={videoModal.videoUrl}
-      />
     </div>
   );
 };
