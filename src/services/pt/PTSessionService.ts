@@ -206,6 +206,38 @@ export const PTSessionService = {
     return result as SessionSet;
   },
 
+  // ─── Cancel Session ──────────────────────────────────────────────────────
+
+  async cancelSession(sessionId: string): Promise<void> {
+    // Delete all sets for this session's exercises
+    const { data: exercises } = await supabase
+      .from('workout_session_exercises')
+      .select('id')
+      .eq('session_id', sessionId);
+
+    if (exercises?.length) {
+      const exerciseIds = exercises.map((e: any) => e.id);
+      await supabase
+        .from('session_sets')
+        .delete()
+        .in('session_exercise_id', exerciseIds);
+    }
+
+    // Delete exercises
+    await supabase
+      .from('workout_session_exercises')
+      .delete()
+      .eq('session_id', sessionId);
+
+    // Delete the session itself
+    const { error } = await supabase
+      .from('workout_sessions')
+      .delete()
+      .eq('id', sessionId);
+
+    if (error) throw error;
+  },
+
   // ─── Delete Set ──────────────────────────────────────────────────────────
 
   async deleteSet(setId: string): Promise<void> {
