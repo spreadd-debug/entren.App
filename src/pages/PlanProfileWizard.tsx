@@ -640,7 +640,7 @@ const PlanProfileWizard: React.FC<PlanProfileWizardProps> = ({ student, gymId, o
   const canGoBack = step > 0;
 
   return (
-    <div className="space-y-4 pb-24">
+    <div className="space-y-4 pb-36">
       {/* Header */}
       <div className="flex items-center gap-3">
         <button
@@ -698,7 +698,7 @@ const PlanProfileWizard: React.FC<PlanProfileWizardProps> = ({ student, gymId, o
       </Card>
 
       {/* Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/90 dark:bg-slate-950/90 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 flex gap-3 z-30">
+      <div className="fixed bottom-0 left-0 right-0 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] bg-white/90 dark:bg-slate-950/90 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 flex gap-3 z-40">
         {canGoBack && (
           <button
             onClick={() => setStep(step - 1)}
