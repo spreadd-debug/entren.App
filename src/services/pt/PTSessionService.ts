@@ -86,6 +86,28 @@ export const PTSessionService = {
       sets: RoutineSet[];
     }>,
   ): Promise<PTSessionFull> {
+    // Helper to build exercise insert items
+    const buildExerciseItems = (sessionId: string) =>
+      exercises.map((ex) => {
+        const plannedSets = ex.sets.length;
+        const repsInfo = ex.sets[0]?.reps
+          ? String(ex.sets[0].reps) + (ex.sets[0].reps_max ? `-${ex.sets[0].reps_max}` : '')
+          : null;
+        const weightInfo = ex.sets[0]?.weight_kg ? `${ex.sets[0].weight_kg}kg` : null;
+
+        return {
+          session_id: sessionId,
+          workout_exercise_id: null,
+          routine_exercise_id: ex.routine_exercise_id,
+          exercise_name_cache: ex.exercise_name,
+          sets_planned_cache: plannedSets,
+          reps_planned_cache: repsInfo,
+          weight_planned_cache: weightInfo,
+          exercise_order_cache: ex.order,
+          completed: false,
+        };
+      });
+
     // Check for existing in-progress session today
     const { data: existing } = await supabase
       .from('workout_sessions')
@@ -96,6 +118,20 @@ export const PTSessionService = {
       .limit(1);
 
     if (existing?.[0]) {
+      // Check if the existing session actually has exercises — if not, re-insert them
+      const { count } = await supabase
+        .from('workout_session_exercises')
+        .select('id', { count: 'exact', head: true })
+        .eq('session_id', existing[0].id);
+
+      if ((count ?? 0) === 0 && exercises.length > 0) {
+        const items = buildExerciseItems(existing[0].id);
+        const { error: insErr } = await supabase
+          .from('workout_session_exercises')
+          .insert(items);
+        if (insErr) console.error('Error re-inserting exercises into existing session:', insErr);
+      }
+
       return this.loadFullSession(existing[0]);
     }
 
@@ -119,27 +155,17 @@ export const PTSessionService = {
 
     // Create exercise entries with cached metadata
     if (exercises.length > 0) {
-      const items = exercises.map((ex) => {
-        // Build planned info from routine sets
-        const plannedSets = ex.sets.length;
-        const repsInfo = ex.sets[0]?.reps
-          ? String(ex.sets[0].reps) + (ex.sets[0].reps_max ? `-${ex.sets[0].reps_max}` : '')
-          : null;
-        const weightInfo = ex.sets[0]?.weight_kg ? `${ex.sets[0].weight_kg}kg` : null;
+      const items = buildExerciseItems(session.id);
+      const { error: exError } = await supabase
+        .from('workout_session_exercises')
+        .insert(items);
 
-        return {
-          session_id: session.id,
-          workout_exercise_id: null,
-          routine_exercise_id: ex.routine_exercise_id,
-          exercise_name_cache: ex.exercise_name,
-          sets_planned_cache: plannedSets,
-          reps_planned_cache: repsInfo,
-          weight_planned_cache: weightInfo,
-          exercise_order_cache: ex.order,
-          completed: false,
-        };
-      });
-      await supabase.from('workout_session_exercises').insert(items);
+      if (exError) {
+        console.error('Error inserting V2 exercises:', exError);
+        // Session was created but exercises failed — clean up and throw
+        await supabase.from('workout_sessions').delete().eq('id', session.id);
+        throw new Error('No se pudieron crear los ejercicios de la sesión. Verificá que la migración v2_session_support esté aplicada.');
+      }
     }
 
     return this.loadFullSession(session);
@@ -279,10 +305,26 @@ export const PTSessionService = {
   // ─── Load Full Session (with sets) ───────────────────────────────────────
 
   async loadFullSession(session: WorkoutSession): Promise<PTSessionFull> {
-    const { data: rawExercises } = await supabase
-      .from('workout_session_exercises')
-      .select('*, workout_exercises(exercise_name, sets, reps, weight, rest_seconds, notes, video_url, exercise_order)')
-      .eq('session_id', session.id);
+    const isV2 = !!session.routine_id;
+
+    // V2 sessions use cached columns — no need to join workout_exercises
+    // Legacy sessions need the join for exercise metadata
+    let rawExercises: any[] | null;
+    if (isV2) {
+      const { data, error } = await supabase
+        .from('workout_session_exercises')
+        .select('*')
+        .eq('session_id', session.id);
+      if (error) console.error('Error loading V2 session exercises:', error);
+      rawExercises = data;
+    } else {
+      const { data, error } = await supabase
+        .from('workout_session_exercises')
+        .select('*, workout_exercises(exercise_name, sets, reps, weight, rest_seconds, notes, video_url, exercise_order)')
+        .eq('session_id', session.id);
+      if (error) console.error('Error loading legacy session exercises:', error);
+      rawExercises = data;
+    }
 
     const exerciseIds = (rawExercises ?? []).map((e: any) => e.id);
 
@@ -302,8 +344,6 @@ export const PTSessionService = {
       arr.push(s as SessionSet);
       setsByExercise.set(s.session_exercise_id, arr);
     }
-
-    const isV2 = !!session.routine_id;
 
     const exercises: PTSessionExercise[] = (rawExercises ?? [])
       .map((item: any) => {
