@@ -4,7 +4,7 @@ import {
   Clock, Trophy, ChevronDown, ChevronUp, MessageSquare,
   Loader2, Save, X, Weight, BarChart3, Trash2,
 } from 'lucide-react';
-import { Student, WorkoutOption, SessionSet, RoutineAssignment } from '../../shared/types';
+import { Student, WorkoutOption, SessionSet, RoutineAssignment, RoutineSet } from '../../shared/types';
 import { PTSessionService, PTSessionFull, PTSessionExercise } from '../services/pt/PTSessionService';
 import { WorkoutPlanService } from '../services/WorkoutPlanService';
 import { RoutineBuilderService } from '../services/RoutineBuilderService';
@@ -86,6 +86,7 @@ export const PTLiveSessionView: React.FC<PTLiveSessionViewProps> = ({
   const [cancelling, setCancelling] = useState(false);
   const [lastPerformance, setLastPerformance] = useState<Map<string, SessionSet[]>>(new Map());
   const [savingSet, setSavingSet] = useState<string | null>(null);
+  const [sessionLabel, setSessionLabel] = useState<string>('Sesión');
 
   const studentName = ((student as any).nombre ?? student.name ?? '') + ' ' +
     ((student as any).apellido ?? student.lastName ?? '');
@@ -149,11 +150,49 @@ export const PTLiveSessionView: React.FC<PTLiveSessionViewProps> = ({
     }
   }, [session, toast, onBack]);
 
-  // ─── Load workout options (v2 + legacy) ─────────────────────────────────
+  // ─── Planned sets from routine (for showing plan in live session) ────────
+
+  const [plannedSetsMap, setPlannedSetsMap] = useState<Map<string, RoutineSet[]>>(new Map());
+
+  // ─── Load workout options (v2 + legacy) + resume existing session ───────
 
   useEffect(() => {
     const load = async () => {
       try {
+        // First: check for existing in-progress session today → resume it
+        const existing = await PTSessionService.findInProgressSession(student.id);
+        if (existing) {
+          const fullSession = await PTSessionService.loadFullSession(existing);
+          setSession(fullSession);
+
+          // Load planned sets + routine name if it's a v2 routine
+          if (existing.routine_id && existing.routine_day_id) {
+            try {
+              const full = await RoutineBuilderService.loadFullRoutine(existing.routine_id);
+              const day = full.days.find((d) => d.id === existing.routine_day_id);
+              setSessionLabel(`${full.routine.name} — ${day?.label ?? ''}`);
+              // Load planned sets map
+              if (day) {
+                const map = new Map<string, RoutineSet[]>();
+                for (const block of day.blocks) {
+                  for (const ex of block.exercises) {
+                    map.set(ex.id, ex.sets);
+                  }
+                }
+                setPlannedSetsMap(map);
+              }
+            } catch (err) {
+              console.error('Error loading routine for resumed session:', err);
+            }
+          }
+
+          // Auto-expand first exercise without sets
+          const firstEmpty = fullSession.exercises.find((e) => e.sets_data.length === 0);
+          setExpandedExercise(firstEmpty?.id ?? fullSession.exercises[0]?.id ?? null);
+          setLoading(false);
+          return;
+        }
+
         const allOptions: SessionOption[] = [];
         const todayWeekday = WEEKDAYS_ES[new Date().getDay()];
         let autoSelectKey: string | null = null;
@@ -165,12 +204,10 @@ export const PTLiveSessionView: React.FC<PTLiveSessionViewProps> = ({
             const full = await RoutineBuilderService.loadFullRoutine(assignment.routine_id);
             const mapping = (assignment.day_mapping || {}) as Record<string, string>;
 
-            // Find which day is mapped to today
             const todayEntry = (Object.entries(mapping) as [string, string][]).find(
               ([, weekday]) => weekday === todayWeekday,
             );
 
-            // If there's a mapping for today, add that specific day
             if (todayEntry) {
               const [dayId] = todayEntry;
               const day = full.days.find((d) => d.id === dayId);
@@ -193,14 +230,12 @@ export const PTLiveSessionView: React.FC<PTLiveSessionViewProps> = ({
                   exercises,
                 };
                 allOptions.push(opt);
-                // Auto-select today's v2 routine
                 autoSelectKey = `v2-${assignment.routine_id}-${day.id}`;
               }
             }
 
-            // Also add all other days as selectable options
             for (const day of full.days) {
-              if (todayEntry && day.id === todayEntry[0]) continue; // already added
+              if (todayEntry && day.id === todayEntry[0]) continue;
               const exercises = day.blocks.flatMap((b) =>
                 b.exercises.map((ex) => ({
                   routine_exercise_id: ex.id,
@@ -224,8 +259,6 @@ export const PTLiveSessionView: React.FC<PTLiveSessionViewProps> = ({
           console.error('Error loading v2 assignments:', err);
         }
 
-        // Legacy routines are deprecated for PT users — skip them entirely
-
         setSessionOptions(allOptions);
         if (autoSelectKey) setSelectedOptionKey(autoSelectKey);
       } catch (err) {
@@ -236,6 +269,24 @@ export const PTLiveSessionView: React.FC<PTLiveSessionViewProps> = ({
     };
     load();
   }, [student.id]);
+
+  // Helper: load planned sets from the routine for display
+  const loadPlannedSets = async (routineId: string, dayId: string) => {
+    try {
+      const full = await RoutineBuilderService.loadFullRoutine(routineId);
+      const day = full.days.find((d) => d.id === dayId);
+      if (!day) return;
+      const map = new Map<string, RoutineSet[]>();
+      for (const block of day.blocks) {
+        for (const ex of block.exercises) {
+          map.set(ex.id, ex.sets);
+        }
+      }
+      setPlannedSetsMap(map);
+    } catch (err) {
+      console.error('Error loading planned sets:', err);
+    }
+  };
 
   // ─── Start session ──────────────────────────────────────────────────────
 
@@ -271,6 +322,14 @@ export const PTLiveSessionView: React.FC<PTLiveSessionViewProps> = ({
       }
 
       setSession(result);
+
+      // Load planned sets for v2 routines + set label
+      if (selectedOption.type === 'v2') {
+        setSessionLabel(`${selectedOption.routineName} — ${selectedOption.dayLabel}`);
+        await loadPlannedSets(selectedOption.routineId, selectedOption.dayId);
+      } else {
+        setSessionLabel(selectedOption.option.plan_name);
+      }
 
       // Load last performance for pre-filling (only for legacy exercises with workout_exercise_id)
       const weIds = result.exercises
@@ -497,7 +556,7 @@ export const PTLiveSessionView: React.FC<PTLiveSessionViewProps> = ({
   // ─── Active session ─────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-32">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-44">
       {/* Sticky header with timer + stats */}
       <div className="sticky top-0 z-10 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shadow-sm">
         <div className="px-4 py-3">
@@ -511,18 +570,7 @@ export const PTLiveSessionView: React.FC<PTLiveSessionViewProps> = ({
                   {studentName.trim()}
                 </h1>
                 <p className="text-xs text-slate-500 truncate">
-                  {(() => {
-                    if (session.session.routine_id) {
-                      const v2 = sessionOptions.find((o): o is V2RoutineOption =>
-                        o.type === 'v2' && o.routineId === session.session.routine_id,
-                      );
-                      return v2 ? `${v2.routineName} — ${v2.dayLabel}` : 'Rutina';
-                    }
-                    const leg = sessionOptions.find((o) =>
-                      o.type === 'legacy' && o.option.workout_plan_id === session.session.workout_plan_id,
-                    );
-                    return leg?.type === 'legacy' ? leg.option.plan_name : 'Sesión';
-                  })()}
+                  {sessionLabel}
                 </p>
               </div>
             </div>
@@ -589,13 +637,14 @@ export const PTLiveSessionView: React.FC<PTLiveSessionViewProps> = ({
               onSaveSet={handleSaveSet}
               savingSet={savingSet}
               lastPerformance={lastPerformance.get(exercise.workout_exercise_id)}
+              plannedSets={plannedSetsMap.get(exercise.routine_exercise_id ?? '') ?? []}
             />
           ))
         )}
       </div>
 
-      {/* Bottom action bar */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 p-4 space-y-2 z-20">
+      {/* Bottom action bar — z-40 to sit above PTShell's bottom nav (z-30) */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] space-y-2 z-40">
         <div className="flex gap-2">
           <button
             onClick={handleCancelSession}
@@ -674,6 +723,7 @@ interface ExerciseCardProps {
   onSaveSet: (exerciseId: string, setNumber: number, data: any) => Promise<void>;
   savingSet: string | null;
   lastPerformance?: SessionSet[];
+  plannedSets: RoutineSet[];
 }
 
 const ExerciseCard: React.FC<ExerciseCardProps> = ({
@@ -684,9 +734,10 @@ const ExerciseCard: React.FC<ExerciseCardProps> = ({
   onSaveSet,
   savingSet,
   lastPerformance,
+  plannedSets,
 }) => {
   const hasSets = exercise.sets_data.length > 0;
-  const plannedSets = exercise.sets ?? 3;
+  const plannedCount = plannedSets.length || exercise.sets || 3;
 
   return (
     <div className={`bg-white dark:bg-slate-900 rounded-2xl border transition-all ${
@@ -716,11 +767,11 @@ const ExerciseCard: React.FC<ExerciseCardProps> = ({
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {hasSets && (
-            <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
-              {exercise.sets_data.length}/{plannedSets}
-            </span>
-          )}
+          <span className={`text-xs font-bold ${
+            hasSets ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'
+          }`}>
+            {exercise.sets_data.length}/{plannedCount}
+          </span>
           {isExpanded ? (
             <ChevronUp size={18} className="text-slate-400" />
           ) : (
@@ -732,10 +783,44 @@ const ExerciseCard: React.FC<ExerciseCardProps> = ({
       {/* Expanded: set-by-set registration */}
       {isExpanded && (
         <div className="px-4 pb-4 space-y-2">
+          {/* Planned sets from routine (the PT's plan) */}
+          {plannedSets.length > 0 && (
+            <div className="bg-violet-50 dark:bg-violet-900/10 rounded-xl px-3 py-2 mb-1">
+              <p className="text-[10px] font-bold text-violet-500 uppercase tracking-wider mb-1.5">Plan</p>
+              <div className="space-y-0.5">
+                {plannedSets.map((ps) => (
+                  <div key={ps.set_number} className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
+                    <span className="w-4 text-center font-bold text-violet-400">{ps.set_number}</span>
+                    <span>
+                      {ps.weight_kg != null ? `${ps.weight_kg}kg` : '—'}
+                      {' × '}
+                      {ps.reps != null ? ps.reps : '—'}
+                      {ps.reps_max ? `-${ps.reps_max}` : ''}
+                      {ps.time_sec ? ` · ${ps.time_sec}s` : ''}
+                    </span>
+                    {ps.rpe_target != null && (
+                      <span className="text-[10px] bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-1.5 rounded-md">
+                        RPE {ps.rpe_target}
+                      </span>
+                    )}
+                    {ps.rir_target != null && (
+                      <span className="text-[10px] bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-1.5 rounded-md">
+                        RIR {ps.rir_target}
+                      </span>
+                    )}
+                    {ps.notes && (
+                      <span className="text-[10px] text-slate-400 truncate">{ps.notes}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Last performance hint */}
           {lastPerformance && lastPerformance.length > 0 && (
-            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl px-3 py-2 mb-2">
-              <p className="text-xs text-slate-500 font-medium mb-1">Última vez:</p>
+            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl px-3 py-2 mb-1">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Última vez</p>
               <div className="flex flex-wrap gap-1.5">
                 {lastPerformance.map((s) => (
                   <span key={s.set_number} className="text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-0.5 text-slate-600 dark:text-slate-400">
@@ -767,6 +852,7 @@ const ExerciseCard: React.FC<ExerciseCardProps> = ({
             lastPerformanceSet={
               lastPerformance?.[exercise.sets_data.length] ?? lastPerformance?.[0]
             }
+            plannedSet={plannedSets[exercise.sets_data.length]}
           />
         </div>
       )}
@@ -858,6 +944,7 @@ interface AddSetRowProps {
   isSaving: boolean;
   lastSet?: SessionSet;
   lastPerformanceSet?: SessionSet;
+  plannedSet?: RoutineSet;
 }
 
 const AddSetRow: React.FC<AddSetRowProps> = ({
@@ -867,21 +954,22 @@ const AddSetRow: React.FC<AddSetRowProps> = ({
   isSaving,
   lastSet,
   lastPerformanceSet,
+  plannedSet,
 }) => {
-  // Pre-fill from last set of this session, or last performance
-  const defaultWeight = lastSet?.weight_kg ?? lastPerformanceSet?.weight_kg ?? null;
-  const defaultReps = lastSet?.reps_done ?? lastPerformanceSet?.reps_done ?? null;
+  // Pre-fill priority: last set in this session > planned set from routine > last performance
+  const defaultWeight = lastSet?.weight_kg ?? plannedSet?.weight_kg ?? lastPerformanceSet?.weight_kg ?? null;
+  const defaultReps = lastSet?.reps_done ?? plannedSet?.reps ?? lastPerformanceSet?.reps_done ?? null;
 
   const [weight, setWeight] = useState(defaultWeight !== null ? String(defaultWeight) : '');
   const [reps, setReps] = useState(defaultReps !== null ? String(defaultReps) : '');
 
-  // Update defaults when lastSet changes (after saving previous set)
+  // Update defaults when lastSet/plannedSet changes (after saving previous set)
   useEffect(() => {
-    const w = lastSet?.weight_kg ?? lastPerformanceSet?.weight_kg ?? null;
-    const r = lastSet?.reps_done ?? lastPerformanceSet?.reps_done ?? null;
+    const w = lastSet?.weight_kg ?? plannedSet?.weight_kg ?? lastPerformanceSet?.weight_kg ?? null;
+    const r = lastSet?.reps_done ?? plannedSet?.reps ?? lastPerformanceSet?.reps_done ?? null;
     setWeight(w !== null ? String(w) : '');
     setReps(r !== null ? String(r) : '');
-  }, [lastSet?.weight_kg, lastSet?.reps_done, lastPerformanceSet?.weight_kg, lastPerformanceSet?.reps_done]);
+  }, [lastSet?.weight_kg, lastSet?.reps_done, plannedSet?.weight_kg, plannedSet?.reps, lastPerformanceSet?.weight_kg, lastPerformanceSet?.reps_done]);
 
   const handleAdd = async () => {
     await onSave(exerciseId, nextSetNumber, {

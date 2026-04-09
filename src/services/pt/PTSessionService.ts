@@ -22,6 +22,19 @@ const todayDate = (): string => new Date().toLocaleDateString('sv-SE');
 
 export const PTSessionService = {
 
+  // ─── Find existing in-progress session for today ────────────────────────
+
+  async findInProgressSession(studentId: string): Promise<WorkoutSession | null> {
+    const { data } = await supabase
+      .from('workout_sessions')
+      .select('*')
+      .eq('student_id', studentId)
+      .eq('session_date', todayDate())
+      .eq('status', 'in_progress')
+      .limit(1);
+    return data?.[0] ?? null;
+  },
+
   // ─── Start / Resume Session ──────────────────────────────────────────────
 
   async startSession(
