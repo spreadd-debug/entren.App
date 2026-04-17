@@ -36,6 +36,7 @@ export interface PreSessionData {
     averages: { energy: number; sleep_quality: number; mood: number; soreness: number; count: number };
   };
   exerciseHistory: ExerciseHistory[];
+  sessions: PTSessionFull[];
   progressionMetrics: ProgressionMetrics;
   alerts: StudentAlert[];
   lastSessionDate: string | null;
@@ -67,6 +68,10 @@ export const PreSessionService = {
       : { energy: 0, sleep_quality: 0, mood: 0, soreness: 0, count: 0 };
     const alerts = results[4].status === 'fulfilled' ? results[4].value : [];
 
+    const sortedSessions = [...sessions].sort((a, b) =>
+      b.session.session_date.localeCompare(a.session.session_date),
+    );
+
     return {
       wellness: {
         today: wellnessToday,
@@ -74,11 +79,10 @@ export const PreSessionService = {
         averages: wellnessAverages,
       },
       exerciseHistory: buildExerciseHistory(sessions),
+      sessions: sortedSessions,
       progressionMetrics: buildProgressionMetrics(sessions),
       alerts,
-      lastSessionDate: sessions.length > 0
-        ? sessions.sort((a, b) => b.session.session_date.localeCompare(a.session.session_date))[0].session.session_date
-        : null,
+      lastSessionDate: sortedSessions[0]?.session.session_date ?? null,
     };
   },
 };

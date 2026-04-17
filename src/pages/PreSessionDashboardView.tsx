@@ -225,7 +225,7 @@ const PreSessionDashboardView: React.FC<PreSessionDashboardViewProps> = ({
           title="Historial de ejercicios"
           subtitle={data.lastSessionDate ? `Ultima sesion: ${formatRelativeDate(data.lastSessionDate)}` : undefined}
         />
-        <ExerciseHistoryTable exerciseHistory={data.exerciseHistory} />
+        <ExerciseHistoryTable exerciseHistory={data.exerciseHistory} sessions={data.sessions} />
       </Card>
 
       {/* Block 4: Progression Metrics */}
