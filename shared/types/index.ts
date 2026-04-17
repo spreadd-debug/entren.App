@@ -312,7 +312,18 @@ export interface SessionNote {
 // ─── Nutrition Plans ────────────────────────────────────────────────────────
 
 export type NutritionPlanStatus = 'active' | 'archived';
-export type MealLabel = 'Desayuno' | 'Almuerzo' | 'Merienda' | 'Cena' | 'Snack';
+export type NutritionDetailLevel = 'macros' | 'meals' | 'detailed';
+export type NutritionActivityLevel = 'sedentary' | 'light' | 'moderate' | 'high' | 'very_high';
+export type NutritionTmbGoalType = 'lose_fat' | 'maintain' | 'gain_muscle';
+export type MealType =
+  | 'desayuno'
+  | 'media_mañana'
+  | 'almuerzo'
+  | 'merienda'
+  | 'cena'
+  | 'pre_entreno'
+  | 'post_entreno'
+  | 'snack';
 
 export interface NutritionPlan {
   id: string;
@@ -320,28 +331,83 @@ export interface NutritionPlan {
   student_id: string;
   title: string;
   description: string | null;
+
+  detail_level: NutritionDetailLevel;
+
+  // Targets diarios
   calories_target: number | null;
   protein_g: number | null;
   carbs_g: number | null;
   fat_g: number | null;
+  fiber_g: number | null;
+  water_ml: number | null;
+
+  // Visibilidad para el alumno
+  show_calories: boolean;
+  show_protein: boolean;
+  show_carbs: boolean;
+  show_fat: boolean;
+  show_fiber: boolean;
+  show_water: boolean;
+
+  // Snapshot calculadora TMB
+  tmb_kcal: number | null;
+  tdee_kcal: number | null;
+  activity_level: NutritionActivityLevel | null;
+  tmb_goal_type: NutritionTmbGoalType | null;
+  goal_adjustment_pct: number | null;
+  calc_weight_kg: number | null;
+  calc_height_cm: number | null;
+  calc_age: number | null;
+  calc_biological_sex: 'male' | 'female' | null;
+
   status: NutritionPlanStatus;
   created_at: string;
   updated_at: string;
 }
 
-export interface NutritionItem {
+export interface NutritionPlanMeal {
   id: string;
   plan_id: string;
-  meal_label: MealLabel;
-  food_name: string;
-  portion: string | null;
+  day_of_week: number | null;  // 0=Dom..6=Sáb, null = todos los días
+  meal_type: MealType;
+  order_index: number;
+  name: string | null;
+  time_hint: string | null;
   calories: number | null;
   protein_g: number | null;
   carbs_g: number | null;
   fat_g: number | null;
   notes: string | null;
-  item_order: number;
   created_at: string;
+}
+
+export interface NutritionPlanFood {
+  id: string;
+  meal_id: string;
+  food_name: string;
+  amount: number | null;
+  unit: string | null;
+  calories: number | null;
+  protein_g: number | null;
+  carbs_g: number | null;
+  fat_g: number | null;
+  notes: string | null;
+  order_index: number;
+  created_at: string;
+}
+
+export interface NutritionCheckin {
+  id: string;
+  gym_id: string;
+  student_id: string;
+  plan_id: string;
+  meal_id: string | null;  // null = check-in diario global (solo para planes detail_level='macros')
+  checkin_date: string;
+  completed: boolean;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 // ─── Wellness Check-in ──────────────────────────────────────────────────────

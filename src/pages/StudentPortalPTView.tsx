@@ -36,11 +36,10 @@ import {
   SessionNote,
   NoteCategory,
   WellnessCheckIn,
-  NutritionItem,
-  MealLabel,
+  MealType,
 } from "../../shared/types";
 import { WellnessCheckInService } from "../services/pt/WellnessCheckInService";
-import { NutritionPlanService, NutritionPlanWithItems } from "../services/pt/NutritionPlanService";
+import { NutritionPlanService, NutritionPlanFull } from "../services/pt/NutritionPlanService";
 import { ProgressPhotosService } from "../services/pt/ProgressPhotosService";
 import { AnthropometryService } from "../services/pt/AnthropometryService";
 import EvolutionSection from "../components/pt/EvolutionSection";
@@ -229,7 +228,7 @@ export default function StudentPortalPTView({
   }>({ isOpen: false, exerciseName: "", videoUrl: "" });
 
   // Nutrition state
-  const [nutritionPlan, setNutritionPlan] = useState<NutritionPlanWithItems | null>(null);
+  const [nutritionPlan, setNutritionPlan] = useState<NutritionPlanFull | null>(null);
   const [nutritionOpen, setNutritionOpen] = useState(false);
   const [nutritionLoaded, setNutritionLoaded] = useState(false);
 
@@ -1155,74 +1154,100 @@ export default function StudentPortalPTView({
                 />
               </button>
 
-              {nutritionOpen && (
-                <div className={`border-t ${cardBorder} px-4 pb-4 pt-3 space-y-3`}>
-                  {(nutritionPlan.protein_g || nutritionPlan.carbs_g || nutritionPlan.fat_g) && (() => {
-                    const p = nutritionPlan.protein_g ?? 0;
-                    const c = nutritionPlan.carbs_g ?? 0;
-                    const f = nutritionPlan.fat_g ?? 0;
-                    const totalCal = p * 4 + c * 4 + f * 9;
-                    return (
+              {nutritionOpen && (() => {
+                // Fase 4 reemplazará este bloque por StudentNutritionView (con checkins y flags completos)
+                const MEAL_LABEL: Record<MealType, { label: string; emoji: string }> = {
+                  desayuno:      { label: 'Desayuno',      emoji: '🌅' },
+                  media_mañana:  { label: 'Media mañana',  emoji: '🥐' },
+                  almuerzo:      { label: 'Almuerzo',      emoji: '🍽️' },
+                  merienda:      { label: 'Merienda',      emoji: '☕' },
+                  cena:          { label: 'Cena',          emoji: '🌙' },
+                  pre_entreno:   { label: 'Pre-entreno',   emoji: '⚡' },
+                  post_entreno:  { label: 'Post-entreno',  emoji: '💪' },
+                  snack:         { label: 'Snack',         emoji: '🍎' },
+                };
+                const showKcal = nutritionPlan.show_calories;
+                const showP = nutritionPlan.show_protein;
+                const showC = nutritionPlan.show_carbs;
+                const showF = nutritionPlan.show_fat;
+                return (
+                  <div className={`border-t ${cardBorder} px-4 pb-4 pt-3 space-y-3`}>
+                    {(nutritionPlan.calories_target || nutritionPlan.protein_g || nutritionPlan.carbs_g || nutritionPlan.fat_g) && (
                       <div className="grid grid-cols-4 gap-2">
-                        <div className="text-center p-2 rounded-xl bg-orange-500/10">
-                          <p className="text-xs font-bold text-slate-900 dark:text-white">{totalCal}</p>
-                          <p className="text-[10px] text-orange-500">kcal</p>
-                        </div>
-                        {p > 0 && (
+                        {showKcal && nutritionPlan.calories_target && (
+                          <div className="text-center p-2 rounded-xl bg-orange-500/10">
+                            <p className="text-xs font-bold text-slate-900 dark:text-white">{nutritionPlan.calories_target}</p>
+                            <p className="text-[10px] text-orange-500">kcal</p>
+                          </div>
+                        )}
+                        {showP && nutritionPlan.protein_g && (
                           <div className="text-center p-2 rounded-xl bg-rose-500/10">
-                            <p className="text-xs font-bold text-slate-900 dark:text-white">{p}g</p>
-                            <p className="text-[10px] text-rose-500">{Math.round((p * 4 / totalCal) * 100)}% prot</p>
+                            <p className="text-xs font-bold text-slate-900 dark:text-white">{nutritionPlan.protein_g}g</p>
+                            <p className="text-[10px] text-rose-500">prot</p>
                           </div>
                         )}
-                        {c > 0 && (
+                        {showC && nutritionPlan.carbs_g && (
                           <div className="text-center p-2 rounded-xl bg-amber-500/10">
-                            <p className="text-xs font-bold text-slate-900 dark:text-white">{c}g</p>
-                            <p className="text-[10px] text-amber-500">{Math.round((c * 4 / totalCal) * 100)}% carbs</p>
+                            <p className="text-xs font-bold text-slate-900 dark:text-white">{nutritionPlan.carbs_g}g</p>
+                            <p className="text-[10px] text-amber-500">carbs</p>
                           </div>
                         )}
-                        {f > 0 && (
+                        {showF && nutritionPlan.fat_g && (
                           <div className="text-center p-2 rounded-xl bg-cyan-500/10">
-                            <p className="text-xs font-bold text-slate-900 dark:text-white">{f}g</p>
-                            <p className="text-[10px] text-cyan-500">{Math.round((f * 9 / totalCal) * 100)}% grasas</p>
+                            <p className="text-xs font-bold text-slate-900 dark:text-white">{nutritionPlan.fat_g}g</p>
+                            <p className="text-[10px] text-cyan-500">grasas</p>
                           </div>
                         )}
                       </div>
-                    );
-                  })()}
+                    )}
 
-                  {nutritionPlan.description && (
-                    <p className="text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 rounded-xl p-3">
-                      {nutritionPlan.description}
-                    </p>
-                  )}
+                    {nutritionPlan.description && (
+                      <p className="text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 rounded-xl p-3">
+                        {nutritionPlan.description}
+                      </p>
+                    )}
 
-                  {(['Desayuno', 'Almuerzo', 'Merienda', 'Cena', 'Snack'] as const).map((meal) => {
-                    const items = nutritionPlan.items.filter((i) => i.meal_label === meal);
-                    if (items.length === 0) return null;
-                    const mealEmoji: Record<string, string> = { Desayuno: '🌅', Almuerzo: '🍽️', Merienda: '☕', Cena: '🌙', Snack: '🍎' };
-                    return (
-                      <div key={meal}>
-                        <p className="text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5">
-                          {mealEmoji[meal]} {meal}
-                        </p>
-                        <div className="space-y-1">
-                          {items.map((item) => (
-                            <div key={item.id} className="bg-slate-50 dark:bg-slate-800 rounded-xl px-3 py-2">
-                              <p className="text-sm text-slate-900 dark:text-white font-medium">{item.food_name}</p>
-                              <div className="flex items-center gap-2 mt-0.5">
-                                {item.portion && <span className="text-[10px] text-slate-400">{item.portion}</span>}
-                                {item.calories && <span className="text-[10px] text-orange-500 font-medium">{item.calories} kcal</span>}
-                                {item.protein_g && <span className="text-[10px] text-rose-500 font-medium">{item.protein_g}g P</span>}
-                              </div>
-                              {item.notes && <p className="text-[10px] text-slate-400 mt-0.5">{item.notes}</p>}
+                    {nutritionPlan.meals.map((meal) => {
+                      const label = MEAL_LABEL[meal.meal_type];
+                      return (
+                        <div key={meal.id}>
+                          <p className="text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5">
+                            {label.emoji} {meal.name || label.label}
+                            {meal.time_hint && <span className="ml-2 text-[10px] text-slate-400">{meal.time_hint}</span>}
+                          </p>
+                          {nutritionPlan.detail_level === 'detailed' && meal.foods.length > 0 ? (
+                            <div className="space-y-1">
+                              {meal.foods.map((food) => (
+                                <div key={food.id} className="bg-slate-50 dark:bg-slate-800 rounded-xl px-3 py-2">
+                                  <p className="text-sm text-slate-900 dark:text-white font-medium">{food.food_name}</p>
+                                  <div className="flex items-center gap-2 mt-0.5">
+                                    {food.amount && food.unit && (
+                                      <span className="text-[10px] text-slate-400">{food.amount} {food.unit}</span>
+                                    )}
+                                    {showKcal && food.calories && <span className="text-[10px] text-orange-500 font-medium">{food.calories} kcal</span>}
+                                    {showP && food.protein_g && <span className="text-[10px] text-rose-500 font-medium">{food.protein_g}g P</span>}
+                                  </div>
+                                  {food.notes && <p className="text-[10px] text-slate-400 mt-0.5">{food.notes}</p>}
+                                </div>
+                              ))}
                             </div>
-                          ))}
+                          ) : (
+                            <div className="bg-slate-50 dark:bg-slate-800 rounded-xl px-3 py-2">
+                              <div className="flex items-center gap-2">
+                                {showKcal && meal.calories && <span className="text-[10px] text-orange-500 font-medium">{meal.calories} kcal</span>}
+                                {showP && meal.protein_g && <span className="text-[10px] text-rose-500 font-medium">{meal.protein_g}g P</span>}
+                                {showC && meal.carbs_g && <span className="text-[10px] text-amber-500 font-medium">{meal.carbs_g}g C</span>}
+                                {showF && meal.fat_g && <span className="text-[10px] text-cyan-500 font-medium">{meal.fat_g}g G</span>}
+                              </div>
+                              {meal.notes && <p className="text-[10px] text-slate-400 mt-1">{meal.notes}</p>}
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </div>
           )}
 

@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, Trash2, Archive, ChevronDown, ChevronRight, Apple, Flame, Beef, Wheat, Droplets } from 'lucide-react';
+import { Plus, Trash2, Archive, Apple, Flame, Beef, Wheat, Droplets, Info } from 'lucide-react';
 import { Card, Button, Input } from '../UI';
-import { NutritionPlanService, NutritionPlanWithItems } from '../../services/pt/NutritionPlanService';
-import { NutritionPlan, NutritionItem, MealLabel } from '../../../shared/types';
+import { NutritionPlanService, NutritionPlanFull } from '../../services/pt/NutritionPlanService';
+import { NutritionPlan, NutritionDetailLevel, MealType } from '../../../shared/types';
 import { useToast } from '../../context/ToastContext';
 
 interface NutritionPlanPanelProps {
@@ -10,133 +10,39 @@ interface NutritionPlanPanelProps {
   gymId: string;
 }
 
-const MEAL_LABELS: MealLabel[] = ['Desayuno', 'Almuerzo', 'Merienda', 'Cena', 'Snack'];
-
-const MEAL_ICONS: Record<string, string> = {
-  Desayuno: '🌅',
-  Almuerzo: '🍽️',
-  Merienda: '☕',
-  Cena: '🌙',
-  Snack: '🍎',
+const MEAL_LABEL: Record<MealType, { label: string; emoji: string }> = {
+  desayuno:      { label: 'Desayuno',      emoji: '🌅' },
+  media_mañana:  { label: 'Media mañana',  emoji: '🥐' },
+  almuerzo:      { label: 'Almuerzo',      emoji: '🍽️' },
+  merienda:      { label: 'Merienda',      emoji: '☕' },
+  cena:          { label: 'Cena',          emoji: '🌙' },
+  pre_entreno:   { label: 'Pre-entreno',   emoji: '⚡' },
+  post_entreno:  { label: 'Post-entreno',  emoji: '💪' },
+  snack:         { label: 'Snack',         emoji: '🍎' },
 };
 
-// ─── Calorie math helpers ─────────────────────────────────────────────────────
-
-const calcCaloriesFromMacros = (p: string, c: string, f: string) => {
-  const protein = Number(p) || 0;
-  const carbs = Number(c) || 0;
-  const fat = Number(f) || 0;
-  return protein * 4 + carbs * 4 + fat * 9;
-};
-
-// ─── Macro form with live calorie calc ────────────────────────────────────────
-
-function MacroForm({ planForm, setPlanForm, onSave, onCancel, saving, saveLabel }: {
-  planForm: { title: string; description: string; calories_target: string; protein_g: string; carbs_g: string; fat_g: string };
-  setPlanForm: (f: any) => void;
-  onSave: () => void;
-  onCancel: () => void;
-  saving: boolean;
-  saveLabel: string;
-}) {
-  const calculatedCal = calcCaloriesFromMacros(planForm.protein_g, planForm.carbs_g, planForm.fat_g);
-  const hasMacros = planForm.protein_g || planForm.carbs_g || planForm.fat_g;
-  const targetCal = Number(planForm.calories_target) || 0;
-  const delta = targetCal > 0 && hasMacros ? calculatedCal - targetCal : null;
-
-  return (
-    <Card className="p-4 space-y-3 border-violet-200 dark:border-violet-500/30">
-      <h4 className="text-xs font-black text-violet-500 uppercase tracking-wider">Nuevo plan nutricional</h4>
-      <Input placeholder="Título (ej: Plan hipercalórico)" value={planForm.title} onChange={e => setPlanForm({ ...planForm, title: e.target.value })} />
-      <textarea
-        className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white text-sm"
-        rows={2}
-        placeholder="Descripción / pautas generales (opcional)"
-        value={planForm.description}
-        onChange={e => setPlanForm({ ...planForm, description: e.target.value })}
-      />
-
-      {/* Calorie target */}
-      <div>
-        <label className="text-xs text-slate-500 dark:text-slate-400 mb-1 block">Calorías objetivo (opcional)</label>
-        <Input type="number" placeholder="ej: 2000" value={planForm.calories_target} onChange={e => setPlanForm({ ...planForm, calories_target: e.target.value })} />
-      </div>
-
-      {/* Macros */}
-      <div>
-        <label className="text-xs text-slate-500 dark:text-slate-400 mb-1 block">Macronutrientes (g)</label>
-        <div className="grid grid-cols-3 gap-2">
-          <div>
-            <Input type="number" placeholder="Proteína" value={planForm.protein_g} onChange={e => setPlanForm({ ...planForm, protein_g: e.target.value })} />
-            <p className="text-[10px] text-rose-500 text-center mt-0.5">{Number(planForm.protein_g) * 4 || 0} kcal</p>
-          </div>
-          <div>
-            <Input type="number" placeholder="Carbos" value={planForm.carbs_g} onChange={e => setPlanForm({ ...planForm, carbs_g: e.target.value })} />
-            <p className="text-[10px] text-amber-500 text-center mt-0.5">{Number(planForm.carbs_g) * 4 || 0} kcal</p>
-          </div>
-          <div>
-            <Input type="number" placeholder="Grasas" value={planForm.fat_g} onChange={e => setPlanForm({ ...planForm, fat_g: e.target.value })} />
-            <p className="text-[10px] text-cyan-500 text-center mt-0.5">{Number(planForm.fat_g) * 9 || 0} kcal</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Live calorie summary */}
-      {hasMacros && (
-        <div className={`rounded-xl p-3 text-center ${
-          delta !== null && Math.abs(delta) > 50
-            ? 'bg-rose-500/10 border border-rose-200 dark:border-rose-500/20'
-            : 'bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20'
-        }`}>
-          <p className="text-sm font-bold text-slate-900 dark:text-white">
-            Total de macros: <span className="text-violet-600 dark:text-violet-400">{calculatedCal} kcal</span>
-          </p>
-          {delta !== null && Math.abs(delta) > 50 && (
-            <p className="text-xs text-rose-600 dark:text-rose-400 mt-0.5">
-              {delta > 0 ? `+${delta}` : delta} kcal vs objetivo ({targetCal})
-              {' '}— ajustá los macros
-            </p>
-          )}
-          {delta !== null && Math.abs(delta) <= 50 && (
-            <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-0.5">
-              Coincide con el objetivo ({targetCal} kcal)
-            </p>
-          )}
-          <div className="flex justify-center gap-3 mt-1.5 text-[10px] text-slate-500">
-            <span>P: {Math.round((Number(planForm.protein_g) * 4 / calculatedCal) * 100) || 0}%</span>
-            <span>C: {Math.round((Number(planForm.carbs_g) * 4 / calculatedCal) * 100) || 0}%</span>
-            <span>G: {Math.round((Number(planForm.fat_g) * 9 / calculatedCal) * 100) || 0}%</span>
-          </div>
-        </div>
-      )}
-
-      <div className="flex gap-2">
-        <Button variant="outline" fullWidth onClick={onCancel}>Cancelar</Button>
-        <Button variant="secondary" fullWidth onClick={onSave} disabled={saving}>
-          {saving ? 'Guardando...' : saveLabel}
-        </Button>
-      </div>
-    </Card>
-  );
-}
-
-// ─── Main Panel ───────────────────────────────────────────────────────────────
+const DETAIL_LEVELS: { value: NutritionDetailLevel; label: string; hint: string }[] = [
+  { value: 'macros',   label: 'Solo macros',      hint: 'Objetivos diarios sin detallar comidas' },
+  { value: 'meals',    label: 'Comidas del día',  hint: 'Objetivos + qué come en cada momento' },
+  { value: 'detailed', label: 'Plan detallado',   hint: 'Todo lo anterior + alimentos con gramajes' },
+];
 
 export const NutritionPlanPanel: React.FC<NutritionPlanPanelProps> = ({ studentId, gymId }) => {
   const toast = useToast();
   const [plans, setPlans] = useState<NutritionPlan[]>([]);
-  const [activePlan, setActivePlan] = useState<NutritionPlanWithItems | null>(null);
+  const [activePlan, setActivePlan] = useState<NutritionPlanFull | null>(null);
   const [loading, setLoading] = useState(true);
   const [showNewPlan, setShowNewPlan] = useState(false);
-  const [showAddItem, setShowAddItem] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [expandedMeals, setExpandedMeals] = useState<Set<string>>(new Set(MEAL_LABELS));
 
   const [planForm, setPlanForm] = useState({
-    title: '', description: '', calories_target: '', protein_g: '', carbs_g: '', fat_g: '',
-  });
-  const [itemForm, setItemForm] = useState({
-    meal_label: 'Desayuno' as MealLabel, food_name: '', portion: '', calories: '', protein_g: '', carbs_g: '', fat_g: '', notes: '',
+    title: '',
+    description: '',
+    detail_level: 'macros' as NutritionDetailLevel,
+    calories_target: '',
+    protein_g: '',
+    carbs_g: '',
+    fat_g: '',
   });
 
   const load = async () => {
@@ -154,66 +60,37 @@ export const NutritionPlanPanel: React.FC<NutritionPlanPanelProps> = ({ studentI
 
   useEffect(() => { load(); }, [studentId]);
 
+  const resetForm = () => setPlanForm({
+    title: '', description: '', detail_level: 'macros',
+    calories_target: '', protein_g: '', carbs_g: '', fat_g: '',
+  });
+
   const handleCreatePlan = async () => {
     if (!planForm.title.trim()) { toast.error('Ingresá un título'); return; }
-    const macroCalories = calcCaloriesFromMacros(planForm.protein_g, planForm.carbs_g, planForm.fat_g);
-    const finalCalories = planForm.calories_target ? Number(planForm.calories_target) : (macroCalories > 0 ? macroCalories : undefined);
     setSaving(true);
     try {
       await NutritionPlanService.createPlan({
         gym_id: gymId,
         student_id: studentId,
         title: planForm.title.trim(),
-        description: planForm.description.trim() || undefined,
-        calories_target: finalCalories,
-        protein_g: planForm.protein_g ? Number(planForm.protein_g) : undefined,
-        carbs_g: planForm.carbs_g ? Number(planForm.carbs_g) : undefined,
-        fat_g: planForm.fat_g ? Number(planForm.fat_g) : undefined,
+        description: planForm.description.trim() || null,
+        detail_level: planForm.detail_level,
+        calories_target: planForm.calories_target ? Number(planForm.calories_target) : null,
+        protein_g: planForm.protein_g ? Number(planForm.protein_g) : null,
+        carbs_g: planForm.carbs_g ? Number(planForm.carbs_g) : null,
+        fat_g: planForm.fat_g ? Number(planForm.fat_g) : null,
       });
       toast.success('Plan nutricional creado');
-      setPlanForm({ title: '', description: '', calories_target: '', protein_g: '', carbs_g: '', fat_g: '' });
+      resetForm();
       setShowNewPlan(false);
       await load();
     } catch (err: any) { toast.error(err?.message ?? 'Error al crear'); }
     setSaving(false);
   };
 
-  const handleAddItem = async () => {
-    if (!activePlan) return;
-    if (!itemForm.food_name.trim()) { toast.error('Ingresá un alimento'); return; }
-    setSaving(true);
-    try {
-      const nextOrder = activePlan.items.filter(i => i.meal_label === itemForm.meal_label).length;
-      await NutritionPlanService.addItem({
-        plan_id: activePlan.id,
-        meal_label: itemForm.meal_label,
-        food_name: itemForm.food_name.trim(),
-        portion: itemForm.portion.trim() || undefined,
-        calories: itemForm.calories ? Number(itemForm.calories) : undefined,
-        protein_g: itemForm.protein_g ? Number(itemForm.protein_g) : undefined,
-        carbs_g: itemForm.carbs_g ? Number(itemForm.carbs_g) : undefined,
-        fat_g: itemForm.fat_g ? Number(itemForm.fat_g) : undefined,
-        notes: itemForm.notes.trim() || undefined,
-        item_order: nextOrder,
-      });
-      toast.success('Alimento agregado');
-      setItemForm({ meal_label: itemForm.meal_label, food_name: '', portion: '', calories: '', protein_g: '', carbs_g: '', fat_g: '', notes: '' });
-      setShowAddItem(false);
-      await load();
-    } catch (err: any) { toast.error(err?.message ?? 'Error al agregar'); }
-    setSaving(false);
-  };
-
-  const handleDeleteItem = async (itemId: string) => {
-    try {
-      await NutritionPlanService.deleteItem(itemId);
-      setActivePlan(prev => prev ? { ...prev, items: prev.items.filter(i => i.id !== itemId) } : null);
-    } catch { toast.error('No se pudo eliminar'); }
-  };
-
   const handleArchivePlan = async (planId: string) => {
     try {
-      await NutritionPlanService.updatePlan(planId, { status: 'archived' });
+      await NutritionPlanService.archivePlan(planId);
       toast.success('Plan archivado');
       await load();
     } catch { toast.error('Error al archivar'); }
@@ -225,14 +102,6 @@ export const NutritionPlanPanel: React.FC<NutritionPlanPanelProps> = ({ studentI
       toast.success('Plan eliminado');
       await load();
     } catch { toast.error('Error al eliminar'); }
-  };
-
-  const toggleMeal = (meal: string) => {
-    setExpandedMeals(prev => {
-      const next = new Set(prev);
-      next.has(meal) ? next.delete(meal) : next.add(meal);
-      return next;
-    });
   };
 
   if (loading) {
@@ -248,16 +117,18 @@ export const NutritionPlanPanel: React.FC<NutritionPlanPanelProps> = ({ studentI
 
   return (
     <div className="space-y-4">
-      {/* Active plan */}
+      {/* Plan activo — modo lectura */}
       {activePlan ? (
         <>
-          {/* Plan header */}
           <Card className="p-4">
             <div className="flex items-start justify-between mb-2">
-              <div>
+              <div className="flex-1 min-w-0">
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white">{activePlan.title}</h3>
+                <p className="text-[10px] font-medium text-violet-500 uppercase tracking-wider mt-0.5">
+                  {DETAIL_LEVELS.find(d => d.value === activePlan.detail_level)?.label}
+                </p>
                 {activePlan.description && (
-                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{activePlan.description}</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">{activePlan.description}</p>
                 )}
               </div>
               <button
@@ -269,141 +140,91 @@ export const NutritionPlanPanel: React.FC<NutritionPlanPanelProps> = ({ studentI
               </button>
             </div>
 
-            {/* Macro targets */}
-            {(activePlan.protein_g || activePlan.carbs_g || activePlan.fat_g) && (() => {
-              const calc = calcCaloriesFromMacros(
-                String(activePlan.protein_g ?? 0),
-                String(activePlan.carbs_g ?? 0),
-                String(activePlan.fat_g ?? 0),
-              );
-              return (
-                <div className="mt-3 space-y-2">
-                  <div className="grid grid-cols-4 gap-2">
-                    <div className="text-center p-2 rounded-xl bg-orange-500/10">
-                      <Flame size={14} className="mx-auto text-orange-500 mb-0.5" />
-                      <p className="text-xs font-bold text-slate-900 dark:text-white">{calc}</p>
-                      <p className="text-[10px] text-slate-400">kcal</p>
-                    </div>
-                    {activePlan.protein_g && (
-                      <div className="text-center p-2 rounded-xl bg-rose-500/10">
-                        <Beef size={14} className="mx-auto text-rose-500 mb-0.5" />
-                        <p className="text-xs font-bold text-slate-900 dark:text-white">{activePlan.protein_g}g</p>
-                        <p className="text-[10px] text-rose-500">{Math.round((activePlan.protein_g * 4 / calc) * 100)}%</p>
-                      </div>
-                    )}
-                    {activePlan.carbs_g && (
-                      <div className="text-center p-2 rounded-xl bg-amber-500/10">
-                        <Wheat size={14} className="mx-auto text-amber-500 mb-0.5" />
-                        <p className="text-xs font-bold text-slate-900 dark:text-white">{activePlan.carbs_g}g</p>
-                        <p className="text-[10px] text-amber-500">{Math.round((activePlan.carbs_g * 4 / calc) * 100)}%</p>
-                      </div>
-                    )}
-                    {activePlan.fat_g && (
-                      <div className="text-center p-2 rounded-xl bg-cyan-500/10">
-                        <Droplets size={14} className="mx-auto text-cyan-500 mb-0.5" />
-                        <p className="text-xs font-bold text-slate-900 dark:text-white">{activePlan.fat_g}g</p>
-                        <p className="text-[10px] text-cyan-500">{Math.round((activePlan.fat_g * 9 / calc) * 100)}%</p>
-                      </div>
-                    )}
-                  </div>
-                  {activePlan.calories_target && Math.abs(calc - activePlan.calories_target) > 50 && (
-                    <p className="text-[10px] text-rose-500 text-center">
-                      Objetivo: {activePlan.calories_target} kcal — macros suman {calc} kcal ({calc > activePlan.calories_target ? '+' : ''}{calc - activePlan.calories_target})
-                    </p>
-                  )}
-                </div>
-              );
-            })()}
-          </Card>
-
-          {/* Meals grouped */}
-          {MEAL_LABELS.map((meal) => {
-            const items = activePlan.items.filter(i => i.meal_label === meal);
-            const expanded = expandedMeals.has(meal);
-
-            return (
-              <Card key={meal} className="overflow-hidden">
-                <button
-                  onClick={() => toggleMeal(meal)}
-                  className="w-full px-4 py-3 flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
-                >
-                  <span className="text-sm">{MEAL_ICONS[meal]}</span>
-                  <span className="text-sm font-bold text-slate-900 dark:text-white flex-1 text-left">{meal}</span>
-                  <span className="text-xs text-slate-400 dark:text-slate-500 font-medium">{items.length} item{items.length !== 1 ? 's' : ''}</span>
-                  {expanded ? <ChevronDown size={14} className="text-slate-400" /> : <ChevronRight size={14} className="text-slate-400" />}
-                </button>
-
-                {expanded && (
-                  <div className="px-4 pb-3 space-y-1.5">
-                    {items.length === 0 && (
-                      <p className="text-xs text-slate-400 dark:text-slate-500 py-2 text-center">Sin alimentos</p>
-                    )}
-                    {items.map((item) => (
-                      <div key={item.id} className="flex items-center gap-2 py-1.5 border-b border-slate-100 dark:border-slate-800 last:border-0">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm text-slate-900 dark:text-white font-medium">{item.food_name}</p>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            {item.portion && <span className="text-[10px] text-slate-400 dark:text-slate-500">{item.portion}</span>}
-                            {item.calories && <span className="text-[10px] text-orange-500 font-medium">{item.calories} kcal</span>}
-                            {item.protein_g && <span className="text-[10px] text-rose-500 font-medium">{item.protein_g}g P</span>}
-                            {item.carbs_g && <span className="text-[10px] text-amber-500 font-medium">{item.carbs_g}g C</span>}
-                            {item.fat_g && <span className="text-[10px] text-cyan-500 font-medium">{item.fat_g}g G</span>}
-                          </div>
-                          {item.notes && <p className="text-[10px] text-slate-400 mt-0.5">{item.notes}</p>}
-                        </div>
-                        <button
-                          onClick={() => handleDeleteItem(item.id)}
-                          className="p-1 rounded-lg text-slate-300 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors shrink-0"
-                        >
-                          <Trash2 size={12} />
-                        </button>
-                      </div>
-                    ))}
+            {/* Targets diarios */}
+            {(activePlan.calories_target || activePlan.protein_g || activePlan.carbs_g || activePlan.fat_g) && (
+              <div className="mt-3 grid grid-cols-4 gap-2">
+                {activePlan.calories_target && (
+                  <div className="text-center p-2 rounded-xl bg-orange-500/10">
+                    <Flame size={14} className="mx-auto text-orange-500 mb-0.5" />
+                    <p className="text-xs font-bold text-slate-900 dark:text-white">{activePlan.calories_target}</p>
+                    <p className="text-[10px] text-slate-400">kcal</p>
                   </div>
                 )}
-              </Card>
-            );
-          })}
+                {activePlan.protein_g && (
+                  <div className="text-center p-2 rounded-xl bg-rose-500/10">
+                    <Beef size={14} className="mx-auto text-rose-500 mb-0.5" />
+                    <p className="text-xs font-bold text-slate-900 dark:text-white">{activePlan.protein_g}g</p>
+                    <p className="text-[10px] text-rose-500">prot</p>
+                  </div>
+                )}
+                {activePlan.carbs_g && (
+                  <div className="text-center p-2 rounded-xl bg-amber-500/10">
+                    <Wheat size={14} className="mx-auto text-amber-500 mb-0.5" />
+                    <p className="text-xs font-bold text-slate-900 dark:text-white">{activePlan.carbs_g}g</p>
+                    <p className="text-[10px] text-amber-500">carbs</p>
+                  </div>
+                )}
+                {activePlan.fat_g && (
+                  <div className="text-center p-2 rounded-xl bg-cyan-500/10">
+                    <Droplets size={14} className="mx-auto text-cyan-500 mb-0.5" />
+                    <p className="text-xs font-bold text-slate-900 dark:text-white">{activePlan.fat_g}g</p>
+                    <p className="text-[10px] text-cyan-500">grasas</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </Card>
 
-          {/* Add item */}
-          {!showAddItem ? (
-            <Button variant="outline" fullWidth onClick={() => setShowAddItem(true)}>
-              <Plus size={15} className="inline mr-1" />
-              Agregar alimento
-            </Button>
-          ) : (
-            <Card className="p-4 space-y-3 border-violet-200 dark:border-violet-500/30">
-              <h4 className="text-xs font-black text-violet-500 uppercase tracking-wider">Nuevo alimento</h4>
-              <select
-                value={itemForm.meal_label}
-                onChange={(e) => setItemForm({ ...itemForm, meal_label: e.target.value as MealLabel })}
-                className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white text-sm"
-              >
-                {MEAL_LABELS.map(m => <option key={m} value={m}>{MEAL_ICONS[m]} {m}</option>)}
-              </select>
-              <Input placeholder="Alimento (ej: Avena con banana)" value={itemForm.food_name} onChange={e => setItemForm({ ...itemForm, food_name: e.target.value })} />
-              <Input placeholder="Porción (ej: 1 taza, 200g)" value={itemForm.portion} onChange={e => setItemForm({ ...itemForm, portion: e.target.value })} />
-              <div className="grid grid-cols-2 gap-3">
-                <Input type="number" placeholder="Calorías" value={itemForm.calories} onChange={e => setItemForm({ ...itemForm, calories: e.target.value })} />
-                <Input type="number" placeholder="Proteína (g)" value={itemForm.protein_g} onChange={e => setItemForm({ ...itemForm, protein_g: e.target.value })} />
-                <Input type="number" placeholder="Carbos (g)" value={itemForm.carbs_g} onChange={e => setItemForm({ ...itemForm, carbs_g: e.target.value })} />
-                <Input type="number" placeholder="Grasas (g)" value={itemForm.fat_g} onChange={e => setItemForm({ ...itemForm, fat_g: e.target.value })} />
-              </div>
-              <textarea
-                className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white text-sm"
-                rows={2}
-                placeholder="Notas (opcional)"
-                value={itemForm.notes}
-                onChange={e => setItemForm({ ...itemForm, notes: e.target.value })}
-              />
-              <div className="flex gap-2">
-                <Button variant="outline" fullWidth onClick={() => setShowAddItem(false)}>Cancelar</Button>
-                <Button variant="secondary" fullWidth onClick={handleAddItem} disabled={saving}>
-                  {saving ? 'Guardando...' : 'Agregar'}
-                </Button>
-              </div>
-            </Card>
+          {/* Meals (si las hay) */}
+          {activePlan.meals.length > 0 && (
+            <div className="space-y-2">
+              {activePlan.meals.map((meal) => {
+                const label = MEAL_LABEL[meal.meal_type];
+                return (
+                  <Card key={meal.id} className="p-3">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-sm">{label.emoji}</span>
+                      <span className="text-sm font-bold text-slate-900 dark:text-white">
+                        {meal.name || label.label}
+                      </span>
+                      {meal.time_hint && (
+                        <span className="text-[10px] text-slate-400 ml-1">{meal.time_hint}</span>
+                      )}
+                    </div>
+                    {activePlan.detail_level === 'detailed' && meal.foods.length > 0 ? (
+                      <div className="space-y-1 mt-2">
+                        {meal.foods.map((food) => (
+                          <div key={food.id} className="text-xs flex items-center gap-2 text-slate-600 dark:text-slate-400">
+                            <span className="font-medium text-slate-900 dark:text-white">{food.food_name}</span>
+                            {food.amount && food.unit && <span className="text-slate-400">({food.amount} {food.unit})</span>}
+                            {food.calories && <span className="text-orange-500">{food.calories}kcal</span>}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-3 text-[11px] text-slate-500 mt-1">
+                        {meal.calories && <span className="text-orange-500">{meal.calories}kcal</span>}
+                        {meal.protein_g && <span className="text-rose-500">{meal.protein_g}g P</span>}
+                        {meal.carbs_g && <span className="text-amber-500">{meal.carbs_g}g C</span>}
+                        {meal.fat_g && <span className="text-cyan-500">{meal.fat_g}g G</span>}
+                      </div>
+                    )}
+                  </Card>
+                );
+              })}
+            </div>
           )}
+
+          {/* Hint: wizard completo viene en Fase 3 */}
+          <Card className="p-3 bg-violet-500/5 border-violet-200 dark:border-violet-500/20">
+            <div className="flex items-start gap-2">
+              <Info size={14} className="text-violet-500 shrink-0 mt-0.5" />
+              <p className="text-xs text-slate-600 dark:text-slate-400">
+                Para editar meals, alimentos y recalcular TMB usá el wizard (próximamente).
+                Por ahora podés archivar el plan y crear uno nuevo.
+              </p>
+            </div>
+          </Card>
         </>
       ) : !showNewPlan ? (
         <Card className="p-6 text-center">
@@ -416,22 +237,65 @@ export const NutritionPlanPanel: React.FC<NutritionPlanPanelProps> = ({ studentI
         </Card>
       ) : null}
 
-      {/* New plan form */}
+      {/* Form nuevo plan */}
       {showNewPlan && (
-        <MacroForm
-          planForm={planForm}
-          setPlanForm={setPlanForm}
-          onSave={handleCreatePlan}
-          onCancel={() => { setShowNewPlan(false); setPlanForm({ title: '', description: '', calories_target: '', protein_g: '', carbs_g: '', fat_g: '' }); }}
-          saving={saving}
-          saveLabel="Crear plan"
-        />
+        <Card className="p-4 space-y-3 border-violet-200 dark:border-violet-500/30">
+          <h4 className="text-xs font-black text-violet-500 uppercase tracking-wider">Nuevo plan nutricional</h4>
+
+          <Input
+            placeholder="Título (ej: Plan hipercalórico)"
+            value={planForm.title}
+            onChange={e => setPlanForm({ ...planForm, title: e.target.value })}
+          />
+
+          <textarea
+            className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white text-sm"
+            rows={2}
+            placeholder="Descripción / pautas generales (opcional)"
+            value={planForm.description}
+            onChange={e => setPlanForm({ ...planForm, description: e.target.value })}
+          />
+
+          <div>
+            <label className="text-xs text-slate-500 dark:text-slate-400 mb-1 block">Nivel de detalle</label>
+            <select
+              value={planForm.detail_level}
+              onChange={e => setPlanForm({ ...planForm, detail_level: e.target.value as NutritionDetailLevel })}
+              className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white text-sm"
+            >
+              {DETAIL_LEVELS.map(d => (
+                <option key={d.value} value={d.value}>{d.label} — {d.hint}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="text-xs text-slate-500 dark:text-slate-400 mb-1 block">Targets diarios</label>
+            <div className="grid grid-cols-2 gap-2">
+              <Input type="number" placeholder="Calorías" value={planForm.calories_target} onChange={e => setPlanForm({ ...planForm, calories_target: e.target.value })} />
+              <Input type="number" placeholder="Proteína (g)" value={planForm.protein_g} onChange={e => setPlanForm({ ...planForm, protein_g: e.target.value })} />
+              <Input type="number" placeholder="Carbos (g)" value={planForm.carbs_g} onChange={e => setPlanForm({ ...planForm, carbs_g: e.target.value })} />
+              <Input type="number" placeholder="Grasas (g)" value={planForm.fat_g} onChange={e => setPlanForm({ ...planForm, fat_g: e.target.value })} />
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <Button variant="outline" fullWidth onClick={() => { setShowNewPlan(false); resetForm(); }}>
+              Cancelar
+            </Button>
+            <Button variant="secondary" fullWidth onClick={handleCreatePlan} disabled={saving}>
+              {saving ? 'Guardando...' : 'Crear plan'}
+            </Button>
+          </div>
+        </Card>
       )}
 
-      {/* Archived plans */}
+      {/* Planes archivados */}
       {plans.filter(p => p.status === 'archived').length > 0 && (
         <div className="space-y-2">
-          <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider px-0.5">Planes archivados</h4>
+          <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider px-0.5">
+            Planes archivados
+          </h4>
           {plans.filter(p => p.status === 'archived').map(plan => (
             <Card key={plan.id} className="p-3 flex items-center gap-3 opacity-60">
               <div className="flex-1 min-w-0">
