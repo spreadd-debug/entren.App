@@ -226,7 +226,7 @@ export default function StudentAssignmentFlow({
           </button>
         </div>
 
-        <div className="p-5 overflow-y-auto flex-1 space-y-4">
+        <div className="p-5 overflow-y-auto flex-1 min-h-0 space-y-4">
           {/* ── Step 1: Pick student ──────────────────────────────────────── */}
           {step === "pick_student" && (
             <>
@@ -281,7 +281,7 @@ export default function StudentAssignmentFlow({
                   {search ? "Sin resultados" : "No hay alumnos activos"}
                 </p>
               ) : (
-                <div className="space-y-1 max-h-64 overflow-y-auto">
+                <div className="space-y-1">
                   {filtered.map((s) => {
                     const alreadyAssigned = assignments.some((a) => a.student_id === s.id);
                     return (
@@ -391,31 +391,33 @@ export default function StudentAssignmentFlow({
                   </p>
                 </div>
               )}
-
-              {/* Actions */}
-              <div className="flex gap-2 pt-1">
-                <button
-                  onClick={handleAssign}
-                  disabled={assigning}
-                  className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-600 text-white text-sm font-bold transition-colors disabled:opacity-50"
-                >
-                  {assigning ? (
-                    <Loader2 size={16} className="animate-spin" />
-                  ) : (
-                    <Check size={16} />
-                  )}
-                  Asignar
-                </button>
-                <button
-                  onClick={() => { setStep("pick_student"); setSelectedStudent(null); setDayMapping({}); }}
-                  className="px-4 py-2.5 rounded-xl text-sm text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                >
-                  Volver
-                </button>
-              </div>
             </>
           )}
         </div>
+
+        {/* ── Sticky footer with action buttons ─────────────────────────── */}
+        {step === "map_days" && selectedStudent && (
+          <div className="px-5 py-4 border-t border-slate-100 dark:border-slate-800 shrink-0 flex gap-2 bg-white dark:bg-slate-900">
+            <button
+              onClick={handleAssign}
+              disabled={assigning}
+              className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-600 text-white text-sm font-bold transition-colors disabled:opacity-50"
+            >
+              {assigning ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <Check size={16} />
+              )}
+              Asignar
+            </button>
+            <button
+              onClick={() => { setStep("pick_student"); setSelectedStudent(null); setDayMapping({}); }}
+              className="px-4 py-2.5 rounded-xl text-sm text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            >
+              Volver
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

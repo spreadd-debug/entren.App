@@ -752,7 +752,7 @@ function PaymentModal({ gymId, shiftId, studentId, studentName, shiftName, date,
         </div>
 
         {/* Body */}
-        <div className="p-5 space-y-4">
+        <div className="p-5 space-y-4 overflow-y-auto flex-1 min-h-0">
           {/* Current status */}
           {existing && (
             <div className={`rounded-xl px-3 py-2 text-center text-xs font-bold ${
@@ -807,26 +807,26 @@ function PaymentModal({ gymId, shiftId, studentId, studentName, shiftName, date,
               ))}
             </div>
           </div>
+        </div>
 
-          {/* Action buttons */}
-          <div className="space-y-2 pt-2">
-            <button
-              onClick={handleMarkPaid}
-              disabled={saving}
-              className="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white font-bold text-sm transition-all shadow-md shadow-emerald-500/25 disabled:opacity-50 active:scale-[0.97] flex items-center justify-center gap-2"
-            >
-              <CheckCircle2 size={16} />
-              {saving ? 'Guardando...' : existing?.status === 'paid' ? 'Actualizar pago' : 'Marcar como PAGÓ'}
-            </button>
-            <button
-              onClick={handleMarkUnpaid}
-              disabled={saving}
-              className="w-full py-2.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 font-bold text-sm transition-all disabled:opacity-50 active:scale-[0.97] flex items-center justify-center gap-2"
-            >
-              <AlertCircle size={16} />
-              Marcar como NO PAGÓ
-            </button>
-          </div>
+        {/* Action buttons — sticky footer */}
+        <div className="px-5 py-4 border-t border-slate-100 dark:border-slate-800 shrink-0 space-y-2 bg-white dark:bg-slate-900">
+          <button
+            onClick={handleMarkPaid}
+            disabled={saving}
+            className="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white font-bold text-sm transition-all shadow-md shadow-emerald-500/25 disabled:opacity-50 active:scale-[0.97] flex items-center justify-center gap-2"
+          >
+            <CheckCircle2 size={16} />
+            {saving ? 'Guardando...' : existing?.status === 'paid' ? 'Actualizar pago' : 'Marcar como PAGÓ'}
+          </button>
+          <button
+            onClick={handleMarkUnpaid}
+            disabled={saving}
+            className="w-full py-2.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 font-bold text-sm transition-all disabled:opacity-50 active:scale-[0.97] flex items-center justify-center gap-2"
+          >
+            <AlertCircle size={16} />
+            Marcar como NO PAGÓ
+          </button>
         </div>
       </div>
     </div>
@@ -935,7 +935,8 @@ function ShiftFormModal({ gymId, defaultDay, editing, students, onClose, onSaved
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-5 space-y-4 overflow-y-auto">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+        <div className="p-5 space-y-4 overflow-y-auto flex-1 min-h-0">
           {/* Student selector (only for new shifts) */}
           {!editing && (
             <div>
@@ -1076,13 +1077,17 @@ function ShiftFormModal({ gymId, defaultDay, editing, students, onClose, onSaved
             )}
           </div>
 
-          <button
-            type="submit"
-            disabled={saving || (!form.name.trim() && !form.studentId)}
-            className="w-full py-3 rounded-xl bg-violet-500 hover:bg-violet-400 text-white font-bold text-sm transition-all shadow-lg shadow-violet-500/25 disabled:opacity-50 active:scale-[0.97]"
-          >
-            {saving ? 'Guardando...' : editing ? 'Guardar cambios' : 'Crear turno'}
-          </button>
+        </div>
+
+          <div className="px-5 py-4 border-t border-slate-100 dark:border-slate-800 shrink-0 bg-white dark:bg-slate-900">
+            <button
+              type="submit"
+              disabled={saving || (!form.name.trim() && !form.studentId)}
+              className="w-full py-3 rounded-xl bg-violet-500 hover:bg-violet-400 text-white font-bold text-sm transition-all shadow-lg shadow-violet-500/25 disabled:opacity-50 active:scale-[0.97]"
+            >
+              {saving ? 'Guardando...' : editing ? 'Guardar cambios' : 'Crear turno'}
+            </button>
+          </div>
         </form>
       </div>
     </div>

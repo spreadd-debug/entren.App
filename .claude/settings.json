@@ -22,7 +22,10 @@
       "Bash(git commit -m ':*)",
       "Bash(wc -l /c/Users/Mauro/Desktop/entren.App/src/pages/*.tsx)",
       "Bash(find /c/Users/Mauro/Desktop/entren.App/src -type f \\\\\\( -name \"*.ts\" -o -name \"*.tsx\" \\\\\\) -exec grep -l \"StudentRoutineService\\\\|RoutineService\\\\|assignRoutine\\\\|bulkAssign\" {} \\\\;)",
-      "Bash(npx cap:*)"
+      "Bash(npx cap:*)",
+      "Bash(xargs cat:*)",
+      "Bash(grep -E \"\\\\.ts$|\\\\.tsx$\")",
+      "Bash(git stash:*)"
     ]
   }
 }

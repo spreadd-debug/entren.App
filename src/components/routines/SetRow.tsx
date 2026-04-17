@@ -19,6 +19,7 @@ const WEIGHT_TYPES: { value: WeightType; label: string }[] = [
 ];
 
 interface SetRowProps {
+  key?: string | number;
   set: RoutineSetDraft;
   index: number;
   useTime: boolean;

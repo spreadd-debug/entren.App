@@ -496,7 +496,7 @@ export default function PTPaymentsView({ gymId }: PTPaymentsViewProps) {
 
             {/* Step 3: Payment form */}
             {registerStep === 'payment' && (
-              <div className="p-5 space-y-4">
+              <div className="p-5 space-y-4 overflow-y-auto flex-1 min-h-0">
                 {selectedShift && (
                   <div className="rounded-xl bg-slate-50 dark:bg-slate-800 px-3 py-2 text-center">
                     <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
@@ -546,12 +546,16 @@ export default function PTPaymentsView({ gymId }: PTPaymentsViewProps) {
                     ))}
                   </div>
                 </div>
+              </div>
+            )}
 
-                {/* Confirm */}
+            {/* Confirm button — sticky footer for payment step */}
+            {registerStep === 'payment' && (
+              <div className="px-5 py-4 border-t border-slate-100 dark:border-slate-800 shrink-0 bg-white dark:bg-slate-900">
                 <button
                   onClick={handleConfirmPayment}
                   disabled={regSaving}
-                  className="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white font-bold text-sm transition-all shadow-md shadow-emerald-500/25 disabled:opacity-50 active:scale-[0.97] flex items-center justify-center gap-2 mt-2"
+                  className="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white font-bold text-sm transition-all shadow-md shadow-emerald-500/25 disabled:opacity-50 active:scale-[0.97] flex items-center justify-center gap-2"
                 >
                   <CheckCircle2 size={16} />
                   {regSaving ? 'Guardando...' : 'Confirmar cobro'}
