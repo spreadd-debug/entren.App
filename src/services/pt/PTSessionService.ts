@@ -43,6 +43,11 @@ export const PTSessionService = {
     planId: string,
     exercises: Array<{ id: string }>,
   ): Promise<PTSessionFull> {
+    // Sweep stale in_progress sessions from previous days so they count in history
+    await this.completeStaleSessions(studentId).catch((err) =>
+      console.error('Error sweeping stale sessions:', err),
+    );
+
     // Check for existing in-progress session today
     const { data: existing } = await supabase
       .from('workout_sessions')
@@ -120,6 +125,11 @@ export const PTSessionService = {
           completed: false,
         };
       });
+
+    // Sweep stale in_progress sessions from previous days so they count in history
+    await this.completeStaleSessions(studentId).catch((err) =>
+      console.error('Error sweeping stale sessions:', err),
+    );
 
     // Check for existing in-progress session today
     const { data: existing } = await supabase
@@ -505,21 +515,150 @@ export const PTSessionService = {
     studentId: string,
     limit = 10,
   ): Promise<PTSessionFull[]> {
+    // Include in_progress sessions so today's unfinished session still counts
+    // (as long as it has at least one saved set)
     const { data: sessions } = await supabase
       .from('workout_sessions')
       .select('*')
       .eq('student_id', studentId)
-      .eq('status', 'completed')
+      .in('status', ['completed', 'in_progress'])
       .order('session_date', { ascending: false })
-      .limit(limit);
+      .limit(limit * 2);
 
     if (!sessions?.length) return [];
 
     const results: PTSessionFull[] = [];
-    for (const session of sessions) {
-      results.push(await this.loadFullSession(session as WorkoutSession));
+    for (const session of sessions as any[]) {
+      const full = await this.loadFullSession(session as WorkoutSession);
+      const hasSets = full.exercises.some((ex) => ex.sets_data.length > 0);
+      if (session.status === 'completed' || hasSets) {
+        results.push(full);
+        if (results.length >= limit) break;
+      }
     }
 
     return results;
+  },
+
+  // ─── Complete Stale In-Progress Sessions ─────────────────────────────────
+  // Marks in_progress sessions from previous days as completed if they have
+  // saved sets. Deletes empty shells. Today's sessions are left untouched.
+
+  async completeStaleSessions(studentId: string): Promise<number> {
+    const today = todayDate();
+
+    const { data: stale } = await supabase
+      .from('workout_sessions')
+      .select('id, started_at, session_date')
+      .eq('student_id', studentId)
+      .eq('status', 'in_progress')
+      .lt('session_date', today);
+
+    if (!stale?.length) return 0;
+
+    const sessionIds = (stale as any[]).map((s) => s.id);
+
+    const { data: exerciseRows } = await supabase
+      .from('workout_session_exercises')
+      .select('id, session_id')
+      .in('session_id', sessionIds);
+
+    const exercisesBySession = new Map<string, string[]>();
+    for (const ex of (exerciseRows ?? []) as any[]) {
+      const arr = exercisesBySession.get(ex.session_id) ?? [];
+      arr.push(ex.id);
+      exercisesBySession.set(ex.session_id, arr);
+    }
+
+    const allExerciseIds = (exerciseRows ?? []).map((e: any) => e.id);
+    const setsByExercise = new Map<string, any[]>();
+    if (allExerciseIds.length > 0) {
+      const { data: sets } = await supabase
+        .from('session_sets')
+        .select('session_exercise_id, weight_kg, reps_done, created_at')
+        .in('session_exercise_id', allExerciseIds);
+
+      for (const s of (sets ?? []) as any[]) {
+        const arr = setsByExercise.get(s.session_exercise_id) ?? [];
+        arr.push(s);
+        setsByExercise.set(s.session_exercise_id, arr);
+      }
+    }
+
+    let completedCount = 0;
+    const emptySessions: string[] = [];
+
+    for (const session of stale as any[]) {
+      const sessionExIds = exercisesBySession.get(session.id) ?? [];
+      const exercisesWithSets: string[] = [];
+      const sessionSets: any[] = [];
+
+      for (const exId of sessionExIds) {
+        const exSets = setsByExercise.get(exId) ?? [];
+        if (exSets.length > 0) {
+          exercisesWithSets.push(exId);
+          sessionSets.push(...exSets);
+        }
+      }
+
+      if (sessionSets.length === 0) {
+        emptySessions.push(session.id);
+        continue;
+      }
+
+      const totalVolume = sessionSets.reduce((sum, s) => {
+        const w = Number(s.weight_kg) || 0;
+        const r = Number(s.reps_done) || 0;
+        return sum + w * r;
+      }, 0);
+
+      const lastSetTime = sessionSets
+        .map((s) => s.created_at)
+        .filter(Boolean)
+        .sort()
+        .reverse()[0];
+      const completedAt =
+        lastSetTime || new Date(session.session_date + 'T23:59:59').toISOString();
+      const startedAt = session.started_at
+        ? new Date(session.started_at)
+        : new Date(completedAt);
+      const durationMinutes = Math.max(
+        1,
+        Math.round((new Date(completedAt).getTime() - startedAt.getTime()) / 60000),
+      );
+
+      if (exercisesWithSets.length > 0) {
+        await supabase
+          .from('workout_session_exercises')
+          .update({ completed: true })
+          .in('id', exercisesWithSets);
+      }
+
+      await supabase
+        .from('workout_sessions')
+        .update({
+          completed_at: completedAt,
+          finished_at: completedAt,
+          duration_minutes: durationMinutes,
+          total_volume: totalVolume,
+          status: 'completed',
+        })
+        .eq('id', session.id);
+
+      completedCount++;
+    }
+
+    if (emptySessions.length > 0) {
+      await supabase
+        .from('workout_session_exercises')
+        .delete()
+        .in('session_id', emptySessions);
+      await supabase
+        .from('workout_sessions')
+        .delete()
+        .in('id', emptySessions);
+    }
+
+    return completedCount;
   },
 };

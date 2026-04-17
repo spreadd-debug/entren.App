@@ -46,6 +46,11 @@ export interface PreSessionData {
 export const PreSessionService = {
 
   async getPreSessionData(studentId: string, gymId: string): Promise<PreSessionData> {
+    // Sweep stale in_progress sessions from prior days so they count in history
+    await PTSessionService.completeStaleSessions(studentId).catch((err) =>
+      console.error('Error sweeping stale sessions:', err),
+    );
+
     const results = await Promise.allSettled([
       PTSessionService.getSessionsWithSets(studentId, 20),
       WellnessCheckInService.getToday(studentId),
