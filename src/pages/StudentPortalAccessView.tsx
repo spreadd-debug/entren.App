@@ -9,11 +9,15 @@ import {
   ArrowRight,
   Check,
   Download,
-  Share,
-  MoreVertical,
-  Plus,
   ChevronRight,
 } from "lucide-react";
+import {
+  DevicePicker,
+  IPhoneGuide,
+  AndroidGuide,
+  markInstallGuideSeen as markGlobalInstallGuideSeen,
+  type DeviceType,
+} from "../components/InstallAppGuide";
 
 interface StudentPortalAccessViewProps {
   onSuccess: (studentId: string) => void;
@@ -31,175 +35,6 @@ const FRASES = [
 ];
 
 type Step = "login" | "set-code" | "install-guide";
-type DeviceType = "iphone" | "android" | null;
-
-// ─── Install Guide Sub-components ──────────────────────────────────────────────
-
-function DevicePicker({ onSelect }: { onSelect: (d: DeviceType) => void }) {
-  return (
-    <div className="space-y-3">
-      <button
-        onClick={() => onSelect("iphone")}
-        className="w-full flex items-center gap-4 bg-white/10 hover:bg-white/15 border border-white/10 rounded-2xl px-4 py-4 transition-all group"
-      >
-        <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-gray-200 to-gray-400 flex items-center justify-center shrink-0">
-          <svg viewBox="0 0 24 24" className="w-6 h-6 text-gray-800" fill="currentColor">
-            <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
-          </svg>
-        </div>
-        <div className="text-left flex-1">
-          <p className="text-white font-bold text-sm">iPhone</p>
-          <p className="text-violet-300/50 text-xs">Safari</p>
-        </div>
-        <ChevronRight size={18} className="text-violet-400/40 group-hover:text-violet-300/70 transition-colors" />
-      </button>
-
-      <button
-        onClick={() => onSelect("android")}
-        className="w-full flex items-center gap-4 bg-white/10 hover:bg-white/15 border border-white/10 rounded-2xl px-4 py-4 transition-all group"
-      >
-        <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-emerald-400 to-green-600 flex items-center justify-center shrink-0">
-          <svg viewBox="0 0 24 24" className="w-6 h-6 text-white" fill="currentColor">
-            <path d="M17.6 9.48l1.84-3.18c.16-.31.04-.69-.27-.86-.31-.16-.69-.04-.86.27l-1.86 3.22c-1.3-.58-2.77-.92-4.35-.92s-3.05.34-4.35.92L5.79 5.71c-.16-.31-.54-.43-.86-.27-.31.16-.43.55-.27.86L6.5 9.48C3.76 11.08 1.88 13.87 1.5 17h21c-.38-3.13-2.26-5.92-4.9-7.52zM7 15.25a1.25 1.25 0 110-2.5 1.25 1.25 0 010 2.5zm10 0a1.25 1.25 0 110-2.5 1.25 1.25 0 010 2.5z" />
-          </svg>
-        </div>
-        <div className="text-left flex-1">
-          <p className="text-white font-bold text-sm">Android</p>
-          <p className="text-violet-300/50 text-xs">Chrome</p>
-        </div>
-        <ChevronRight size={18} className="text-violet-400/40 group-hover:text-violet-300/70 transition-colors" />
-      </button>
-    </div>
-  );
-}
-
-function IPhoneGuide() {
-  const steps = [
-    {
-      num: 1,
-      icon: <Share size={18} />,
-      title: "Tocá el botón Compartir",
-      desc: "Es el ícono con una flechita hacia arriba, abajo de todo en Safari.",
-      visual: (
-        <div className="flex items-center justify-center py-2">
-          <div className="w-10 h-10 rounded-xl bg-blue-500/20 border border-blue-400/30 flex items-center justify-center">
-            <Share size={20} className="text-blue-400" />
-          </div>
-        </div>
-      ),
-    },
-    {
-      num: 2,
-      icon: <Plus size={18} />,
-      title: 'Buscá "Agregar a Inicio"',
-      desc: "Deslizá hacia abajo en el menú hasta encontrar la opción.",
-      visual: (
-        <div className="bg-white/5 rounded-xl px-3 py-2.5 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center shrink-0">
-            <Plus size={16} className="text-white/70" />
-          </div>
-          <span className="text-white/70 text-xs font-medium">Agregar a pantalla de inicio</span>
-        </div>
-      ),
-    },
-    {
-      num: 3,
-      icon: <Check size={18} />,
-      title: 'Tocá "Agregar"',
-      desc: "¡Listo! La app aparece en tu pantalla de inicio.",
-      visual: (
-        <div className="flex items-center justify-center py-2">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-500/30">
-            <Dumbbell size={22} className="text-white" />
-          </div>
-        </div>
-      ),
-    },
-  ];
-
-  return (
-    <div className="space-y-3">
-      {steps.map((s) => (
-        <div key={s.num} className="bg-white/5 border border-white/5 rounded-2xl p-4">
-          <div className="flex items-start gap-3">
-            <div className="w-7 h-7 rounded-full bg-violet-500/30 border border-violet-400/30 flex items-center justify-center shrink-0 mt-0.5">
-              <span className="text-xs font-bold text-violet-300">{s.num}</span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-white font-bold text-sm">{s.title}</p>
-              <p className="text-violet-300/60 text-xs mt-0.5 leading-relaxed">{s.desc}</p>
-              <div className="mt-2.5">{s.visual}</div>
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function AndroidGuide() {
-  const steps = [
-    {
-      num: 1,
-      icon: <MoreVertical size={18} />,
-      title: "Tocá los 3 puntos",
-      desc: "Están arriba a la derecha en Chrome.",
-      visual: (
-        <div className="flex items-center justify-center py-2">
-          <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center">
-            <MoreVertical size={20} className="text-emerald-400" />
-          </div>
-        </div>
-      ),
-    },
-    {
-      num: 2,
-      icon: <Download size={18} />,
-      title: '"Instalar aplicación" o "Agregar a inicio"',
-      desc: "Buscá la opción en el menú desplegable.",
-      visual: (
-        <div className="bg-white/5 rounded-xl px-3 py-2.5 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center shrink-0">
-            <Download size={16} className="text-white/70" />
-          </div>
-          <span className="text-white/70 text-xs font-medium">Instalar aplicación</span>
-        </div>
-      ),
-    },
-    {
-      num: 3,
-      icon: <Check size={18} />,
-      title: 'Tocá "Instalar"',
-      desc: "¡Listo! La app se descarga a tu pantalla de inicio.",
-      visual: (
-        <div className="flex items-center justify-center py-2">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-500/30">
-            <Dumbbell size={22} className="text-white" />
-          </div>
-        </div>
-      ),
-    },
-  ];
-
-  return (
-    <div className="space-y-3">
-      {steps.map((s) => (
-        <div key={s.num} className="bg-white/5 border border-white/5 rounded-2xl p-4">
-          <div className="flex items-start gap-3">
-            <div className="w-7 h-7 rounded-full bg-violet-500/30 border border-violet-400/30 flex items-center justify-center shrink-0 mt-0.5">
-              <span className="text-xs font-bold text-violet-300">{s.num}</span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-white font-bold text-sm">{s.title}</p>
-              <p className="text-violet-300/60 text-xs mt-0.5 leading-relaxed">{s.desc}</p>
-              <div className="mt-2.5">{s.visual}</div>
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
 
 // ─── Main Component ────────────────────────────────────────────────────────────
 
@@ -229,11 +64,13 @@ export default function StudentPortalAccessView({
   }, []);
 
   const shouldShowInstallGuide = () => {
+    if (localStorage.getItem("install_guide_seen") === "1") return false;
     const key = `portal_install_seen_${loggedStudent?.id}`;
     return !localStorage.getItem(key);
   };
 
   const markInstallGuideSeen = () => {
+    markGlobalInstallGuideSeen();
     if (loggedStudent?.id) {
       localStorage.setItem(`portal_install_seen_${loggedStudent.id}`, "1");
     }
@@ -257,8 +94,9 @@ export default function StudentPortalAccessView({
 
       if (student.has_custom_code) {
         // Already set custom code — check install guide
-        const key = `portal_install_seen_${student.id}`;
-        if (!localStorage.getItem(key)) {
+        const globalSeen = localStorage.getItem("install_guide_seen") === "1";
+        const studentSeen = !!localStorage.getItem(`portal_install_seen_${student.id}`);
+        if (!globalSeen && !studentSeen) {
           setStep("install-guide");
         } else {
           onSuccess(student.id);

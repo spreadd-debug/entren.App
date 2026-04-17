@@ -1,5 +1,5 @@
 
-import {StrictMode} from 'react';
+import {StrictMode, useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App.tsx';
@@ -8,6 +8,11 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { ToastProvider } from './context/ToastContext';
 import { isNative } from './lib/platform';
 import { initOtaUpdates } from './lib/capgo';
+import {
+  InstallAppGuide,
+  shouldShowInstallGuide,
+  markInstallGuideSeen,
+} from './components/InstallAppGuide';
 
 if (!isNative()) {
   // PWA service worker — solo en web
@@ -32,12 +37,29 @@ if (!isNative()) {
   initOtaUpdates();
 }
 
+function AppWithInstallGuide() {
+  const [showGuide, setShowGuide] = useState(() => shouldShowInstallGuide());
+  return (
+    <>
+      <App />
+      {showGuide && (
+        <InstallAppGuide
+          onDismiss={() => {
+            markInstallGuideSeen();
+            setShowGuide(false);
+          }}
+        />
+      )}
+    </>
+  );
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>
       <ToastProvider>
         <BrowserRouter>
-          <App />
+          <AppWithInstallGuide />
         </BrowserRouter>
       </ToastProvider>
     </ErrorBoundary>
