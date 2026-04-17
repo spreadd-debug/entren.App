@@ -10,6 +10,7 @@ import { ProgressionMetricsCards } from '../components/pt/ProgressionMetricsCard
 import { AlertsList } from '../components/pt/AlertsList';
 import { PlanProfileSummary } from '../components/pt/PlanProfileSummary';
 import { TodayRoutinePreview } from '../components/pt/TodayRoutinePreview';
+import { AIAnalysisContent } from '../components/pt/AIAnalysisContent';
 import { PreSessionService } from '../services/pt/PreSessionService';
 import type { PreSessionData } from '../services/pt/PreSessionService';
 import { AIAnalysisService } from '../services/pt/AIAnalysisService';
@@ -160,9 +161,7 @@ const PreSessionDashboardView: React.FC<PreSessionDashboardViewProps> = ({
               <RefreshCw size={14} className={aiLoading ? 'animate-spin' : ''} />
             </button>
           </div>
-          <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
-            {aiAnalysis.content}
-          </p>
+          <AIAnalysisContent content={aiAnalysis.content} />
         </Card>
       ) : (
         <Card className="p-4 border-dashed border-indigo-300 dark:border-indigo-500/20 bg-indigo-50/20 dark:bg-indigo-500/5">

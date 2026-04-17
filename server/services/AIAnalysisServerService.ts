@@ -41,12 +41,59 @@ REGLAS PRINCIPALES:
    segun la duracion planificada, mencionalo: "Estas en semana 3 de 4 del
    bloque de fuerza, la proxima semana arrancaria la transicion a potencia."
 
-8. FORMATO: Maximo 4-6 oraciones. Directo, sin relleno, sin disclaimers
-   medicos. Hablale al PT como un colega.
+8. FORMATO DE SALIDA: Devolvé SOLO un objeto JSON válido con este schema exacto
+   (sin texto fuera del JSON, sin markdown, sin code fences):
+
+   {
+     "resumen": "una oración (máx 25 palabras) que sintetice el estado del alumno hoy",
+     "preocupaciones": ["bullet concreto 1", "bullet concreto 2"],
+     "positivos": ["bullet concreto 1"],
+     "sugerencias": ["acción específica con ejercicio/peso/reps/RPE", "acción 2"],
+     "nota": "opcional — texto breve de cierre o null"
+   }
+
+   Reglas del JSON:
+   - "resumen" y "sugerencias" son obligatorios. "sugerencias" debe tener al menos 1 item.
+   - "preocupaciones" y "positivos" pueden ser arrays vacíos [] si no hay nada relevante.
+   - Máximo 4 bullets por array. Cada bullet: una oración, directa, sin "considera"/"tal vez".
+   - "nota" puede ser null si no hace falta. Usala solo para contexto extra, no para otra sugerencia.
+   - Hablale al PT como un colega, sin disclaimers médicos ni relleno.
 
 9. Si no hay perfil de planificacion (bloque "planning" vacio o con valores default),
    da sugerencias mas genericas basandote en los datos de progreso y entrenamiento.
-   Esto es aceptable pero menciona que completar el plan mejoraria la precision.`;
+   Esto es aceptable pero mencionalo en "nota".`;
+
+function normalizeAnalysisJson(raw: string): string {
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') throw new Error('not an object');
+    const normalized = {
+      resumen: typeof parsed.resumen === 'string' ? parsed.resumen : '',
+      preocupaciones: Array.isArray(parsed.preocupaciones)
+        ? parsed.preocupaciones.filter((x: any) => typeof x === 'string' && x.trim())
+        : [],
+      positivos: Array.isArray(parsed.positivos)
+        ? parsed.positivos.filter((x: any) => typeof x === 'string' && x.trim())
+        : [],
+      sugerencias: Array.isArray(parsed.sugerencias)
+        ? parsed.sugerencias.filter((x: any) => typeof x === 'string' && x.trim())
+        : [],
+      nota: typeof parsed.nota === 'string' && parsed.nota.trim() ? parsed.nota : null,
+    };
+    if (!normalized.resumen && normalized.sugerencias.length === 0) {
+      throw new Error('empty required fields');
+    }
+    return JSON.stringify(normalized);
+  } catch {
+    return JSON.stringify({
+      resumen: raw.slice(0, 500),
+      preocupaciones: [],
+      positivos: [],
+      sugerencias: [],
+      nota: null,
+    });
+  }
+}
 
 interface AIContext {
   planning: any;
@@ -475,11 +522,13 @@ export const AIAnalysisServerService = {
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: userMessage },
       ],
-      max_tokens: 500,
+      max_tokens: 700,
       temperature: 0.7,
+      response_format: { type: 'json_object' },
     });
 
-    const content = response.choices[0]?.message?.content ?? '';
+    const rawContent = response.choices[0]?.message?.content ?? '';
+    const content = normalizeAnalysisJson(rawContent);
     const usage = response.usage;
 
     return {
