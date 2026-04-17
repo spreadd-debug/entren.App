@@ -3,6 +3,8 @@ import {
   Download,
   Share,
   MoreVertical,
+  MoreHorizontal,
+  ChevronDown,
   Plus,
   Check,
   ArrowRight,
@@ -95,8 +97,33 @@ export function IPhoneGuide() {
   const steps = [
     {
       num: 1,
+      title: "Tocá los 3 puntitos",
+      desc: "En la barra de Safari. Ahí es donde aparece el botón de Compartir.",
+      visual: (
+        <div className="flex items-center justify-center py-2">
+          <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center">
+            <MoreHorizontal size={20} className="text-white/80" />
+          </div>
+        </div>
+      ),
+    },
+    {
+      num: 2,
+      title: 'Tocá "View More"',
+      desc: "Se despliegan más opciones del menú.",
+      visual: (
+        <div className="bg-white/5 rounded-xl px-3 py-2.5 flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center shrink-0">
+            <ChevronDown size={16} className="text-white/70" />
+          </div>
+          <span className="text-white/70 text-xs font-medium">View More</span>
+        </div>
+      ),
+    },
+    {
+      num: 3,
       title: "Tocá el botón Compartir",
-      desc: "Es el ícono con una flechita hacia arriba, abajo de todo en Safari.",
+      desc: "Es el ícono con una flechita hacia arriba.",
       visual: (
         <div className="flex items-center justify-center py-2">
           <div className="w-10 h-10 rounded-xl bg-blue-500/20 border border-blue-400/30 flex items-center justify-center">
@@ -106,9 +133,9 @@ export function IPhoneGuide() {
       ),
     },
     {
-      num: 2,
+      num: 4,
       title: 'Buscá "Agregar a Inicio"',
-      desc: "Deslizá hacia abajo en el menú hasta encontrar la opción.",
+      desc: "Está abajo de todo. Deslizá hasta encontrarla.",
       visual: (
         <div className="bg-white/5 rounded-xl px-3 py-2.5 flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center shrink-0">
@@ -119,7 +146,7 @@ export function IPhoneGuide() {
       ),
     },
     {
-      num: 3,
+      num: 5,
       title: 'Tocá "Agregar"',
       desc: "¡Listo! La app aparece en tu pantalla de inicio.",
       visual: (
