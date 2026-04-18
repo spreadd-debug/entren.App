@@ -1,4 +1,5 @@
 import foodsData from '../data/foods-ar.json';
+import foodsOffArData from '../data/foods-off-ar.json';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -37,7 +38,14 @@ interface LocalFoodRaw {
 
 // ─── Local (curated JSON) ───────────────────────────────────────────────────
 
-const LOCAL_FOODS: LocalFoodRaw[] = foodsData as LocalFoodRaw[];
+// Two local catalogs merged at load time:
+// - foods-ar.json: hand-curated AR staples (~190 items, with aliases & commonPortions).
+// - foods-off-ar.json: top AR products from the Open Food Facts dump, ranked by
+//   scan popularity. Regenerate with `npm run import:off-ar`.
+const LOCAL_FOODS: LocalFoodRaw[] = [
+  ...(foodsData as LocalFoodRaw[]),
+  ...(foodsOffArData as LocalFoodRaw[]),
+];
 
 function normalize(text: string): string {
   return text

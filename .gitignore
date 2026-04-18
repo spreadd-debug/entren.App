@@ -10,3 +10,6 @@ coverage/
 # Capacitor native projects
 ios/
 android/
+
+# Large data dumps (downloaded on demand by scripts)
+scripts/.cache/

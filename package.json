@@ -12,7 +12,8 @@
     "lint": "tsc --noEmit",
     "build:native": "vite build && npx cap sync",
     "cap:ios": "npx cap open ios",
-    "cap:android": "npx cap open android"
+    "cap:android": "npx cap open android",
+    "import:off-ar": "node scripts/import-off-ar.mjs"
   },
   "dependencies": {
     "@capacitor/app": "^8.1.0",
