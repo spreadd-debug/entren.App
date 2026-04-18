@@ -164,23 +164,31 @@ export async function searchOpenFoodFacts(
     ? `${base}?brands_tags=${encodeURIComponent(brandSlug)}${common}`
     : null;
 
+  // OFF occasionally serves an HTML "Page temporarily unavailable" instead of
+  // JSON (especially on brand-tag queries). Guard against that so one bad
+  // endpoint never kills the whole search — we only rethrow AbortError so the
+  // outer abort flow keeps working.
   const fetchProducts = async (url: string): Promise<OFFProduct[]> => {
-    const res = await fetch(url, { signal: opts.signal });
-    if (!res.ok) {
-      console.warn(`OFF search failed: HTTP ${res.status}`);
+    try {
+      const res = await fetch(url, { signal: opts.signal });
+      if (!res.ok) return [];
+      const ct = res.headers.get('content-type') ?? '';
+      if (!ct.includes('application/json')) return [];
+      const json = (await res.json()) as OFFResponse;
+      return json.products ?? [];
+    } catch (err) {
+      if ((err as { name?: string })?.name === 'AbortError') throw err;
       return [];
     }
-    const json = (await res.json()) as OFFResponse;
-    return json.products ?? [];
   };
 
   try {
     const [brandProducts, termProducts] = await Promise.all([
-      brandsUrl ? fetchProducts(brandsUrl) : Promise.resolve([]),
+      brandsUrl ? fetchProducts(brandsUrl) : Promise.resolve<OFFProduct[]>([]),
       fetchProducts(termsUrl),
     ]);
 
-    // Brand matches first (exact-brand is more valuable), then term matches.
+    // Brand-filter hits first, then full-text hits; dedupe by code.
     const combined = [...brandProducts, ...termProducts];
     const seen = new Set<string>();
     const out: FoodLibraryItem[] = [];
@@ -192,9 +200,27 @@ export async function searchOpenFoodFacts(
       const mapped = mapOFFProduct(p);
       if (!mapped) continue;
       out.push(mapped);
-      if (out.length >= pageSize) break;
     }
-    return out;
+
+    // Client-side re-rank: products whose brand or name matches every query
+    // token bubble up. OFF's default ranking is noisy for brand-style queries
+    // (e.g. "don satur" returns unrelated products before the actual Don Satur
+    // items), so we fix it on our side.
+    const qTokens = normalize(q).split(/\s+/).filter(Boolean);
+    const scoreItem = (it: FoodLibraryItem): number => {
+      const brand = normalize(it.brand ?? '');
+      const name = normalize(it.name);
+      const brandHit = brand && qTokens.every(t => brand.includes(t));
+      const nameHit = qTokens.every(t => name.includes(t));
+      if (brandHit) return 3;
+      if (nameHit) return 2;
+      // Partial: at least one token matches brand or name.
+      if (qTokens.some(t => brand.includes(t) || name.includes(t))) return 1;
+      return 0;
+    };
+    out.sort((a, b) => scoreItem(b) - scoreItem(a));
+
+    return out.slice(0, pageSize);
   } catch (err) {
     if ((err as { name?: string })?.name === 'AbortError') return [];
     console.warn('OFF search error:', err);
