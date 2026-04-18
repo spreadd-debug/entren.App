@@ -1638,5 +1638,573 @@
     "per100g": { "kcal": 660, "protein": 1, "carbs": 2, "fat": 72 },
     "commonPortions": [{ "label": "1 cda (~14g)", "grams": 14 }],
     "aliases": ["hellmanns", "hellmans", "hellmann", "mayonesa hellmanns"]
+  },
+  {
+    "id": "fideos-con-tuco",
+    "name": "Fideos con salsa de tomate (tuco)",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 105, "protein": 3.5, "carbs": 19, "fat": 1.5 },
+    "commonPortions": [{ "label": "1 plato (~300g)", "grams": 300 }, { "label": "1 plato chico (~200g)", "grams": 200 }],
+    "aliases": ["tuco", "fideos con salsa", "spaghetti con tomate", "tallarines con tuco", "pasta con tomate"]
+  },
+  {
+    "id": "fideos-salsa-blanca",
+    "name": "Fideos con salsa blanca",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 175, "protein": 5, "carbs": 17, "fat": 10 },
+    "commonPortions": [{ "label": "1 plato (~300g)", "grams": 300 }],
+    "aliases": ["fideos alfredo", "pasta salsa blanca", "fideos crema"]
+  },
+  {
+    "id": "fideos-filetto",
+    "name": "Fideos con salsa filetto",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 128, "protein": 4, "carbs": 20, "fat": 3.5 },
+    "commonPortions": [{ "label": "1 plato (~300g)", "grams": 300 }],
+    "aliases": ["filetto", "fideos filetto", "tallarines filetto"]
+  },
+  {
+    "id": "spaghetti-carbonara",
+    "name": "Spaghetti a la carbonara",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 190, "protein": 8, "carbs": 18, "fat": 10 },
+    "commonPortions": [{ "label": "1 plato (~280g)", "grams": 280 }],
+    "aliases": ["carbonara", "pasta carbonara", "fideos carbonara"]
+  },
+  {
+    "id": "lasana",
+    "name": "Lasaña al horno",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 132, "protein": 8, "carbs": 12, "fat": 5.5 },
+    "commonPortions": [{ "label": "1 porción (~250g)", "grams": 250 }],
+    "aliases": ["lasagna", "lasaña carne", "lasania"]
+  },
+  {
+    "id": "canelones-carne",
+    "name": "Canelones de carne con salsa",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 170, "protein": 10, "carbs": 15, "fat": 7 },
+    "commonPortions": [{ "label": "1 porción 2 unidades (~250g)", "grams": 250 }, { "label": "1 canelón (~125g)", "grams": 125 }],
+    "aliases": ["canelon carne", "cannelloni carne"]
+  },
+  {
+    "id": "canelones-verdura",
+    "name": "Canelones de verdura y ricota",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 140, "protein": 7, "carbs": 14, "fat": 6 },
+    "commonPortions": [{ "label": "1 porción 2 unidades (~250g)", "grams": 250 }],
+    "aliases": ["canelon verdura", "canelones ricota"]
+  },
+  {
+    "id": "sorrentinos-jamon-queso",
+    "name": "Sorrentinos de jamón y queso con salsa",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 210, "protein": 11, "carbs": 25, "fat": 7 },
+    "commonPortions": [{ "label": "1 plato (~280g)", "grams": 280 }],
+    "aliases": ["sorrentinos", "sorrentino jamon queso"]
+  },
+  {
+    "id": "bife-chorizo-grillado",
+    "name": "Bife de chorizo grillado",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 265, "protein": 27, "carbs": 0, "fat": 17 },
+    "commonPortions": [{ "label": "1 bife (~300g)", "grams": 300 }, { "label": "1 bife chico (~200g)", "grams": 200 }],
+    "aliases": ["bife de chorizo", "chorizo bife", "asado bife chorizo"]
+  },
+  {
+    "id": "vacio-grillado",
+    "name": "Vacío a la parrilla",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 290, "protein": 25, "carbs": 0, "fat": 21 },
+    "commonPortions": [{ "label": "1 porción (~250g)", "grams": 250 }],
+    "aliases": ["vacio asado", "vacio parrilla"]
+  },
+  {
+    "id": "matambre-pizza",
+    "name": "Matambre a la pizza",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 250, "protein": 19, "carbs": 6, "fat": 17 },
+    "commonPortions": [{ "label": "1 porción (~200g)", "grams": 200 }],
+    "aliases": ["matambre pizza", "matambre muzza"]
+  },
+  {
+    "id": "milanesa-napolitana",
+    "name": "Milanesa napolitana (con jamón, queso y tomate)",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 270, "protein": 17, "carbs": 18, "fat": 14 },
+    "commonPortions": [{ "label": "1 milanesa (~250g)", "grams": 250 }],
+    "aliases": ["napo", "mila napolitana", "milanesa a la napolitana"]
+  },
+  {
+    "id": "milanesa-pollo",
+    "name": "Milanesa de pollo frita",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 240, "protein": 18, "carbs": 15, "fat": 12 },
+    "commonPortions": [{ "label": "1 milanesa (~150g)", "grams": 150 }],
+    "aliases": ["mila pollo", "milanga pollo"]
+  },
+  {
+    "id": "pollo-horno-piel",
+    "name": "Pollo al horno con piel",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 220, "protein": 25, "carbs": 0, "fat": 13 },
+    "commonPortions": [{ "label": "1 porción (~200g)", "grams": 200 }],
+    "aliases": ["pollo al horno", "pollo asado"]
+  },
+  {
+    "id": "pollo-grillado-plancha",
+    "name": "Pollo grillado a la plancha (sin piel)",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 165, "protein": 31, "carbs": 0, "fat": 3.6 },
+    "commonPortions": [{ "label": "1 pechuga (~150g)", "grams": 150 }],
+    "aliases": ["pollo a la plancha", "pollo grillado", "pechuga grillada"]
+  },
+  {
+    "id": "pollo-disco",
+    "name": "Pollo al disco",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 160, "protein": 17, "carbs": 7, "fat": 6.5 },
+    "commonPortions": [{ "label": "1 plato (~350g)", "grams": 350 }],
+    "aliases": ["pollo al disco", "disco pollo"]
+  },
+  {
+    "id": "empanada-pollo",
+    "name": "Empanada de pollo",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 260, "protein": 10, "carbs": 24, "fat": 14 },
+    "commonPortions": [{ "label": "1 unidad (~80g)", "grams": 80 }],
+    "aliases": ["empanada pollo"]
+  },
+  {
+    "id": "empanada-jamon-queso",
+    "name": "Empanada de jamón y queso",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 285, "protein": 10, "carbs": 24, "fat": 16 },
+    "commonPortions": [{ "label": "1 unidad (~80g)", "grams": 80 }],
+    "aliases": ["empanada jyq", "empanada j y q"]
+  },
+  {
+    "id": "empanada-humita",
+    "name": "Empanada de humita",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 270, "protein": 7, "carbs": 30, "fat": 13 },
+    "commonPortions": [{ "label": "1 unidad (~80g)", "grams": 80 }],
+    "aliases": ["empanada humita", "empanada de choclo"]
+  },
+  {
+    "id": "empanada-arabe",
+    "name": "Empanada árabe (fatay)",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 240, "protein": 11, "carbs": 24, "fat": 11 },
+    "commonPortions": [{ "label": "1 unidad (~80g)", "grams": 80 }],
+    "aliases": ["fatay", "empanada arabe", "safiha"]
+  },
+  {
+    "id": "sushi-roll-salmon",
+    "name": "Sushi roll con salmón (philadelphia)",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 160, "protein": 7, "carbs": 27, "fat": 2.5 },
+    "commonPortions": [{ "label": "1 pieza (~30g)", "grams": 30 }, { "label": "1 roll 8 piezas (~240g)", "grams": 240 }],
+    "aliases": ["sushi salmon", "philadelphia roll", "roll salmon"]
+  },
+  {
+    "id": "sushi-california",
+    "name": "California roll",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 175, "protein": 6, "carbs": 30, "fat": 3.5 },
+    "commonPortions": [{ "label": "1 pieza (~30g)", "grams": 30 }, { "label": "1 roll 8 piezas (~240g)", "grams": 240 }],
+    "aliases": ["california", "roll california"]
+  },
+  {
+    "id": "nigiri-salmon",
+    "name": "Nigiri de salmón",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 155, "protein": 7, "carbs": 24, "fat": 2.5 },
+    "commonPortions": [{ "label": "1 pieza (~25g)", "grams": 25 }],
+    "aliases": ["nigiri"]
+  },
+  {
+    "id": "sashimi-salmon",
+    "name": "Sashimi de salmón",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 140, "protein": 23, "carbs": 0, "fat": 5 },
+    "commonPortions": [{ "label": "1 porción 5 fetas (~75g)", "grams": 75 }],
+    "aliases": ["sashimi", "salmon crudo"]
+  },
+  {
+    "id": "tempura-roll",
+    "name": "Tempura roll (sushi frito)",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 220, "protein": 6, "carbs": 32, "fat": 7.5 },
+    "commonPortions": [{ "label": "1 roll 8 piezas (~240g)", "grams": 240 }],
+    "aliases": ["tempura sushi", "roll frito", "sushi frito"]
+  },
+  {
+    "id": "pizza-napolitana",
+    "name": "Pizza napolitana (muzza, tomate, ajo)",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 260, "protein": 11, "carbs": 30, "fat": 10 },
+    "commonPortions": [{ "label": "1 porción (~100g)", "grams": 100 }, { "label": "1/2 pizza (~300g)", "grams": 300 }],
+    "aliases": ["napolitana pizza", "pizza napo"]
+  },
+  {
+    "id": "pizza-fugazzeta",
+    "name": "Fugazzeta rellena (jamón, queso, cebolla)",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 290, "protein": 13, "carbs": 29, "fat": 14 },
+    "commonPortions": [{ "label": "1 porción (~120g)", "grams": 120 }],
+    "aliases": ["fugazzeta", "fugazeta", "pizza cebolla"]
+  },
+  {
+    "id": "pizza-jamon-morron",
+    "name": "Pizza de jamón y morrón",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 270, "protein": 12, "carbs": 30, "fat": 11 },
+    "commonPortions": [{ "label": "1 porción (~110g)", "grams": 110 }],
+    "aliases": ["pizza jamon", "jamon morron"]
+  },
+  {
+    "id": "pizza-4-quesos",
+    "name": "Pizza cuatro quesos",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 300, "protein": 14, "carbs": 28, "fat": 14 },
+    "commonPortions": [{ "label": "1 porción (~110g)", "grams": 110 }],
+    "aliases": ["4 quesos", "cuatro quesos", "pizza quesos"]
+  },
+  {
+    "id": "faina",
+    "name": "Fainá",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 175, "protein": 5, "carbs": 21, "fat": 7.5 },
+    "commonPortions": [{ "label": "1 porción (~80g)", "grams": 80 }],
+    "aliases": ["faina", "farinata"]
+  },
+  {
+    "id": "guiso-lentejas",
+    "name": "Guiso de lentejas",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 125, "protein": 7, "carbs": 18, "fat": 2.5 },
+    "commonPortions": [{ "label": "1 plato (~350g)", "grams": 350 }],
+    "aliases": ["lenteja guiso", "guiso lentejas criollo"]
+  },
+  {
+    "id": "guiso-arroz",
+    "name": "Guiso de arroz con pollo",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 145, "protein": 8, "carbs": 19, "fat": 4 },
+    "commonPortions": [{ "label": "1 plato (~350g)", "grams": 350 }],
+    "aliases": ["arroz con pollo", "guiso arroz"]
+  },
+  {
+    "id": "carbonada",
+    "name": "Carbonada criolla",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 135, "protein": 7, "carbs": 15, "fat": 5 },
+    "commonPortions": [{ "label": "1 plato (~350g)", "grams": 350 }],
+    "aliases": ["carbonada criolla"]
+  },
+  {
+    "id": "estofado-carne",
+    "name": "Estofado de carne",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 150, "protein": 12, "carbs": 8, "fat": 7 },
+    "commonPortions": [{ "label": "1 plato (~300g)", "grams": 300 }],
+    "aliases": ["estofado", "carne estofada", "carne guisada"]
+  },
+  {
+    "id": "sandwich-miga-triple",
+    "name": "Sandwich de miga triple (jamón, queso, tomate)",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 230, "protein": 9, "carbs": 30, "fat": 8 },
+    "commonPortions": [{ "label": "1 triple (~120g)", "grams": 120 }, { "label": "1 sandwich (~60g)", "grams": 60 }],
+    "aliases": ["miga", "sandwiches de miga", "triple miga"]
+  },
+  {
+    "id": "tostado-jamon-queso",
+    "name": "Tostado de jamón y queso",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 280, "protein": 13, "carbs": 28, "fat": 12 },
+    "commonPortions": [{ "label": "1 tostado (~150g)", "grams": 150 }],
+    "aliases": ["tostado", "carlitos", "jamon queso tostado"]
+  },
+  {
+    "id": "pebete-jamon-queso",
+    "name": "Pebete de jamón y queso",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 265, "protein": 12, "carbs": 32, "fat": 9 },
+    "commonPortions": [{ "label": "1 pebete (~150g)", "grams": 150 }],
+    "aliases": ["pebete", "pebete jyq"]
+  },
+  {
+    "id": "lomito-completo",
+    "name": "Lomito completo (con lechuga, tomate, jamón, queso, huevo)",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 255, "protein": 17, "carbs": 22, "fat": 11 },
+    "commonPortions": [{ "label": "1 lomito (~350g)", "grams": 350 }],
+    "aliases": ["lomito", "sandwich lomito"]
+  },
+  {
+    "id": "wok-verduras-carne",
+    "name": "Wok de verduras con carne",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 140, "protein": 11, "carbs": 8, "fat": 7 },
+    "commonPortions": [{ "label": "1 plato (~350g)", "grams": 350 }],
+    "aliases": ["wok carne", "salteado chino", "stir fry carne"]
+  },
+  {
+    "id": "arroz-frito-pollo",
+    "name": "Arroz frito con pollo (chau fan)",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 170, "protein": 8, "carbs": 24, "fat": 5 },
+    "commonPortions": [{ "label": "1 plato (~300g)", "grams": 300 }],
+    "aliases": ["chau fan", "chaufa", "arroz chino"]
+  },
+  {
+    "id": "pad-thai",
+    "name": "Pad thai con pollo",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 210, "protein": 10, "carbs": 28, "fat": 7 },
+    "commonPortions": [{ "label": "1 plato (~350g)", "grams": 350 }],
+    "aliases": ["pad thai", "fideos tailandeses"]
+  },
+  {
+    "id": "taco-carne",
+    "name": "Taco de carne",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 225, "protein": 11, "carbs": 19, "fat": 12 },
+    "commonPortions": [{ "label": "1 taco (~100g)", "grams": 100 }],
+    "aliases": ["taco"]
+  },
+  {
+    "id": "burrito-pollo",
+    "name": "Burrito de pollo",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 215, "protein": 12, "carbs": 24, "fat": 8 },
+    "commonPortions": [{ "label": "1 burrito (~250g)", "grams": 250 }],
+    "aliases": ["burrito"]
+  },
+  {
+    "id": "quesadilla",
+    "name": "Quesadilla de queso",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 260, "protein": 11, "carbs": 24, "fat": 14 },
+    "commonPortions": [{ "label": "1 quesadilla (~180g)", "grams": 180 }],
+    "aliases": ["quesadilla mexicana"]
+  },
+  {
+    "id": "ensalada-mixta",
+    "name": "Ensalada mixta (lechuga, tomate, cebolla)",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 25, "protein": 1, "carbs": 5, "fat": 0.2 },
+    "commonPortions": [{ "label": "1 bowl (~200g)", "grams": 200 }],
+    "aliases": ["ensalada", "ensalada criolla", "lechuga tomate cebolla"]
+  },
+  {
+    "id": "ensalada-cesar",
+    "name": "Ensalada César con pollo",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 150, "protein": 11, "carbs": 6, "fat": 9 },
+    "commonPortions": [{ "label": "1 bowl (~300g)", "grams": 300 }],
+    "aliases": ["cesar", "caesar salad", "ensalada caesar"]
+  },
+  {
+    "id": "ensalada-completa",
+    "name": "Ensalada completa (lechuga, tomate, zanahoria, huevo)",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 75, "protein": 4, "carbs": 7, "fat": 3.5 },
+    "commonPortions": [{ "label": "1 bowl (~300g)", "grams": 300 }],
+    "aliases": ["ensalada con huevo", "ensalada completa con zanahoria"]
+  },
+  {
+    "id": "ensalada-atun",
+    "name": "Ensalada con atún",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 90, "protein": 9, "carbs": 4, "fat": 4.5 },
+    "commonPortions": [{ "label": "1 bowl (~250g)", "grams": 250 }],
+    "aliases": ["ensalada atun", "ensalada de atun"]
+  },
+  {
+    "id": "pure-papas",
+    "name": "Puré de papas",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 110, "protein": 2, "carbs": 15, "fat": 4.5 },
+    "commonPortions": [{ "label": "1 porción (~200g)", "grams": 200 }],
+    "aliases": ["pure papa", "pure"]
+  },
+  {
+    "id": "papas-horno",
+    "name": "Papas al horno",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 150, "protein": 3, "carbs": 22, "fat": 6 },
+    "commonPortions": [{ "label": "1 porción (~200g)", "grams": 200 }],
+    "aliases": ["papa al horno", "papas rusticas"]
+  },
+  {
+    "id": "zapallitos-rellenos",
+    "name": "Zapallitos rellenos",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 110, "protein": 7, "carbs": 8, "fat": 5 },
+    "commonPortions": [{ "label": "1 unidad (~180g)", "grams": 180 }],
+    "aliases": ["zapallitos rellenos carne"]
+  },
+  {
+    "id": "berenjenas-escabeche",
+    "name": "Berenjenas al escabeche",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 110, "protein": 1, "carbs": 5, "fat": 10 },
+    "commonPortions": [{ "label": "1 porción (~80g)", "grams": 80 }],
+    "aliases": ["berenjena escabeche", "berenjenas en escabeche"]
+  },
+  {
+    "id": "revuelto-gramajo",
+    "name": "Revuelto Gramajo",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 220, "protein": 11, "carbs": 18, "fat": 11 },
+    "commonPortions": [{ "label": "1 plato (~300g)", "grams": 300 }],
+    "aliases": ["gramajo", "revuelto papas huevo"]
+  },
+  {
+    "id": "hamburguesa-casera",
+    "name": "Hamburguesa casera con pan y queso",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 260, "protein": 14, "carbs": 20, "fat": 14 },
+    "commonPortions": [{ "label": "1 hamburguesa (~200g)", "grams": 200 }],
+    "aliases": ["hamburguesa", "burger", "hamburguesa con queso"]
+  },
+  {
+    "id": "hamburguesa-cheeseburger",
+    "name": "Cheeseburger estilo fast food",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 275, "protein": 14, "carbs": 27, "fat": 13 },
+    "commonPortions": [{ "label": "1 cheeseburger (~120g)", "grams": 120 }],
+    "aliases": ["cheeseburger", "mcdonalds hamburguesa"]
+  },
+  {
+    "id": "hamburguesa-completa",
+    "name": "Hamburguesa completa (jamón, queso, huevo, lechuga, tomate)",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 240, "protein": 14, "carbs": 18, "fat": 13 },
+    "commonPortions": [{ "label": "1 hamburguesa (~280g)", "grams": 280 }],
+    "aliases": ["hamburguesa completa", "hamburguesa con todo"]
+  },
+  {
+    "id": "salmon-grillado",
+    "name": "Salmón grillado",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 210, "protein": 24, "carbs": 0, "fat": 12 },
+    "commonPortions": [{ "label": "1 porción (~150g)", "grams": 150 }],
+    "aliases": ["salmon plancha", "salmon a la plancha"]
+  },
+  {
+    "id": "merluza-horno",
+    "name": "Merluza al horno con limón",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 115, "protein": 22, "carbs": 1, "fat": 2.5 },
+    "commonPortions": [{ "label": "1 porción (~200g)", "grams": 200 }],
+    "aliases": ["merluza al horno", "filete merluza"]
+  },
+  {
+    "id": "atun-grillado",
+    "name": "Atún grillado",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 185, "protein": 30, "carbs": 0, "fat": 6 },
+    "commonPortions": [{ "label": "1 porción (~150g)", "grams": 150 }],
+    "aliases": ["atun plancha", "atun fresco grillado"]
+  },
+  {
+    "id": "tostada-dulce-leche",
+    "name": "Tostada con dulce de leche",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 290, "protein": 7, "carbs": 55, "fat": 5 },
+    "commonPortions": [{ "label": "1 tostada (~40g)", "grams": 40 }],
+    "aliases": ["tostada dulce de leche", "pan con dulce de leche"]
+  },
+  {
+    "id": "tostada-mermelada",
+    "name": "Tostada con mermelada",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 255, "protein": 6, "carbs": 52, "fat": 2.5 },
+    "commonPortions": [{ "label": "1 tostada (~40g)", "grams": 40 }],
+    "aliases": ["tostada con mermelada", "pan con mermelada"]
+  },
+  {
+    "id": "panqueque-dulce-leche",
+    "name": "Panqueque con dulce de leche",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 280, "protein": 7, "carbs": 45, "fat": 8 },
+    "commonPortions": [{ "label": "1 panqueque (~100g)", "grams": 100 }],
+    "aliases": ["panqueque", "crepe dulce de leche"]
+  },
+  {
+    "id": "yogur-granola-frutas",
+    "name": "Yogur con granola y frutas",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 145, "protein": 5, "carbs": 22, "fat": 3.5 },
+    "commonPortions": [{ "label": "1 bowl (~250g)", "grams": 250 }],
+    "aliases": ["bowl yogur", "yogur granola", "desayuno fit"]
+  },
+  {
+    "id": "medialuna-jamon-queso",
+    "name": "Medialuna con jamón y queso",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 320, "protein": 10, "carbs": 33, "fat": 16 },
+    "commonPortions": [{ "label": "1 unidad (~90g)", "grams": 90 }],
+    "aliases": ["medialuna jyq", "sandwich medialuna"]
+  },
+  {
+    "id": "flan-casero",
+    "name": "Flan casero con dulce de leche",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 220, "protein": 6, "carbs": 35, "fat": 6.5 },
+    "commonPortions": [{ "label": "1 porción (~120g)", "grams": 120 }],
+    "aliases": ["flan", "flan con dulce de leche"]
+  },
+  {
+    "id": "arroz-con-leche",
+    "name": "Arroz con leche",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 150, "protein": 3.5, "carbs": 25, "fat": 3.5 },
+    "commonPortions": [{ "label": "1 porción (~150g)", "grams": 150 }],
+    "aliases": ["arroz leche"]
+  },
+  {
+    "id": "ensalada-frutas",
+    "name": "Ensalada de frutas",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 60, "protein": 0.8, "carbs": 14, "fat": 0.3 },
+    "commonPortions": [{ "label": "1 bowl (~200g)", "grams": 200 }],
+    "aliases": ["macedonia", "frutas picadas"]
+  },
+  {
+    "id": "budin-pan",
+    "name": "Budín de pan",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 245, "protein": 7, "carbs": 40, "fat": 6 },
+    "commonPortions": [{ "label": "1 porción (~100g)", "grams": 100 }],
+    "aliases": ["budin de pan", "budin pan"]
+  },
+  {
+    "id": "helado-crema",
+    "name": "Helado de crema",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 210, "protein": 4, "carbs": 22, "fat": 12 },
+    "commonPortions": [{ "label": "1 bocha (~60g)", "grams": 60 }, { "label": "1/4 kg (~250g)", "grams": 250 }],
+    "aliases": ["helado", "helado crema americana"]
+  },
+  {
+    "id": "humita-chala",
+    "name": "Humita en chala",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 140, "protein": 4, "carbs": 17, "fat": 6 },
+    "commonPortions": [{ "label": "1 unidad (~180g)", "grams": 180 }],
+    "aliases": ["humita", "humita norteña"]
+  },
+  {
+    "id": "matambre-arrollado",
+    "name": "Matambre arrollado (fiambre)",
+    "category": "Comidas preparadas",
+    "per100g": { "kcal": 230, "protein": 20, "carbs": 5, "fat": 14 },
+    "commonPortions": [{ "label": "1 porción 3 fetas (~80g)", "grams": 80 }],
+    "aliases": ["matambre", "matambre relleno", "pionono carne"]
   }
 ]
