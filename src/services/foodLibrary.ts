@@ -47,25 +47,27 @@ function normalize(text: string): string {
 }
 
 export function searchLocal(query: string, limit = 15): FoodLibraryItem[] {
-  const q = normalize(query);
-  if (!q) return [];
+  const tokens = normalize(query).split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return [];
 
   const scored: { item: LocalFoodRaw; score: number }[] = [];
   for (const item of LOCAL_FOODS) {
     const name = normalize(item.name);
+    const category = normalize(item.category ?? '');
     const aliases = (item.aliases ?? []).map(normalize);
+    const haystack = `${name} ${category} ${aliases.join(' ')}`;
 
-    if (name.startsWith(q)) {
-      scored.push({ item, score: 3 });
-      continue;
+    if (!tokens.every(t => haystack.includes(t))) continue;
+
+    let score = 0;
+    for (const t of tokens) {
+      if (name.startsWith(t)) score += 4;
+      else if (name.includes(` ${t}`) || name.includes(`,${t}`) || name.includes(`, ${t}`)) score += 3;
+      else if (aliases.some(a => a.startsWith(t))) score += 2;
+      else if (name.includes(t) || aliases.some(a => a.includes(t))) score += 1;
+      else if (category.includes(t)) score += 0.5;
     }
-    if (aliases.some(a => a.startsWith(q))) {
-      scored.push({ item, score: 2 });
-      continue;
-    }
-    if (name.includes(q) || aliases.some(a => a.includes(q))) {
-      scored.push({ item, score: 1 });
-    }
+    scored.push({ item, score });
   }
 
   scored.sort((a, b) => b.score - a.score);
@@ -114,6 +116,37 @@ const OFF_FIELDS = [
   'image_small_url',
 ].join(',');
 
+function toBrandSlug(s: string): string {
+  return normalize(s)
+    .replace(/[^a-z0-9\s-]/g, '')
+    .trim()
+    .replace(/\s+/g, '-');
+}
+
+function mapOFFProduct(p: OFFProduct): FoodLibraryItem | null {
+  const n = p.nutriments;
+  const kcal = n?.['energy-kcal_100g'];
+  if (typeof kcal !== 'number' || kcal <= 0) return null;
+
+  const name = (p.product_name_es ?? p.product_name ?? '').trim();
+  if (!name) return null;
+
+  return {
+    id: `off:${p.code ?? name}`,
+    name,
+    brand: (p.brands ?? '').split(',')[0]?.trim() || undefined,
+    category: (p.categories ?? '').split(',')[0]?.trim() || undefined,
+    per100g: {
+      kcal: Math.round(kcal),
+      protein: Math.round((n?.proteins_100g ?? 0) * 10) / 10,
+      carbs: Math.round((n?.carbohydrates_100g ?? 0) * 10) / 10,
+      fat: Math.round((n?.fat_100g ?? 0) * 10) / 10,
+    },
+    imageUrl: p.image_small_url,
+    source: 'off',
+  };
+}
+
 export async function searchOpenFoodFacts(
   query: string,
   opts: { signal?: AbortSignal; pageSize?: number } = {},
@@ -122,45 +155,44 @@ export async function searchOpenFoodFacts(
   if (!q) return [];
 
   const pageSize = opts.pageSize ?? 12;
-  const url =
-    'https://world.openfoodfacts.org/api/v2/search' +
-    `?search_terms=${encodeURIComponent(q)}` +
-    '&countries_tags_en=argentina' +
-    `&page_size=${pageSize}` +
-    `&fields=${OFF_FIELDS}`;
+  const base = 'https://world.openfoodfacts.org/api/v2/search';
+  const common = `&countries_tags_en=argentina&page_size=${pageSize}&fields=${OFF_FIELDS}`;
 
-  try {
+  const termsUrl = `${base}?search_terms=${encodeURIComponent(q)}${common}`;
+  const brandSlug = toBrandSlug(q);
+  const brandsUrl = brandSlug.length >= 3
+    ? `${base}?brands_tags=${encodeURIComponent(brandSlug)}${common}`
+    : null;
+
+  const fetchProducts = async (url: string): Promise<OFFProduct[]> => {
     const res = await fetch(url, { signal: opts.signal });
     if (!res.ok) {
       console.warn(`OFF search failed: HTTP ${res.status}`);
       return [];
     }
     const json = (await res.json()) as OFFResponse;
-    const products = json.products ?? [];
+    return json.products ?? [];
+  };
 
+  try {
+    const [brandProducts, termProducts] = await Promise.all([
+      brandsUrl ? fetchProducts(brandsUrl) : Promise.resolve([]),
+      fetchProducts(termsUrl),
+    ]);
+
+    // Brand matches first (exact-brand is more valuable), then term matches.
+    const combined = [...brandProducts, ...termProducts];
+    const seen = new Set<string>();
     const out: FoodLibraryItem[] = [];
-    for (const p of products) {
-      const n = p.nutriments;
-      const kcal = n?.['energy-kcal_100g'];
-      if (typeof kcal !== 'number' || kcal <= 0) continue;
+    for (const p of combined) {
+      const code = p.code ?? '';
+      if (code && seen.has(code)) continue;
+      if (code) seen.add(code);
 
-      const name = (p.product_name_es ?? p.product_name ?? '').trim();
-      if (!name) continue;
-
-      out.push({
-        id: `off:${p.code ?? name}`,
-        name,
-        brand: (p.brands ?? '').split(',')[0]?.trim() || undefined,
-        category: (p.categories ?? '').split(',')[0]?.trim() || undefined,
-        per100g: {
-          kcal: Math.round(kcal),
-          protein: Math.round((n?.proteins_100g ?? 0) * 10) / 10,
-          carbs: Math.round((n?.carbohydrates_100g ?? 0) * 10) / 10,
-          fat: Math.round((n?.fat_100g ?? 0) * 10) / 10,
-        },
-        imageUrl: p.image_small_url,
-        source: 'off',
-      });
+      const mapped = mapOFFProduct(p);
+      if (!mapped) continue;
+      out.push(mapped);
+      if (out.length >= pageSize) break;
     }
     return out;
   } catch (err) {

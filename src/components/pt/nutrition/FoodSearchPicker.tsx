@@ -221,6 +221,7 @@ const SearchStage: React.FC<{
               : (tab === 'local' ? 'Escribí un alimento para buscar (pollo, arroz, banana…).' : 'Escribí un producto (ej: "yogur la serenísima").')
           }
           query={query}
+          onSwitchToProducts={tab === 'local' ? () => onTabChange('off') : undefined}
           onAddManual={onAddManual}
         />
       )}
@@ -235,21 +236,35 @@ const SearchStage: React.FC<{
 const EmptyState: React.FC<{
   message: string;
   query: string;
+  onSwitchToProducts?: () => void;
   onAddManual?: () => void;
-}> = ({ message, query, onAddManual }) => (
-  <div className="py-8 text-center space-y-3">
-    <p className="text-xs text-slate-400">{message}</p>
-    {onAddManual && query.trim().length >= 2 && (
-      <button
-        type="button"
-        onClick={onAddManual}
-        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-violet-500/10 text-violet-600 dark:text-violet-400 hover:bg-violet-500/20 transition-colors"
-      >
-        <Plus size={12} /> Agregar "{query.trim()}" manualmente
-      </button>
-    )}
-  </div>
-);
+}> = ({ message, query, onSwitchToProducts, onAddManual }) => {
+  const trimmed = query.trim();
+  const hasQuery = trimmed.length >= 2;
+  return (
+    <div className="py-8 text-center space-y-2 flex flex-col items-center">
+      <p className="text-xs text-slate-400">{message}</p>
+      {hasQuery && onSwitchToProducts && (
+        <button
+          type="button"
+          onClick={onSwitchToProducts}
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 hover:bg-cyan-500/20 transition-colors"
+        >
+          <PackageSearch size={12} /> Buscar "{trimmed}" en Productos (AR)
+        </button>
+      )}
+      {hasQuery && onAddManual && (
+        <button
+          type="button"
+          onClick={onAddManual}
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-violet-500/10 text-violet-600 dark:text-violet-400 hover:bg-violet-500/20 transition-colors"
+        >
+          <Plus size={12} /> Agregar "{trimmed}" manualmente
+        </button>
+      )}
+    </div>
+  );
+};
 
 const TabButton: React.FC<{
   active: boolean;
