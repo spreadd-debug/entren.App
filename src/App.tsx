@@ -29,6 +29,7 @@ import PlanningView from './pages/PlanningView';
 import PlanProfileWizard from './pages/PlanProfileWizard';
 import PlanProfileIntro from './pages/PlanProfileIntro';
 import { AlertEngineService } from './services/pt/AlertEngineService';
+import { StudentSummaryService } from './services/pt/StudentSummaryService';
 import { ShiftsView } from './pages/ShiftsView';
 import CheckInView from './pages/CheckInView';
 import { SuperAdminApp } from './pages/SuperAdminApp';
@@ -486,6 +487,7 @@ function GymApp({ gymId, userRole, onLogout, isDemo = false, onRegister }: {
       await api.students.update(id, { ...updates, gym_id: gymId });
       const updatedStudents = await api.students.getAll(gymId);
       setStudents(updatedStudents);
+      StudentSummaryService.invalidate(id);
     } catch (error: any) {
       console.error('Error updating student:', error);
       toast.error(`No se pudo guardar los cambios: ${error?.message ?? 'Error desconocido'}`);
@@ -793,6 +795,7 @@ function PTApp({ gymId, onLogout }: {
     try {
       await api.students.update(id, { ...updates, gym_id: gymId });
       setStudents(await api.students.getAll(gymId));
+      StudentSummaryService.invalidate(id);
       toast.success('Cambios guardados');
     } catch (error: any) {
       console.error('[PT handleUpdateStudent] error:', error);

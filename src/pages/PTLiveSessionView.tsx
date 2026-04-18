@@ -9,6 +9,7 @@ import { PTSessionService, PTSessionFull, PTSessionExercise } from '../services/
 import { WorkoutPlanService } from '../services/WorkoutPlanService';
 import { RoutineBuilderService } from '../services/RoutineBuilderService';
 import { AIAnalysisService } from '../services/pt/AIAnalysisService';
+import { StudentSummaryService } from '../services/pt/StudentSummaryService';
 import { useToast } from '../context/ToastContext';
 
 // V2 routine option (displayed alongside legacy options)
@@ -394,6 +395,7 @@ export const PTLiveSessionView: React.FC<PTLiveSessionViewProps> = ({
     setCompleting(true);
     try {
       await PTSessionService.completeSession(session.session.id, ptNotes || undefined);
+      StudentSummaryService.invalidate(student.id);
       toast.success('Sesión completada');
 
       // Fire AI analysis in background (don't block completion)

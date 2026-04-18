@@ -15,13 +15,32 @@ const GOAL_TYPE_LABELS: Record<string, string> = {
   other: 'Otro',
 };
 
+// Module-level cache so switching tabs (or re-mounting the card) doesn't
+// re-fetch the 4 underlying queries. Invalidated explicitly when client data
+// changes (session completed, basic info edited, etc).
+const summaryCache = new Map<string, string>();
+
 export const StudentSummaryService = {
+
+  getCached(studentId: string): string | null {
+    return summaryCache.get(studentId) ?? null;
+  },
+
+  invalidate(studentId: string): void {
+    summaryCache.delete(studentId);
+  },
 
   async generateSummary(
     studentId: string,
     gymId: string,
     studentName?: string,
+    opts: { force?: boolean } = {},
   ): Promise<string> {
+    if (!opts.force) {
+      const cached = summaryCache.get(studentId);
+      if (cached) return cached;
+    }
+
     const results = await Promise.allSettled([
       PTSessionService.getSessionsWithSets(studentId, 15),
       WellnessCheckInService.getAverages(studentId, 7),
@@ -161,6 +180,8 @@ export const StudentSummaryService = {
       sentences.push('No completo check-ins de bienestar esta semana.');
     }
 
-    return sentences.join(' ');
+    const text = sentences.join(' ');
+    summaryCache.set(studentId, text);
+    return text;
   },
 };

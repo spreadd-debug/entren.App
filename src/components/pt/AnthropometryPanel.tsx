@@ -3,6 +3,7 @@ import { Plus, Trash2, TrendingDown, TrendingUp, Minus, AlertTriangle } from 'lu
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { Card, Button, Input } from '../UI';
 import { AnthropometryService } from '../../services/pt/AnthropometryService';
+import { StudentSummaryService } from '../../services/pt/StudentSummaryService';
 import { ClientAnthropometry } from '../../../shared/types';
 import { useToast } from '../../context/ToastContext';
 
@@ -117,6 +118,7 @@ export const AnthropometryPanel: React.FC<AnthropometryPanelProps> = ({ studentI
         muscle_mass_kg: form.muscle_mass_kg ? Number(form.muscle_mass_kg) : null,
         notes: form.notes || null,
       });
+      StudentSummaryService.invalidate(studentId);
       toast.success('Medición guardada');
       setForm(EMPTY_FORM);
       setShowForm(false);
@@ -131,6 +133,7 @@ export const AnthropometryPanel: React.FC<AnthropometryPanelProps> = ({ studentI
     try {
       await AnthropometryService.delete(id);
       setEntries(prev => prev.filter(e => e.id !== id));
+      StudentSummaryService.invalidate(studentId);
     } catch {
       toast.error('No se pudo eliminar');
     }

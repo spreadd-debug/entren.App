@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Plus, Target, Trophy, Pause, XCircle, ChevronDown } from 'lucide-react';
 import { Card, Button } from '../UI';
 import { GoalsService } from '../../services/pt/GoalsService';
+import { StudentSummaryService } from '../../services/pt/StudentSummaryService';
 import { ClientGoal, GoalType, GoalStatus } from '../../../shared/types';
 import { useToast } from '../../context/ToastContext';
 
@@ -64,6 +65,7 @@ export const GoalsPanel: React.FC<GoalsPanelProps> = ({ studentId, gymId }) => {
         target_value: form.target_value || null,
         target_date: form.target_date || null,
       });
+      StudentSummaryService.invalidate(studentId);
       toast.success('Objetivo creado');
       setForm({ goal_type: 'lose_weight', description: '', target_value: '', target_date: '' });
       setShowForm(false);
@@ -79,6 +81,7 @@ export const GoalsPanel: React.FC<GoalsPanelProps> = ({ studentId, gymId }) => {
       await GoalsService.updateStatus(id, status);
       setGoals(prev => prev.map(g => g.id === id ? { ...g, status } : g));
       setStatusMenuId(null);
+      StudentSummaryService.invalidate(studentId);
     } catch {
       toast.error('No se pudo actualizar');
     }
@@ -88,6 +91,7 @@ export const GoalsPanel: React.FC<GoalsPanelProps> = ({ studentId, gymId }) => {
     try {
       await GoalsService.delete(id);
       setGoals(prev => prev.filter(g => g.id !== id));
+      StudentSummaryService.invalidate(studentId);
     } catch {
       toast.error('No se pudo eliminar');
     }
