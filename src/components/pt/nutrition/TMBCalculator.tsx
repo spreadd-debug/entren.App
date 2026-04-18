@@ -37,6 +37,15 @@ interface TMBCalculatorProps {
     goalType?: NutritionTmbGoalType;
     goalAdjustmentPct?: number;
   };
+  /** Targets ya guardados — pre-cargan los inputs editables (modo edición) */
+  initialTargets?: {
+    caloriesTarget?: number | null;
+    proteinG?: number | null;
+    carbsG?: number | null;
+    fatG?: number | null;
+  };
+  /** Modo inicial: 'tmb' (default) o 'manual' (para planes legacy sin snapshot) */
+  initialMode?: 'tmb' | 'manual';
   onApply: (payload: TMBApplyPayload) => void;
   onCancel?: () => void;
   applyLabel?: string;
@@ -53,12 +62,14 @@ const toNum = (s: string): number => {
 
 export const TMBCalculator: React.FC<TMBCalculatorProps> = ({
   initialInputs,
+  initialTargets,
+  initialMode,
   onApply,
   onCancel,
   applyLabel = 'Aplicar al plan',
   variant = 'standalone',
 }) => {
-  const [manualMode, setManualMode] = useState(false);
+  const [manualMode, setManualMode] = useState(initialMode === 'manual');
   const [showHow, setShowHow] = useState(false);
   const [hasPrefill] = useState(() =>
     Boolean(
@@ -83,15 +94,16 @@ export const TMBCalculator: React.FC<TMBCalculatorProps> = ({
   const [proteinGPerKg, setProteinGPerKg] = useState('2.0');
   const [fatPct, setFatPct] = useState('25');
 
-  // Overrides de targets (lo que el coach termina aplicando)
-  const [kcalOverride, setKcalOverride] = useState('');
-  const [proteinOverride, setProteinOverride] = useState('');
-  const [carbsOverride, setCarbsOverride] = useState('');
-  const [fatOverride, setFatOverride] = useState('');
-  const [kcalTouched, setKcalTouched] = useState(false);
-  const [proteinTouched, setProteinTouched] = useState(false);
-  const [carbsTouched, setCarbsTouched] = useState(false);
-  const [fatTouched, setFatTouched] = useState(false);
+  // Overrides de targets (lo que el coach termina aplicando).
+  // Si recibimos initialTargets (modo edición), arrancan tocados con esos valores.
+  const [kcalOverride, setKcalOverride] = useState(initialTargets?.caloriesTarget?.toString() ?? '');
+  const [proteinOverride, setProteinOverride] = useState(initialTargets?.proteinG?.toString() ?? '');
+  const [carbsOverride, setCarbsOverride] = useState(initialTargets?.carbsG?.toString() ?? '');
+  const [fatOverride, setFatOverride] = useState(initialTargets?.fatG?.toString() ?? '');
+  const [kcalTouched, setKcalTouched] = useState(initialTargets?.caloriesTarget != null);
+  const [proteinTouched, setProteinTouched] = useState(initialTargets?.proteinG != null);
+  const [carbsTouched, setCarbsTouched] = useState(initialTargets?.carbsG != null);
+  const [fatTouched, setFatTouched] = useState(initialTargets?.fatG != null);
 
   // Reset de ajuste al cambiar objetivo (si el coach no lo tocó manualmente)
   useEffect(() => {
@@ -159,10 +171,10 @@ export const TMBCalculator: React.FC<TMBCalculatorProps> = ({
 
   // ── Modo manual ──────────────────────────────────────────────────────────
   const [manualTitle] = useState(''); // placeholder — el padre maneja título
-  const [manualKcal, setManualKcal] = useState('');
-  const [manualProtein, setManualProtein] = useState('');
-  const [manualCarbs, setManualCarbs] = useState('');
-  const [manualFat, setManualFat] = useState('');
+  const [manualKcal, setManualKcal] = useState(initialTargets?.caloriesTarget?.toString() ?? '');
+  const [manualProtein, setManualProtein] = useState(initialTargets?.proteinG?.toString() ?? '');
+  const [manualCarbs, setManualCarbs] = useState(initialTargets?.carbsG?.toString() ?? '');
+  const [manualFat, setManualFat] = useState(initialTargets?.fatG?.toString() ?? '');
 
   const manualBreakdown = useMemo(() => {
     const p = Number(manualProtein) || 0;

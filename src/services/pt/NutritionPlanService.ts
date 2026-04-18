@@ -274,6 +274,16 @@ export const NutritionPlanService = {
     if (error) throw error;
   },
 
+  /** Reactivar un plan archivado */
+  async unarchivePlan(planId: string): Promise<void> {
+    const { error } = await supabase
+      .from('nutrition_plans')
+      .update({ status: 'active', updated_at: new Date().toISOString() })
+      .eq('id', planId);
+
+    if (error) throw error;
+  },
+
   /** Hard delete (cascade elimina meals, foods y checkins) */
   async deletePlan(planId: string): Promise<void> {
     const { error } = await supabase
