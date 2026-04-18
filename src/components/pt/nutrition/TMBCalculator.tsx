@@ -302,26 +302,39 @@ export const TMBCalculator: React.FC<TMBCalculatorProps> = ({
             </div>
 
             <div className="grid grid-cols-2 gap-2">
-              <Input
-                type="number" step="0.1" min="0" placeholder="Peso (kg)"
-                value={weightKg} onChange={e => setWeightKg(e.target.value)}
-              />
-              <Input
-                type="number" step="0.1" min="0" placeholder="Altura (cm)"
-                value={heightCm} onChange={e => setHeightCm(e.target.value)}
-              />
-              <Input
-                type="number" min="0" placeholder="Edad"
-                value={age} onChange={e => setAge(e.target.value)}
-              />
-              <Select value={biologicalSex} onChange={e => setBiologicalSex(e.target.value as BiologicalSex | '')}>
-                <option value="">Sexo biológico</option>
-                <option value="male">Masculino</option>
-                <option value="female">Femenino</option>
-              </Select>
+              <div>
+                <label className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1 block px-1">Peso (kg)</label>
+                <Input
+                  type="number" step="0.1" min="0" placeholder="Ej: 70"
+                  value={weightKg} onChange={e => setWeightKg(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1 block px-1">Altura (cm)</label>
+                <Input
+                  type="number" step="0.1" min="0" placeholder="Ej: 175"
+                  value={heightCm} onChange={e => setHeightCm(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1 block px-1">Edad</label>
+                <Input
+                  type="number" min="0" placeholder="Ej: 30"
+                  value={age} onChange={e => setAge(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1 block px-1">Sexo biológico</label>
+                <Select value={biologicalSex} onChange={e => setBiologicalSex(e.target.value as BiologicalSex | '')}>
+                  <option value="">Seleccioná…</option>
+                  <option value="male">Masculino</option>
+                  <option value="female">Femenino</option>
+                </Select>
+              </div>
             </div>
 
             <div>
+              <label className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1 block px-1">Nivel de actividad</label>
               <Select value={activityLevel} onChange={e => setActivityLevel(e.target.value as NutritionActivityLevel)}>
                 {ACTIVITY_OPTIONS.map(lv => (
                   <option key={lv} value={lv}>{ACTIVITY_LABELS[lv].label}</option>
@@ -331,12 +344,14 @@ export const TMBCalculator: React.FC<TMBCalculatorProps> = ({
             </div>
 
             <div>
+              <label className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1 block px-1">Objetivo del plan</label>
               <Select value={goalType} onChange={e => { setGoalType(e.target.value as NutritionTmbGoalType); setPctTouched(false); }}>
                 {GOAL_OPTIONS.map(g => (
                   <option key={g} value={g}>{GOAL_LABELS[g].label} ({GOAL_LABELS[g].defaultPct > 0 ? '+' : ''}{GOAL_LABELS[g].defaultPct}%)</option>
                 ))}
               </Select>
-              <div className="flex items-center gap-2 mt-2">
+              <label className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-2 mb-1 block px-1">Ajuste sobre GET</label>
+              <div className="flex items-center gap-2">
                 <Input
                   type="number" step="1"
                   value={goalPct}
@@ -490,10 +505,22 @@ export const TMBCalculator: React.FC<TMBCalculatorProps> = ({
         <div className="space-y-3">
           <p className="text-xs font-bold text-slate-600 dark:text-slate-300">Targets manuales</p>
           <div className="grid grid-cols-2 gap-2">
-            <Input type="number" placeholder="Calorías" value={manualKcal} onChange={e => setManualKcal(e.target.value)} />
-            <Input type="number" placeholder="Proteína (g)" value={manualProtein} onChange={e => setManualProtein(e.target.value)} />
-            <Input type="number" placeholder="Carbos (g)" value={manualCarbs} onChange={e => setManualCarbs(e.target.value)} />
-            <Input type="number" placeholder="Grasas (g)" value={manualFat} onChange={e => setManualFat(e.target.value)} />
+            <div>
+              <label className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1 block px-1">Calorías (kcal)</label>
+              <Input type="number" placeholder="Ej: 2500" value={manualKcal} onChange={e => setManualKcal(e.target.value)} />
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-rose-500 mb-1 block px-1">Proteína (g)</label>
+              <Input type="number" placeholder="Ej: 140" value={manualProtein} onChange={e => setManualProtein(e.target.value)} />
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-amber-500 mb-1 block px-1">Carbohidratos (g)</label>
+              <Input type="number" placeholder="Ej: 280" value={manualCarbs} onChange={e => setManualCarbs(e.target.value)} />
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-cyan-500 mb-1 block px-1">Grasas (g)</label>
+              <Input type="number" placeholder="Ej: 70" value={manualFat} onChange={e => setManualFat(e.target.value)} />
+            </div>
           </div>
           {manualBreakdown.hasAnyMacro && (
             <div className={`p-2 rounded-xl text-[11px] border ${
