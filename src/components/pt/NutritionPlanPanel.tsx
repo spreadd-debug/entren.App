@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, Trash2, Archive, ArchiveRestore, Pencil, Apple, Flame, Beef, Wheat, Droplets, Info } from 'lucide-react';
+import { Plus, Trash2, Archive, ArchiveRestore, Pencil, Apple, Flame, Beef, Wheat, Droplets, Utensils } from 'lucide-react';
 import { Card, Button, Input } from '../UI';
 import { NutritionPlanService, NutritionPlanFull } from '../../services/pt/NutritionPlanService';
 import { AnthropometryService } from '../../services/pt/AnthropometryService';
@@ -8,6 +8,7 @@ import { NutritionPlan, NutritionDetailLevel, MealType, NutritionActivityLevel, 
 import { useToast } from '../../context/ToastContext';
 import { TMBCalculator, TMBApplyPayload } from './nutrition/TMBCalculator';
 import { NutritionPlanWizard, NutritionPlanWizardSubmit } from './nutrition/NutritionPlanWizard';
+import { MealsEditor, DraftMeal, mealsToDrafts, parseDraftMeal } from './nutrition/MealsEditor';
 import type { TmbInputs } from '../../utils/tmbMath';
 
 type PrefillInputs = Partial<TmbInputs> & {
@@ -63,6 +64,8 @@ export const NutritionPlanPanel: React.FC<NutritionPlanPanelProps> = ({ studentI
   const [initialMode, setInitialMode] = useState<'tmb' | 'manual'>('tmb');
   const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
   const [prefillLoading, setPrefillLoading] = useState(false);
+  const [editMeals, setEditMeals] = useState<DraftMeal[]>([]);
+  const [originalMealIds, setOriginalMealIds] = useState<string[]>([]);
 
   const load = async () => {
     setLoading(true);
@@ -85,6 +88,8 @@ export const NutritionPlanPanel: React.FC<NutritionPlanPanelProps> = ({ studentI
     setPrefillTargets(null);
     setInitialMode('tmb');
     setEditingPlanId(null);
+    setEditMeals([]);
+    setOriginalMealIds([]);
   };
 
   const closeForm = () => {
@@ -143,6 +148,8 @@ export const NutritionPlanPanel: React.FC<NutritionPlanPanelProps> = ({ studentI
     });
     setInitialMode(hasSnapshot ? 'tmb' : 'manual');
     setEditingPlanId(plan.id);
+    setEditMeals(mealsToDrafts(plan.meals));
+    setOriginalMealIds(plan.meals.map(m => m.id));
     setShowNewPlan(true);
   };
 
@@ -169,6 +176,14 @@ export const NutritionPlanPanel: React.FC<NutritionPlanPanelProps> = ({ studentI
           calc_age: payload.calc_age,
           calc_biological_sex: payload.calc_biological_sex,
         });
+
+        // Guardar meals: si detail_level='macros' se borran todas.
+        const includeFoods = planForm.detail_level === 'detailed';
+        const draftsToSave = planForm.detail_level === 'macros'
+          ? []
+          : editMeals.map((m, i) => parseDraftMeal(m, i, includeFoods));
+        await NutritionPlanService.saveMealsForPlan(editingPlanId, draftsToSave, originalMealIds);
+
         toast.success('Plan actualizado');
       } else {
         await NutritionPlanService.createPlan({
@@ -387,16 +402,6 @@ export const NutritionPlanPanel: React.FC<NutritionPlanPanelProps> = ({ studentI
             </div>
           )}
 
-          {/* Hint: wizard completo viene en Fase 3 */}
-          <Card className="p-3 bg-violet-500/5 border-violet-200 dark:border-violet-500/20">
-            <div className="flex items-start gap-2">
-              <Info size={14} className="text-violet-500 shrink-0 mt-0.5" />
-              <p className="text-xs text-slate-600 dark:text-slate-400">
-                Editá el plan con el lápiz para recalcular TMB y ajustar targets.
-                El editor de comidas y alimentos llega en el wizard (próximamente).
-              </p>
-            </div>
-          </Card>
         </>
       ) : !showNewPlan ? (
         <Card className="p-6 text-center">
@@ -451,6 +456,22 @@ export const NutritionPlanPanel: React.FC<NutritionPlanPanelProps> = ({ studentI
               ))}
             </select>
           </div>
+
+          {planForm.detail_level !== 'macros' && (
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
+              <div className="flex items-center gap-2">
+                <Utensils size={14} className="text-violet-500" />
+                <h5 className="text-xs font-black text-violet-500 uppercase tracking-wider">
+                  Comidas y alimentos
+                </h5>
+              </div>
+              <MealsEditor
+                meals={editMeals}
+                onChange={setEditMeals}
+                detailLevel={planForm.detail_level}
+              />
+            </div>
+          )}
 
           <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
             <TMBCalculator

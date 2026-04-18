@@ -10,6 +10,7 @@ import { FoodSearchPicker } from './FoodSearchPicker';
 
 export interface DraftFood {
   tempId: string;
+  existingId?: string; // db id when editing an existing food
   food_name: string;
   amount: string;
   unit: string;
@@ -21,6 +22,7 @@ export interface DraftFood {
 
 export interface DraftMeal {
   tempId: string;
+  existingId?: string; // db id when editing an existing meal
   meal_type: MealType;
   name: string;
   time_hint: string;
@@ -30,6 +32,113 @@ export interface DraftMeal {
   fat_g: string;
   foods: DraftFood[];
 }
+
+// Parsed draft ready for persistence (numbers, trimmed strings). Includes
+// existingId so the save path can decide between update/insert per item.
+export interface ParsedDraftMeal {
+  existingId?: string;
+  meal_type: MealType;
+  order_index: number;
+  name: string | null;
+  time_hint: string | null;
+  calories: number | null;
+  protein_g: number | null;
+  carbs_g: number | null;
+  fat_g: number | null;
+  foods: ParsedDraftFood[];
+}
+
+export interface ParsedDraftFood {
+  existingId?: string;
+  food_name: string;
+  amount: number | null;
+  unit: string | null;
+  calories: number | null;
+  protein_g: number | null;
+  carbs_g: number | null;
+  fat_g: number | null;
+  order_index: number;
+}
+
+const numOrNull = (s: string): number | null => {
+  if (!s) return null;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+};
+
+export const parseDraftMeal = (m: DraftMeal, order: number, includeFoods: boolean): ParsedDraftMeal => ({
+  existingId: m.existingId,
+  meal_type: m.meal_type,
+  order_index: order,
+  name: m.name.trim() || null,
+  time_hint: m.time_hint.trim() || null,
+  calories: numOrNull(m.calories),
+  protein_g: numOrNull(m.protein_g),
+  carbs_g: numOrNull(m.carbs_g),
+  fat_g: numOrNull(m.fat_g),
+  foods: includeFoods
+    ? m.foods
+        .filter(f => f.food_name.trim().length > 0)
+        .map((f, i) => ({
+          existingId: f.existingId,
+          food_name: f.food_name.trim(),
+          amount: numOrNull(f.amount),
+          unit: f.unit.trim() || null,
+          calories: numOrNull(f.calories),
+          protein_g: numOrNull(f.protein_g),
+          carbs_g: numOrNull(f.carbs_g),
+          fat_g: numOrNull(f.fat_g),
+          order_index: i,
+        }))
+    : [],
+});
+
+// Structurally-typed: accepts NutritionPlanMealWithFoods without importing it
+// to avoid a circular dependency with NutritionPlanService.
+interface ServerMeal {
+  id: string;
+  meal_type: MealType;
+  name: string | null;
+  time_hint: string | null;
+  calories: number | null;
+  protein_g: number | null;
+  carbs_g: number | null;
+  fat_g: number | null;
+  foods: {
+    id: string;
+    food_name: string;
+    amount: number | null;
+    unit: string | null;
+    calories: number | null;
+    protein_g: number | null;
+    carbs_g: number | null;
+    fat_g: number | null;
+  }[];
+}
+
+export const mealsToDrafts = (meals: ServerMeal[]): DraftMeal[] =>
+  meals.map(m => ({
+    tempId: crypto.randomUUID(),
+    existingId: m.id,
+    meal_type: m.meal_type,
+    name: m.name ?? '',
+    time_hint: m.time_hint ?? '',
+    calories: m.calories != null ? String(m.calories) : '',
+    protein_g: m.protein_g != null ? String(m.protein_g) : '',
+    carbs_g: m.carbs_g != null ? String(m.carbs_g) : '',
+    fat_g: m.fat_g != null ? String(m.fat_g) : '',
+    foods: m.foods.map(f => ({
+      tempId: crypto.randomUUID(),
+      existingId: f.id,
+      food_name: f.food_name,
+      amount: f.amount != null ? String(f.amount) : '',
+      unit: f.unit ?? '',
+      calories: f.calories != null ? String(f.calories) : '',
+      protein_g: f.protein_g != null ? String(f.protein_g) : '',
+      carbs_g: f.carbs_g != null ? String(f.carbs_g) : '',
+      fat_g: f.fat_g != null ? String(f.fat_g) : '',
+    })),
+  }));
 
 const MEAL_LABELS: Record<MealType, { label: string; emoji: string; defaultTime: string }> = {
   desayuno:      { label: 'Desayuno',      emoji: '🌅', defaultTime: '08:00' },

@@ -344,6 +344,122 @@ export const NutritionPlanService = {
     return { ...createdMeal, foods: createdFoods };
   },
 
+  /**
+   * Guarda los cambios a las comidas de un plan existente.
+   *
+   * - Borra las comidas que el coach sacó (sus foods y checkins cascadean).
+   * - Actualiza las que siguen (y hace full-replace de sus foods — no hay
+   *   checkins a nivel food, así que es seguro).
+   * - Crea las nuevas.
+   * - Aplica el nuevo order_index (implícito en el índice del draft).
+   *
+   * `originalMealIds` debe ser el set de ids que tenía el plan al abrir el
+   * editor, no el snapshot actual de la DB.
+   */
+  async saveMealsForPlan(
+    planId: string,
+    drafts: {
+      existingId?: string;
+      meal_type: MealType;
+      order_index: number;
+      name: string | null;
+      time_hint: string | null;
+      calories: number | null;
+      protein_g: number | null;
+      carbs_g: number | null;
+      fat_g: number | null;
+      foods: {
+        existingId?: string;
+        food_name: string;
+        amount: number | null;
+        unit: string | null;
+        calories: number | null;
+        protein_g: number | null;
+        carbs_g: number | null;
+        fat_g: number | null;
+        order_index: number;
+      }[];
+    }[],
+    originalMealIds: string[],
+  ): Promise<void> {
+    const keptIds = new Set(
+      drafts.map(d => d.existingId).filter((v): v is string => typeof v === 'string'),
+    );
+    const toDelete = originalMealIds.filter(id => !keptIds.has(id));
+
+    if (toDelete.length > 0) {
+      const { error } = await supabase
+        .from('nutrition_plan_meals')
+        .delete()
+        .in('id', toDelete);
+      if (error) throw error;
+    }
+
+    for (const d of drafts) {
+      if (d.existingId) {
+        const mealId = d.existingId;
+        const { error: updErr } = await supabase
+          .from('nutrition_plan_meals')
+          .update({
+            meal_type: d.meal_type,
+            order_index: d.order_index,
+            name: d.name,
+            time_hint: d.time_hint,
+            calories: d.calories,
+            protein_g: d.protein_g,
+            carbs_g: d.carbs_g,
+            fat_g: d.fat_g,
+          })
+          .eq('id', mealId);
+        if (updErr) throw updErr;
+
+        const { error: delFoodsErr } = await supabase
+          .from('nutrition_plan_foods')
+          .delete()
+          .eq('meal_id', mealId);
+        if (delFoodsErr) throw delFoodsErr;
+
+        if (d.foods.length > 0) {
+          const { error: insFoodsErr } = await supabase
+            .from('nutrition_plan_foods')
+            .insert(d.foods.map(f => ({
+              meal_id: mealId,
+              food_name: f.food_name,
+              amount: f.amount,
+              unit: f.unit,
+              calories: f.calories,
+              protein_g: f.protein_g,
+              carbs_g: f.carbs_g,
+              fat_g: f.fat_g,
+              order_index: f.order_index,
+            })));
+          if (insFoodsErr) throw insFoodsErr;
+        }
+      } else {
+        await this.addMeal(planId, {
+          meal_type: d.meal_type,
+          order_index: d.order_index,
+          name: d.name,
+          time_hint: d.time_hint,
+          calories: d.calories,
+          protein_g: d.protein_g,
+          carbs_g: d.carbs_g,
+          fat_g: d.fat_g,
+          foods: d.foods.length > 0 ? d.foods.map(f => ({
+            food_name: f.food_name,
+            amount: f.amount,
+            unit: f.unit,
+            calories: f.calories,
+            protein_g: f.protein_g,
+            carbs_g: f.carbs_g,
+            fat_g: f.fat_g,
+            order_index: f.order_index,
+          })) : undefined,
+        });
+      }
+    }
+  },
+
   async updateMeal(mealId: string, updates: Partial<Omit<NutritionPlanMeal, 'id' | 'plan_id' | 'created_at'>>): Promise<void> {
     const { error } = await supabase
       .from('nutrition_plan_meals')
