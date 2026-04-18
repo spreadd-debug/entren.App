@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Search, X, ArrowLeft, Flame, Beef, Wheat, Droplets, Loader2, PackageSearch, BookOpen } from 'lucide-react';
+import { Search, X, ArrowLeft, Flame, Beef, Wheat, Droplets, Loader2, PackageSearch, BookOpen, Plus } from 'lucide-react';
 import { Input, Button } from '../../UI';
 import {
   searchLocal,
@@ -20,11 +20,12 @@ interface FoodSearchPickerProps {
     carbs_g: number;
     fat_g: number;
   }) => void;
+  onAddManual?: () => void;
 }
 
 type Tab = 'local' | 'off';
 
-export const FoodSearchPicker: React.FC<FoodSearchPickerProps> = ({ open, onClose, onSelect }) => {
+export const FoodSearchPicker: React.FC<FoodSearchPickerProps> = ({ open, onClose, onSelect, onAddManual }) => {
   const [query, setQuery] = useState('');
   const [tab, setTab] = useState<Tab>('local');
   const [offResults, setOffResults] = useState<FoodLibraryItem[]>([]);
@@ -144,6 +145,7 @@ export const FoodSearchPicker: React.FC<FoodSearchPickerProps> = ({ open, onClos
             error={tab === 'off' ? offError : null}
             onPick={handlePick}
             onClose={onClose}
+            onAddManual={onAddManual}
           />
         )}
       </div>
@@ -163,7 +165,8 @@ const SearchStage: React.FC<{
   error: string | null;
   onPick: (item: FoodLibraryItem) => void;
   onClose: () => void;
-}> = ({ query, onQueryChange, tab, onTabChange, results, loading, error, onPick, onClose }) => (
+  onAddManual?: () => void;
+}> = ({ query, onQueryChange, tab, onTabChange, results, loading, error, onPick, onClose, onAddManual }) => (
   <>
     {/* Header */}
     <div className="flex items-center gap-2 p-3 border-b border-slate-100 dark:border-slate-800">
@@ -207,17 +210,19 @@ const SearchStage: React.FC<{
       )}
 
       {tab === 'off' && !loading && error && results.length === 0 && (
-        <div className="py-10 text-center text-xs text-slate-400">
-          {error}
-        </div>
+        <EmptyState message={error} query={query} onAddManual={onAddManual} />
       )}
 
       {!loading && results.length === 0 && !error && (
-        <div className="py-10 text-center text-xs text-slate-400">
-          {query.trim()
-            ? (tab === 'local' ? 'Sin resultados en la biblioteca.' : 'Escribí al menos 2 letras para buscar.')
-            : (tab === 'local' ? 'Escribí un alimento para buscar (pollo, arroz, banana…).' : 'Escribí un producto (ej: "yogur la serenísima").')}
-        </div>
+        <EmptyState
+          message={
+            query.trim()
+              ? (tab === 'local' ? 'Sin resultados en la biblioteca.' : 'Escribí al menos 2 letras para buscar.')
+              : (tab === 'local' ? 'Escribí un alimento para buscar (pollo, arroz, banana…).' : 'Escribí un producto (ej: "yogur la serenísima").')
+          }
+          query={query}
+          onAddManual={onAddManual}
+        />
       )}
 
       {results.map(item => (
@@ -225,6 +230,25 @@ const SearchStage: React.FC<{
       ))}
     </div>
   </>
+);
+
+const EmptyState: React.FC<{
+  message: string;
+  query: string;
+  onAddManual?: () => void;
+}> = ({ message, query, onAddManual }) => (
+  <div className="py-8 text-center space-y-3">
+    <p className="text-xs text-slate-400">{message}</p>
+    {onAddManual && query.trim().length >= 2 && (
+      <button
+        type="button"
+        onClick={onAddManual}
+        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-violet-500/10 text-violet-600 dark:text-violet-400 hover:bg-violet-500/20 transition-colors"
+      >
+        <Plus size={12} /> Agregar "{query.trim()}" manualmente
+      </button>
+    )}
+  </div>
 );
 
 const TabButton: React.FC<{

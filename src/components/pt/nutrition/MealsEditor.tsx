@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Card, Button, Input, Select } from '../../UI';
 import {
-  Plus, Trash2, ChevronUp, ChevronDown, Utensils, Apple, Flame, Beef, Wheat, Droplets, Search,
+  Plus, Trash2, ChevronUp, ChevronDown, Utensils, Apple, Flame, Beef, Wheat, Droplets, Search, AlertCircle,
 } from 'lucide-react';
 import type { MealType, NutritionDetailLevel } from '../../../../shared/types';
 import { FoodSearchPicker } from './FoodSearchPicker';
@@ -48,6 +48,43 @@ const MEAL_TYPE_OPTIONS: MealType[] = [
 
 const UNIT_SUGGESTIONS = ['g', 'ml', 'un', 'taza', 'cda', 'cdta', 'rebanada', 'porción'];
 
+// kcal vs macros vs amount consistency check — warning string or null
+function checkFoodMacros(f: DraftFood): string | null {
+  const hasAny = [f.calories, f.protein_g, f.carbs_g, f.fat_g].some(v => v.trim().length > 0);
+  if (!hasAny) return null;
+
+  const cal = Number(f.calories);
+  const p = Number(f.protein_g);
+  const c = Number(f.carbs_g);
+  const fat = Number(f.fat_g);
+  const amt = Number(f.amount);
+
+  if ([cal, p, c, fat].some(n => Number.isFinite(n) && n < 0)) {
+    return 'Los macros no pueden ser negativos.';
+  }
+
+  // Macros (en gramos) no pueden superar la cantidad del alimento cuando unit === 'g'
+  if (f.unit === 'g' && Number.isFinite(amt) && amt > 0) {
+    const sum = (Number.isFinite(p) ? p : 0) + (Number.isFinite(c) ? c : 0) + (Number.isFinite(fat) ? fat : 0);
+    if (sum > amt * 1.05) {
+      return `Los macros suman ${sum.toFixed(1)}g pero el alimento son ${amt}g.`;
+    }
+  }
+
+  // kcal vs macros: p*4 + c*4 + f*9. Tolerancia ±25% (alcohol, fibra, redondeos)
+  if (Number.isFinite(cal) && cal > 0) {
+    const expected = (Number.isFinite(p) ? p : 0) * 4 + (Number.isFinite(c) ? c : 0) * 4 + (Number.isFinite(fat) ? fat : 0) * 9;
+    if (expected > 0) {
+      const pct = Math.abs(cal - expected) / Math.max(cal, expected);
+      if (pct > 0.25) {
+        return `Las kcal (${Math.round(cal)}) no cuadran con los macros (~${Math.round(expected)} esperadas).`;
+      }
+    }
+  }
+
+  return null;
+}
+
 export const emptyFood = (): DraftFood => ({
   tempId: crypto.randomUUID(),
   food_name: '',
@@ -89,7 +126,7 @@ interface MealsEditorProps {
 
 export const MealsEditor: React.FC<MealsEditorProps> = ({ meals, onChange, detailLevel }) => {
   const [expandedId, setExpandedId] = useState<string | null>(meals[0]?.tempId ?? null);
-  const [pickerFor, setPickerFor] = useState<{ mealTempId: string; foodTempId: string } | null>(null);
+  const [pickerForMeal, setPickerForMeal] = useState<string | null>(null);
   const showFoods = detailLevel === 'detailed';
 
   const updateMeal = (tempId: string, patch: Partial<DraftMeal>) => {
@@ -264,113 +301,158 @@ export const MealsEditor: React.FC<MealsEditorProps> = ({ meals, onChange, detai
                   />
                 </div>
 
-                {/* Per-meal macros */}
-                <div>
-                  <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1.5 px-1">Macros de la comida (opcional)</p>
-                  <div className="grid grid-cols-4 gap-1.5">
-                    <div>
-                      <label className="text-[10px] font-medium text-orange-500 mb-0.5 block px-1 flex items-center gap-0.5">
-                        <Flame size={10} /> kcal
-                      </label>
-                      <Input type="number" min="0" placeholder="—"
-                        value={m.calories} onChange={e => updateMeal(m.tempId, { calories: e.target.value })} />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-medium text-rose-500 mb-0.5 block px-1 flex items-center gap-0.5">
-                        <Beef size={10} /> prot
-                      </label>
-                      <Input type="number" min="0" placeholder="—"
-                        value={m.protein_g} onChange={e => updateMeal(m.tempId, { protein_g: e.target.value })} />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-medium text-amber-500 mb-0.5 block px-1 flex items-center gap-0.5">
-                        <Wheat size={10} /> carbs
-                      </label>
-                      <Input type="number" min="0" placeholder="—"
-                        value={m.carbs_g} onChange={e => updateMeal(m.tempId, { carbs_g: e.target.value })} />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-medium text-cyan-500 mb-0.5 block px-1 flex items-center gap-0.5">
-                        <Droplets size={10} /> grasa
-                      </label>
-                      <Input type="number" min="0" placeholder="—"
-                        value={m.fat_g} onChange={e => updateMeal(m.tempId, { fat_g: e.target.value })} />
+                {/* Per-meal macros (solo cuando no detallamos alimentos — ahí los macros los dan los alimentos) */}
+                {!showFoods && (
+                  <div>
+                    <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1.5 px-1">Macros de la comida (opcional)</p>
+                    <div className="grid grid-cols-4 gap-1.5">
+                      <div>
+                        <label className="text-[10px] font-medium text-orange-500 mb-0.5 block px-1 flex items-center gap-0.5">
+                          <Flame size={10} /> kcal
+                        </label>
+                        <Input type="number" min="0" placeholder="—"
+                          value={m.calories} onChange={e => updateMeal(m.tempId, { calories: e.target.value })} />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-medium text-rose-500 mb-0.5 block px-1 flex items-center gap-0.5">
+                          <Beef size={10} /> prot
+                        </label>
+                        <Input type="number" min="0" placeholder="—"
+                          value={m.protein_g} onChange={e => updateMeal(m.tempId, { protein_g: e.target.value })} />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-medium text-amber-500 mb-0.5 block px-1 flex items-center gap-0.5">
+                          <Wheat size={10} /> carbs
+                        </label>
+                        <Input type="number" min="0" placeholder="—"
+                          value={m.carbs_g} onChange={e => updateMeal(m.tempId, { carbs_g: e.target.value })} />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-medium text-cyan-500 mb-0.5 block px-1 flex items-center gap-0.5">
+                          <Droplets size={10} /> grasa
+                        </label>
+                        <Input type="number" min="0" placeholder="—"
+                          value={m.fat_g} onChange={e => updateMeal(m.tempId, { fat_g: e.target.value })} />
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
 
                 {/* Foods (solo si detailed) */}
                 {showFoods && (
                   <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-[11px] font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1">
-                        <Apple size={11} /> Alimentos ({m.foods.length})
+                    <div className="flex items-center justify-between mb-2 gap-2">
+                      <p className="text-[11px] font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1 min-w-0">
+                        <Apple size={11} className="shrink-0" /> Alimentos ({m.foods.length})
                       </p>
-                      <button
-                        type="button"
-                        onClick={() => addFood(m.tempId)}
-                        className="text-[11px] text-violet-500 hover:text-violet-600 font-medium inline-flex items-center gap-1"
-                      >
-                        <Plus size={11} /> Agregar
-                      </button>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setPickerForMeal(m.tempId)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-violet-500/10 text-violet-600 dark:text-violet-400 hover:bg-violet-500/20 transition-colors"
+                          title="Buscar en biblioteca y productos argentinos"
+                        >
+                          <Search size={11} /> Buscar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => addFood(m.tempId)}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-700/50 transition-colors"
+                          title="Cargar alimento manualmente"
+                        >
+                          <Plus size={11} /> Manual
+                        </button>
+                      </div>
                     </div>
 
                     {m.foods.length === 0 ? (
-                      <p className="text-[11px] text-slate-400 text-center py-2">Sin alimentos cargados todavía.</p>
+                      <p className="text-[11px] text-slate-400 text-center py-3">
+                        Tocá <span className="font-semibold text-violet-500">Buscar</span> para encontrar alimentos o <span className="font-semibold">Manual</span> para cargarlo a mano.
+                      </p>
                     ) : (
                       <div className="space-y-2">
-                        {m.foods.map((f) => (
-                          <div key={f.tempId} className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/40 space-y-1.5">
-                            <div className="flex items-center gap-1">
-                              <button
-                                type="button"
-                                onClick={() => setPickerFor({ mealTempId: m.tempId, foodTempId: f.tempId })}
-                                className="p-2 rounded-lg text-violet-500 hover:text-violet-600 bg-violet-500/10 hover:bg-violet-500/20 shrink-0"
-                                title="Buscar alimento"
-                              >
-                                <Search size={13} />
-                              </button>
-                              <Input
-                                type="text" placeholder="Ej: Pechuga de pollo"
-                                value={f.food_name}
-                                onChange={e => updateFood(m.tempId, f.tempId, { food_name: e.target.value })}
-                                className="flex-1"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => removeFood(m.tempId, f.tempId)}
-                                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 shrink-0"
-                                title="Eliminar alimento"
-                              >
-                                <Trash2 size={12} />
-                              </button>
+                        {m.foods.map((f) => {
+                          const warning = checkFoodMacros(f);
+                          return (
+                            <div key={f.tempId} className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 space-y-2">
+                              <div className="flex items-center gap-1">
+                                <Input
+                                  type="text" placeholder="Nombre del alimento"
+                                  value={f.food_name}
+                                  onChange={e => updateFood(m.tempId, f.tempId, { food_name: e.target.value })}
+                                  className="flex-1 font-medium"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => removeFood(m.tempId, f.tempId)}
+                                  className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 shrink-0"
+                                  title="Eliminar alimento"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-1.5">
+                                <div>
+                                  <label className="text-[10px] font-medium text-slate-500 dark:text-slate-400 mb-0.5 block px-1">Cantidad</label>
+                                  <Input
+                                    type="number" min="0" step="0.1" placeholder="—"
+                                    value={f.amount}
+                                    onChange={e => updateFood(m.tempId, f.tempId, { amount: e.target.value })}
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[10px] font-medium text-slate-500 dark:text-slate-400 mb-0.5 block px-1">Unidad</label>
+                                  <Select
+                                    value={f.unit}
+                                    onChange={e => updateFood(m.tempId, f.tempId, { unit: e.target.value })}
+                                  >
+                                    <option value="">—</option>
+                                    {UNIT_SUGGESTIONS.map(u => <option key={u} value={u}>{u}</option>)}
+                                  </Select>
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-4 gap-1">
+                                <div>
+                                  <label className="text-[10px] font-medium text-orange-500 mb-0.5 px-1 flex items-center gap-0.5">
+                                    <Flame size={9} /> kcal
+                                  </label>
+                                  <Input type="number" min="0" placeholder="—"
+                                    value={f.calories} onChange={e => updateFood(m.tempId, f.tempId, { calories: e.target.value })} />
+                                </div>
+                                <div>
+                                  <label className="text-[10px] font-medium text-rose-500 mb-0.5 px-1 flex items-center gap-0.5">
+                                    <Beef size={9} /> prot
+                                  </label>
+                                  <Input type="number" min="0" placeholder="—"
+                                    value={f.protein_g} onChange={e => updateFood(m.tempId, f.tempId, { protein_g: e.target.value })} />
+                                </div>
+                                <div>
+                                  <label className="text-[10px] font-medium text-amber-500 mb-0.5 px-1 flex items-center gap-0.5">
+                                    <Wheat size={9} /> carbs
+                                  </label>
+                                  <Input type="number" min="0" placeholder="—"
+                                    value={f.carbs_g} onChange={e => updateFood(m.tempId, f.tempId, { carbs_g: e.target.value })} />
+                                </div>
+                                <div>
+                                  <label className="text-[10px] font-medium text-cyan-500 mb-0.5 px-1 flex items-center gap-0.5">
+                                    <Droplets size={9} /> grasa
+                                  </label>
+                                  <Input type="number" min="0" placeholder="—"
+                                    value={f.fat_g} onChange={e => updateFood(m.tempId, f.tempId, { fat_g: e.target.value })} />
+                                </div>
+                              </div>
+
+                              {warning && (
+                                <div className="flex items-start gap-1 px-1 py-1 rounded-lg bg-amber-500/10 text-amber-700 dark:text-amber-400">
+                                  <AlertCircle size={11} className="shrink-0 mt-0.5" />
+                                  <p className="text-[10px] font-medium">{warning}</p>
+                                </div>
+                              )}
                             </div>
-                            <div className="grid grid-cols-2 gap-1.5">
-                              <Input
-                                type="number" min="0" step="0.1" placeholder="Cantidad"
-                                value={f.amount}
-                                onChange={e => updateFood(m.tempId, f.tempId, { amount: e.target.value })}
-                              />
-                              <Select
-                                value={f.unit}
-                                onChange={e => updateFood(m.tempId, f.tempId, { unit: e.target.value })}
-                              >
-                                <option value="">Unidad…</option>
-                                {UNIT_SUGGESTIONS.map(u => <option key={u} value={u}>{u}</option>)}
-                              </Select>
-                            </div>
-                            <div className="grid grid-cols-4 gap-1">
-                              <Input type="number" min="0" placeholder="kcal"
-                                value={f.calories} onChange={e => updateFood(m.tempId, f.tempId, { calories: e.target.value })} />
-                              <Input type="number" min="0" placeholder="prot"
-                                value={f.protein_g} onChange={e => updateFood(m.tempId, f.tempId, { protein_g: e.target.value })} />
-                              <Input type="number" min="0" placeholder="carb"
-                                value={f.carbs_g} onChange={e => updateFood(m.tempId, f.tempId, { carbs_g: e.target.value })} />
-                              <Input type="number" min="0" placeholder="grasa"
-                                value={f.fat_g} onChange={e => updateFood(m.tempId, f.tempId, { fat_g: e.target.value })} />
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>
@@ -386,11 +468,19 @@ export const MealsEditor: React.FC<MealsEditorProps> = ({ meals, onChange, detai
       </Button>
 
       <FoodSearchPicker
-        open={pickerFor !== null}
-        onClose={() => setPickerFor(null)}
+        open={pickerForMeal !== null}
+        onClose={() => setPickerForMeal(null)}
+        onAddManual={() => {
+          if (!pickerForMeal) return;
+          addFood(pickerForMeal);
+          setPickerForMeal(null);
+        }}
         onSelect={payload => {
-          if (!pickerFor) return;
-          updateFood(pickerFor.mealTempId, pickerFor.foodTempId, {
+          if (!pickerForMeal) return;
+          const meal = meals.find(mm => mm.tempId === pickerForMeal);
+          if (!meal) return;
+          const newFood: DraftFood = {
+            tempId: crypto.randomUUID(),
             food_name: payload.food_name,
             amount: String(payload.amount),
             unit: payload.unit,
@@ -398,8 +488,9 @@ export const MealsEditor: React.FC<MealsEditorProps> = ({ meals, onChange, detai
             protein_g: String(payload.protein_g),
             carbs_g: String(payload.carbs_g),
             fat_g: String(payload.fat_g),
-          });
-          setPickerFor(null);
+          };
+          updateMeal(pickerForMeal, { foods: [...meal.foods, newFood] });
+          setPickerForMeal(null);
         }}
       />
     </div>
