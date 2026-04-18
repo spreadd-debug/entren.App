@@ -1,0 +1,605 @@
+[
+  {
+    "id": "pollo-pechuga",
+    "name": "Pollo, pechuga sin piel",
+    "category": "Carnes",
+    "per100g": { "kcal": 165, "protein": 31, "carbs": 0, "fat": 3.6 },
+    "commonPortions": [
+      { "label": "1 suprema (~150g)", "grams": 150 },
+      { "label": "½ suprema (~80g)", "grams": 80 }
+    ],
+    "aliases": ["pechuga", "suprema", "pollo pechuga"]
+  },
+  {
+    "id": "pollo-muslo",
+    "name": "Pollo, muslo sin piel",
+    "category": "Carnes",
+    "per100g": { "kcal": 177, "protein": 24, "carbs": 0, "fat": 8 },
+    "commonPortions": [{ "label": "1 muslo (~120g)", "grams": 120 }],
+    "aliases": ["muslo", "pata de pollo"]
+  },
+  {
+    "id": "ternera-bife",
+    "name": "Ternera, bife de lomo magro",
+    "category": "Carnes",
+    "per100g": { "kcal": 180, "protein": 27, "carbs": 0, "fat": 8 },
+    "commonPortions": [{ "label": "1 bife (~180g)", "grams": 180 }],
+    "aliases": ["bife", "lomo", "ternera"]
+  },
+  {
+    "id": "carne-picada-comun",
+    "name": "Carne picada común",
+    "category": "Carnes",
+    "per100g": { "kcal": 250, "protein": 19, "carbs": 0, "fat": 19 },
+    "aliases": ["picada", "carne picada"]
+  },
+  {
+    "id": "carne-picada-especial",
+    "name": "Carne picada especial (magra)",
+    "category": "Carnes",
+    "per100g": { "kcal": 170, "protein": 22, "carbs": 0, "fat": 9 },
+    "aliases": ["picada especial", "picada magra"]
+  },
+  {
+    "id": "cerdo-bondiola",
+    "name": "Cerdo, bondiola",
+    "category": "Carnes",
+    "per100g": { "kcal": 241, "protein": 22, "carbs": 0, "fat": 17 },
+    "aliases": ["bondiola", "cerdo"]
+  },
+  {
+    "id": "merluza",
+    "name": "Merluza (filete)",
+    "category": "Pescados",
+    "per100g": { "kcal": 90, "protein": 18, "carbs": 0, "fat": 2 },
+    "commonPortions": [{ "label": "1 filete (~150g)", "grams": 150 }],
+    "aliases": ["merluza filete", "pescado"]
+  },
+  {
+    "id": "atun-lata",
+    "name": "Atún al natural (lata)",
+    "category": "Pescados",
+    "per100g": { "kcal": 116, "protein": 26, "carbs": 0, "fat": 1 },
+    "commonPortions": [{ "label": "1 lata escurrida (~120g)", "grams": 120 }],
+    "aliases": ["atun", "lata atun"]
+  },
+  {
+    "id": "salmon",
+    "name": "Salmón",
+    "category": "Pescados",
+    "per100g": { "kcal": 206, "protein": 22, "carbs": 0, "fat": 13 },
+    "commonPortions": [{ "label": "1 porción (~150g)", "grams": 150 }],
+    "aliases": ["salmon"]
+  },
+  {
+    "id": "huevo-entero",
+    "name": "Huevo entero",
+    "category": "Huevos y lácteos",
+    "per100g": { "kcal": 155, "protein": 13, "carbs": 1.1, "fat": 11 },
+    "commonPortions": [
+      { "label": "1 huevo mediano (~55g)", "grams": 55 },
+      { "label": "2 huevos (~110g)", "grams": 110 },
+      { "label": "3 huevos (~165g)", "grams": 165 }
+    ],
+    "aliases": ["huevo", "huevos"]
+  },
+  {
+    "id": "clara-huevo",
+    "name": "Clara de huevo",
+    "category": "Huevos y lácteos",
+    "per100g": { "kcal": 52, "protein": 11, "carbs": 0.7, "fat": 0.2 },
+    "commonPortions": [
+      { "label": "1 clara (~33g)", "grams": 33 },
+      { "label": "3 claras (~100g)", "grams": 100 }
+    ],
+    "aliases": ["clara", "claras"]
+  },
+  {
+    "id": "leche-entera",
+    "name": "Leche entera",
+    "category": "Huevos y lácteos",
+    "per100g": { "kcal": 61, "protein": 3.2, "carbs": 4.8, "fat": 3.3 },
+    "commonPortions": [
+      { "label": "1 vaso (~250g)", "grams": 250 },
+      { "label": "1 taza (~200g)", "grams": 200 }
+    ],
+    "aliases": ["leche"]
+  },
+  {
+    "id": "leche-descremada",
+    "name": "Leche descremada",
+    "category": "Huevos y lácteos",
+    "per100g": { "kcal": 34, "protein": 3.4, "carbs": 5, "fat": 0.1 },
+    "commonPortions": [{ "label": "1 vaso (~250g)", "grams": 250 }],
+    "aliases": ["leche descremada", "leche light"]
+  },
+  {
+    "id": "yogur-natural-entero",
+    "name": "Yogur natural entero",
+    "category": "Huevos y lácteos",
+    "per100g": { "kcal": 61, "protein": 3.5, "carbs": 4.7, "fat": 3.3 },
+    "commonPortions": [{ "label": "1 pote (~190g)", "grams": 190 }],
+    "aliases": ["yogur"]
+  },
+  {
+    "id": "yogur-descremado",
+    "name": "Yogur descremado natural",
+    "category": "Huevos y lácteos",
+    "per100g": { "kcal": 40, "protein": 4, "carbs": 5, "fat": 0.5 },
+    "commonPortions": [{ "label": "1 pote (~190g)", "grams": 190 }],
+    "aliases": ["yogur descremado", "yogur light"]
+  },
+  {
+    "id": "queso-port-salut",
+    "name": "Queso port salut",
+    "category": "Huevos y lácteos",
+    "per100g": { "kcal": 340, "protein": 22, "carbs": 2, "fat": 27 },
+    "commonPortions": [{ "label": "1 fetita (~20g)", "grams": 20 }],
+    "aliases": ["port salut", "queso"]
+  },
+  {
+    "id": "queso-cremoso",
+    "name": "Queso cremoso",
+    "category": "Huevos y lácteos",
+    "per100g": { "kcal": 310, "protein": 20, "carbs": 2, "fat": 25 },
+    "commonPortions": [{ "label": "1 fetita (~20g)", "grams": 20 }],
+    "aliases": ["cremoso"]
+  },
+  {
+    "id": "queso-rallado",
+    "name": "Queso rallado (sardo)",
+    "category": "Huevos y lácteos",
+    "per100g": { "kcal": 402, "protein": 32, "carbs": 3, "fat": 29 },
+    "commonPortions": [{ "label": "1 cda (~10g)", "grams": 10 }],
+    "aliases": ["rallado", "sardo", "reggianito"]
+  },
+  {
+    "id": "ricota",
+    "name": "Ricota",
+    "category": "Huevos y lácteos",
+    "per100g": { "kcal": 156, "protein": 11, "carbs": 3, "fat": 11 },
+    "commonPortions": [{ "label": "1 porción (~80g)", "grams": 80 }],
+    "aliases": ["ricota"]
+  },
+  {
+    "id": "arroz-blanco-cocido",
+    "name": "Arroz blanco cocido",
+    "category": "Cereales y legumbres",
+    "per100g": { "kcal": 130, "protein": 2.7, "carbs": 28, "fat": 0.3 },
+    "commonPortions": [
+      { "label": "1 taza (~180g)", "grams": 180 },
+      { "label": "½ taza (~90g)", "grams": 90 }
+    ],
+    "aliases": ["arroz", "arroz blanco"]
+  },
+  {
+    "id": "arroz-integral-cocido",
+    "name": "Arroz integral cocido",
+    "category": "Cereales y legumbres",
+    "per100g": { "kcal": 123, "protein": 2.7, "carbs": 26, "fat": 1 },
+    "commonPortions": [{ "label": "1 taza (~180g)", "grams": 180 }],
+    "aliases": ["arroz integral", "arroz yamani"]
+  },
+  {
+    "id": "fideos-cocidos",
+    "name": "Fideos cocidos",
+    "category": "Cereales y legumbres",
+    "per100g": { "kcal": 158, "protein": 6, "carbs": 31, "fat": 1 },
+    "commonPortions": [
+      { "label": "1 plato (~200g)", "grams": 200 },
+      { "label": "½ plato (~100g)", "grams": 100 }
+    ],
+    "aliases": ["fideos", "pasta", "tallarines"]
+  },
+  {
+    "id": "avena-copos",
+    "name": "Avena (copos)",
+    "category": "Cereales y legumbres",
+    "per100g": { "kcal": 389, "protein": 17, "carbs": 66, "fat": 7 },
+    "commonPortions": [
+      { "label": "3 cdas (~30g)", "grams": 30 },
+      { "label": "½ taza (~45g)", "grams": 45 }
+    ],
+    "aliases": ["avena"]
+  },
+  {
+    "id": "quinoa-cocida",
+    "name": "Quinoa cocida",
+    "category": "Cereales y legumbres",
+    "per100g": { "kcal": 120, "protein": 4.4, "carbs": 21, "fat": 1.9 },
+    "commonPortions": [{ "label": "1 taza (~185g)", "grams": 185 }],
+    "aliases": ["quinoa", "quinua"]
+  },
+  {
+    "id": "lentejas-cocidas",
+    "name": "Lentejas cocidas",
+    "category": "Cereales y legumbres",
+    "per100g": { "kcal": 116, "protein": 9, "carbs": 20, "fat": 0.4 },
+    "commonPortions": [{ "label": "1 taza (~200g)", "grams": 200 }],
+    "aliases": ["lentejas", "lenteja"]
+  },
+  {
+    "id": "garbanzos-cocidos",
+    "name": "Garbanzos cocidos",
+    "category": "Cereales y legumbres",
+    "per100g": { "kcal": 164, "protein": 9, "carbs": 27, "fat": 2.6 },
+    "commonPortions": [{ "label": "1 taza (~165g)", "grams": 165 }],
+    "aliases": ["garbanzo", "garbanzos"]
+  },
+  {
+    "id": "porotos-cocidos",
+    "name": "Porotos cocidos",
+    "category": "Cereales y legumbres",
+    "per100g": { "kcal": 127, "protein": 9, "carbs": 23, "fat": 0.5 },
+    "commonPortions": [{ "label": "1 taza (~180g)", "grams": 180 }],
+    "aliases": ["poroto", "porotos", "frijoles"]
+  },
+  {
+    "id": "pan-lactal",
+    "name": "Pan lactal blanco",
+    "category": "Panificados",
+    "per100g": { "kcal": 265, "protein": 9, "carbs": 49, "fat": 3.5 },
+    "commonPortions": [
+      { "label": "1 rebanada (~30g)", "grams": 30 },
+      { "label": "2 rebanadas (~60g)", "grams": 60 }
+    ],
+    "aliases": ["pan lactal", "pan de molde"]
+  },
+  {
+    "id": "pan-frances",
+    "name": "Pan francés",
+    "category": "Panificados",
+    "per100g": { "kcal": 275, "protein": 9, "carbs": 55, "fat": 1.5 },
+    "commonPortions": [{ "label": "1 mignon (~50g)", "grams": 50 }],
+    "aliases": ["pan", "pan frances", "mignon", "flauta"]
+  },
+  {
+    "id": "pan-integral",
+    "name": "Pan integral",
+    "category": "Panificados",
+    "per100g": { "kcal": 252, "protein": 13, "carbs": 41, "fat": 3.5 },
+    "commonPortions": [{ "label": "1 rebanada (~30g)", "grams": 30 }],
+    "aliases": ["pan integral"]
+  },
+  {
+    "id": "tostadas",
+    "name": "Tostadas tipo craker",
+    "category": "Panificados",
+    "per100g": { "kcal": 380, "protein": 12, "carbs": 70, "fat": 5 },
+    "commonPortions": [{ "label": "1 tostada (~8g)", "grams": 8 }],
+    "aliases": ["tostada", "tostadas"]
+  },
+  {
+    "id": "galletitas-agua",
+    "name": "Galletitas de agua",
+    "category": "Panificados",
+    "per100g": { "kcal": 425, "protein": 10, "carbs": 73, "fat": 11 },
+    "commonPortions": [{ "label": "1 galletita (~6g)", "grams": 6 }],
+    "aliases": ["galletitas", "galletita agua", "crackers"]
+  },
+  {
+    "id": "papa-hervida",
+    "name": "Papa hervida",
+    "category": "Verduras",
+    "per100g": { "kcal": 87, "protein": 1.9, "carbs": 20, "fat": 0.1 },
+    "commonPortions": [{ "label": "1 papa mediana (~150g)", "grams": 150 }],
+    "aliases": ["papa", "papas"]
+  },
+  {
+    "id": "batata-hervida",
+    "name": "Batata hervida",
+    "category": "Verduras",
+    "per100g": { "kcal": 76, "protein": 1.4, "carbs": 17.7, "fat": 0.1 },
+    "commonPortions": [{ "label": "1 batata mediana (~130g)", "grams": 130 }],
+    "aliases": ["batata"]
+  },
+  {
+    "id": "zapallo",
+    "name": "Zapallo (anco/calabaza)",
+    "category": "Verduras",
+    "per100g": { "kcal": 26, "protein": 1, "carbs": 6.5, "fat": 0.1 },
+    "aliases": ["zapallo", "calabaza", "anco"]
+  },
+  {
+    "id": "zanahoria",
+    "name": "Zanahoria cruda",
+    "category": "Verduras",
+    "per100g": { "kcal": 41, "protein": 0.9, "carbs": 10, "fat": 0.2 },
+    "commonPortions": [{ "label": "1 mediana (~60g)", "grams": 60 }],
+    "aliases": ["zanahoria"]
+  },
+  {
+    "id": "lechuga",
+    "name": "Lechuga",
+    "category": "Verduras",
+    "per100g": { "kcal": 15, "protein": 1.4, "carbs": 2.9, "fat": 0.2 },
+    "commonPortions": [{ "label": "1 plato (~50g)", "grams": 50 }],
+    "aliases": ["lechuga"]
+  },
+  {
+    "id": "tomate",
+    "name": "Tomate",
+    "category": "Verduras",
+    "per100g": { "kcal": 18, "protein": 0.9, "carbs": 3.9, "fat": 0.2 },
+    "commonPortions": [{ "label": "1 mediano (~120g)", "grams": 120 }],
+    "aliases": ["tomate"]
+  },
+  {
+    "id": "cebolla",
+    "name": "Cebolla",
+    "category": "Verduras",
+    "per100g": { "kcal": 40, "protein": 1.1, "carbs": 9.3, "fat": 0.1 },
+    "commonPortions": [{ "label": "1 mediana (~110g)", "grams": 110 }],
+    "aliases": ["cebolla"]
+  },
+  {
+    "id": "morron",
+    "name": "Morrón rojo",
+    "category": "Verduras",
+    "per100g": { "kcal": 31, "protein": 1, "carbs": 6, "fat": 0.3 },
+    "commonPortions": [{ "label": "1 mediano (~120g)", "grams": 120 }],
+    "aliases": ["morron", "pimiento", "aji"]
+  },
+  {
+    "id": "brocoli",
+    "name": "Brócoli",
+    "category": "Verduras",
+    "per100g": { "kcal": 34, "protein": 2.8, "carbs": 7, "fat": 0.4 },
+    "aliases": ["brocoli", "broccoli"]
+  },
+  {
+    "id": "espinaca",
+    "name": "Espinaca",
+    "category": "Verduras",
+    "per100g": { "kcal": 23, "protein": 2.9, "carbs": 3.6, "fat": 0.4 },
+    "aliases": ["espinaca"]
+  },
+  {
+    "id": "choclo",
+    "name": "Choclo en grano",
+    "category": "Verduras",
+    "per100g": { "kcal": 96, "protein": 3.4, "carbs": 21, "fat": 1.5 },
+    "commonPortions": [{ "label": "1 taza (~165g)", "grams": 165 }],
+    "aliases": ["choclo", "maiz"]
+  },
+  {
+    "id": "banana",
+    "name": "Banana",
+    "category": "Frutas",
+    "per100g": { "kcal": 89, "protein": 1.1, "carbs": 23, "fat": 0.3 },
+    "commonPortions": [{ "label": "1 mediana (~118g)", "grams": 118 }],
+    "aliases": ["banana", "platano"]
+  },
+  {
+    "id": "manzana",
+    "name": "Manzana",
+    "category": "Frutas",
+    "per100g": { "kcal": 52, "protein": 0.3, "carbs": 14, "fat": 0.2 },
+    "commonPortions": [{ "label": "1 mediana (~180g)", "grams": 180 }],
+    "aliases": ["manzana"]
+  },
+  {
+    "id": "pera",
+    "name": "Pera",
+    "category": "Frutas",
+    "per100g": { "kcal": 57, "protein": 0.4, "carbs": 15, "fat": 0.1 },
+    "commonPortions": [{ "label": "1 mediana (~170g)", "grams": 170 }],
+    "aliases": ["pera"]
+  },
+  {
+    "id": "naranja",
+    "name": "Naranja",
+    "category": "Frutas",
+    "per100g": { "kcal": 47, "protein": 0.9, "carbs": 12, "fat": 0.1 },
+    "commonPortions": [{ "label": "1 mediana (~140g)", "grams": 140 }],
+    "aliases": ["naranja"]
+  },
+  {
+    "id": "mandarina",
+    "name": "Mandarina",
+    "category": "Frutas",
+    "per100g": { "kcal": 53, "protein": 0.8, "carbs": 13, "fat": 0.3 },
+    "commonPortions": [{ "label": "1 mediana (~90g)", "grams": 90 }],
+    "aliases": ["mandarina"]
+  },
+  {
+    "id": "frutilla",
+    "name": "Frutillas",
+    "category": "Frutas",
+    "per100g": { "kcal": 32, "protein": 0.7, "carbs": 7.7, "fat": 0.3 },
+    "commonPortions": [{ "label": "1 taza (~150g)", "grams": 150 }],
+    "aliases": ["frutilla", "frutillas", "fresas"]
+  },
+  {
+    "id": "durazno",
+    "name": "Durazno",
+    "category": "Frutas",
+    "per100g": { "kcal": 39, "protein": 0.9, "carbs": 10, "fat": 0.3 },
+    "commonPortions": [{ "label": "1 mediano (~150g)", "grams": 150 }],
+    "aliases": ["durazno", "melocoton"]
+  },
+  {
+    "id": "uva",
+    "name": "Uva",
+    "category": "Frutas",
+    "per100g": { "kcal": 69, "protein": 0.7, "carbs": 18, "fat": 0.2 },
+    "commonPortions": [{ "label": "1 racimo chico (~100g)", "grams": 100 }],
+    "aliases": ["uva", "uvas"]
+  },
+  {
+    "id": "aceite-oliva",
+    "name": "Aceite de oliva",
+    "category": "Aceites y grasas",
+    "per100g": { "kcal": 884, "protein": 0, "carbs": 0, "fat": 100 },
+    "commonPortions": [
+      { "label": "1 cda (~14g)", "grams": 14 },
+      { "label": "1 cdta (~5g)", "grams": 5 }
+    ],
+    "aliases": ["oliva", "aceite oliva"]
+  },
+  {
+    "id": "aceite-girasol",
+    "name": "Aceite de girasol",
+    "category": "Aceites y grasas",
+    "per100g": { "kcal": 884, "protein": 0, "carbs": 0, "fat": 100 },
+    "commonPortions": [{ "label": "1 cda (~14g)", "grams": 14 }],
+    "aliases": ["aceite", "aceite girasol"]
+  },
+  {
+    "id": "manteca",
+    "name": "Manteca",
+    "category": "Aceites y grasas",
+    "per100g": { "kcal": 717, "protein": 0.9, "carbs": 0.1, "fat": 81 },
+    "commonPortions": [{ "label": "1 cda (~14g)", "grams": 14 }],
+    "aliases": ["manteca", "mantequilla"]
+  },
+  {
+    "id": "palta",
+    "name": "Palta",
+    "category": "Aceites y grasas",
+    "per100g": { "kcal": 160, "protein": 2, "carbs": 9, "fat": 15 },
+    "commonPortions": [
+      { "label": "½ palta (~100g)", "grams": 100 },
+      { "label": "1 palta (~200g)", "grams": 200 }
+    ],
+    "aliases": ["palta", "aguacate"]
+  },
+  {
+    "id": "almendras",
+    "name": "Almendras",
+    "category": "Frutos secos",
+    "per100g": { "kcal": 579, "protein": 21, "carbs": 22, "fat": 50 },
+    "commonPortions": [{ "label": "1 puñado (~30g)", "grams": 30 }],
+    "aliases": ["almendra", "almendras"]
+  },
+  {
+    "id": "nueces",
+    "name": "Nueces",
+    "category": "Frutos secos",
+    "per100g": { "kcal": 654, "protein": 15, "carbs": 14, "fat": 65 },
+    "commonPortions": [{ "label": "1 puñado (~30g)", "grams": 30 }],
+    "aliases": ["nuez", "nueces"]
+  },
+  {
+    "id": "mani",
+    "name": "Maní natural",
+    "category": "Frutos secos",
+    "per100g": { "kcal": 567, "protein": 26, "carbs": 16, "fat": 49 },
+    "commonPortions": [{ "label": "1 puñado (~30g)", "grams": 30 }],
+    "aliases": ["mani", "cacahuate"]
+  },
+  {
+    "id": "gaseosa-cola",
+    "name": "Gaseosa cola regular",
+    "category": "Bebidas",
+    "per100g": { "kcal": 42, "protein": 0, "carbs": 10.6, "fat": 0 },
+    "commonPortions": [
+      { "label": "1 vaso (~250g)", "grams": 250 },
+      { "label": "1 lata (~354g)", "grams": 354 }
+    ],
+    "aliases": ["gaseosa", "coca", "cola"]
+  },
+  {
+    "id": "jugo-naranja",
+    "name": "Jugo de naranja natural",
+    "category": "Bebidas",
+    "per100g": { "kcal": 45, "protein": 0.7, "carbs": 10.4, "fat": 0.2 },
+    "commonPortions": [{ "label": "1 vaso (~250g)", "grams": 250 }],
+    "aliases": ["jugo naranja", "jugo"]
+  },
+  {
+    "id": "mate-cocido",
+    "name": "Mate cocido (infusión)",
+    "category": "Bebidas",
+    "per100g": { "kcal": 1, "protein": 0, "carbs": 0.2, "fat": 0 },
+    "commonPortions": [{ "label": "1 taza (~200g)", "grams": 200 }],
+    "aliases": ["mate", "mate cocido", "yerba"]
+  },
+  {
+    "id": "empanada-carne",
+    "name": "Empanada de carne (horneada)",
+    "category": "Comidas típicas",
+    "per100g": { "kcal": 251, "protein": 9, "carbs": 27, "fat": 12 },
+    "commonPortions": [
+      { "label": "1 unidad (~70g)", "grams": 70 },
+      { "label": "2 unidades (~140g)", "grams": 140 }
+    ],
+    "aliases": ["empanada", "empanadas"]
+  },
+  {
+    "id": "milanesa-carne",
+    "name": "Milanesa de carne (frita)",
+    "category": "Comidas típicas",
+    "per100g": { "kcal": 275, "protein": 22, "carbs": 15, "fat": 14 },
+    "commonPortions": [{ "label": "1 unidad (~120g)", "grams": 120 }],
+    "aliases": ["milanesa", "milas"]
+  },
+  {
+    "id": "pizza-muzzarella",
+    "name": "Pizza muzzarella",
+    "category": "Comidas típicas",
+    "per100g": { "kcal": 266, "protein": 11, "carbs": 33, "fat": 10 },
+    "commonPortions": [
+      { "label": "1 porción (~100g)", "grams": 100 },
+      { "label": "2 porciones (~200g)", "grams": 200 }
+    ],
+    "aliases": ["pizza", "muzzarella", "mozzarella"]
+  },
+  {
+    "id": "asado-tira",
+    "name": "Asado, tira con grasa",
+    "category": "Comidas típicas",
+    "per100g": { "kcal": 291, "protein": 21, "carbs": 0, "fat": 23 },
+    "commonPortions": [{ "label": "1 porción (~200g)", "grams": 200 }],
+    "aliases": ["asado", "tira", "tira de asado"]
+  },
+  {
+    "id": "dulce-leche",
+    "name": "Dulce de leche",
+    "category": "Comidas típicas",
+    "per100g": { "kcal": 315, "protein": 7, "carbs": 55, "fat": 7 },
+    "commonPortions": [
+      { "label": "1 cda (~20g)", "grams": 20 },
+      { "label": "1 cdta (~7g)", "grams": 7 }
+    ],
+    "aliases": ["dulce de leche", "ddl"]
+  },
+  {
+    "id": "locro",
+    "name": "Locro",
+    "category": "Comidas típicas",
+    "per100g": { "kcal": 150, "protein": 8, "carbs": 15, "fat": 6 },
+    "commonPortions": [{ "label": "1 plato (~300g)", "grams": 300 }],
+    "aliases": ["locro"]
+  },
+  {
+    "id": "miel",
+    "name": "Miel",
+    "category": "Dulces",
+    "per100g": { "kcal": 304, "protein": 0.3, "carbs": 82, "fat": 0 },
+    "commonPortions": [
+      { "label": "1 cda (~21g)", "grams": 21 },
+      { "label": "1 cdta (~7g)", "grams": 7 }
+    ],
+    "aliases": ["miel"]
+  },
+  {
+    "id": "azucar",
+    "name": "Azúcar común",
+    "category": "Dulces",
+    "per100g": { "kcal": 387, "protein": 0, "carbs": 100, "fat": 0 },
+    "commonPortions": [
+      { "label": "1 cda (~12g)", "grams": 12 },
+      { "label": "1 cdta (~4g)", "grams": 4 }
+    ],
+    "aliases": ["azucar", "azúcar"]
+  },
+  {
+    "id": "mermelada",
+    "name": "Mermelada de frutas",
+    "category": "Dulces",
+    "per100g": { "kcal": 250, "protein": 0.4, "carbs": 62, "fat": 0.1 },
+    "commonPortions": [{ "label": "1 cda (~20g)", "grams": 20 }],
+    "aliases": ["mermelada", "dulce"]
+  }
+]

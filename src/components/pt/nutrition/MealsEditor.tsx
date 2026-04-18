@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Card, Button, Input, Select } from '../../UI';
 import {
-  Plus, Trash2, ChevronUp, ChevronDown, Utensils, Apple, Flame, Beef, Wheat, Droplets,
+  Plus, Trash2, ChevronUp, ChevronDown, Utensils, Apple, Flame, Beef, Wheat, Droplets, Search,
 } from 'lucide-react';
 import type { MealType, NutritionDetailLevel } from '../../../../shared/types';
+import { FoodSearchPicker } from './FoodSearchPicker';
 
 // ─── Drafts ──────────────────────────────────────────────────────────────────
 
@@ -88,6 +89,7 @@ interface MealsEditorProps {
 
 export const MealsEditor: React.FC<MealsEditorProps> = ({ meals, onChange, detailLevel }) => {
   const [expandedId, setExpandedId] = useState<string | null>(meals[0]?.tempId ?? null);
+  const [pickerFor, setPickerFor] = useState<{ mealTempId: string; foodTempId: string } | null>(null);
   const showFoods = detailLevel === 'detailed';
 
   const updateMeal = (tempId: string, patch: Partial<DraftMeal>) => {
@@ -320,6 +322,14 @@ export const MealsEditor: React.FC<MealsEditorProps> = ({ meals, onChange, detai
                         {m.foods.map((f) => (
                           <div key={f.tempId} className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/40 space-y-1.5">
                             <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => setPickerFor({ mealTempId: m.tempId, foodTempId: f.tempId })}
+                                className="p-2 rounded-lg text-violet-500 hover:text-violet-600 bg-violet-500/10 hover:bg-violet-500/20 shrink-0"
+                                title="Buscar alimento"
+                              >
+                                <Search size={13} />
+                              </button>
                               <Input
                                 type="text" placeholder="Ej: Pechuga de pollo"
                                 value={f.food_name}
@@ -374,6 +384,24 @@ export const MealsEditor: React.FC<MealsEditorProps> = ({ meals, onChange, detai
       <Button variant="outline" fullWidth onClick={() => addMeal('desayuno')}>
         <Plus size={15} className="inline mr-1" /> Agregar comida
       </Button>
+
+      <FoodSearchPicker
+        open={pickerFor !== null}
+        onClose={() => setPickerFor(null)}
+        onSelect={payload => {
+          if (!pickerFor) return;
+          updateFood(pickerFor.mealTempId, pickerFor.foodTempId, {
+            food_name: payload.food_name,
+            amount: String(payload.amount),
+            unit: payload.unit,
+            calories: String(payload.calories),
+            protein_g: String(payload.protein_g),
+            carbs_g: String(payload.carbs_g),
+            fat_g: String(payload.fat_g),
+          });
+          setPickerFor(null);
+        }}
+      />
     </div>
   );
 };
