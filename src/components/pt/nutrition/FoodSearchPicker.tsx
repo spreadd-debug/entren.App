@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Search, X, ArrowLeft, Flame, Beef, Wheat, Droplets, Loader2, PackageSearch, BookOpen, Plus } from 'lucide-react';
+import { Search, X, ArrowLeft, Flame, Beef, Wheat, Droplets, Loader2, PackageSearch, BookOpen, Plus, AlertTriangle } from 'lucide-react';
 import { Input, Button } from '../../UI';
 import {
   searchLocal,
@@ -31,6 +31,7 @@ export const FoodSearchPicker: React.FC<FoodSearchPickerProps> = ({ open, onClos
   const [offResults, setOffResults] = useState<FoodLibraryItem[]>([]);
   const [offLoading, setOffLoading] = useState(false);
   const [offError, setOffError] = useState<string | null>(null);
+  const [offUnavailable, setOffUnavailable] = useState(false);
 
   const [selected, setSelected] = useState<FoodLibraryItem | null>(null);
   const [amount, setAmount] = useState<string>('');
@@ -43,6 +44,7 @@ export const FoodSearchPicker: React.FC<FoodSearchPickerProps> = ({ open, onClos
       setOffResults([]);
       setOffLoading(false);
       setOffError(null);
+      setOffUnavailable(false);
       setSelected(null);
       setAmount('');
     }
@@ -60,21 +62,25 @@ export const FoodSearchPicker: React.FC<FoodSearchPickerProps> = ({ open, onClos
       setOffResults([]);
       setOffLoading(false);
       setOffError(null);
+      setOffUnavailable(false);
       return;
     }
 
     setOffLoading(true);
     setOffError(null);
+    setOffUnavailable(false);
     abortRef.current?.abort();
     const ctrl = new AbortController();
     abortRef.current = ctrl;
 
     const timer = setTimeout(async () => {
       try {
-        const results = await searchOpenFoodFacts(q, { signal: ctrl.signal });
+        const { items, unavailable } = await searchOpenFoodFacts(q, { signal: ctrl.signal });
         if (ctrl.signal.aborted) return;
-        setOffResults(results);
-        if (results.length === 0) setOffError('Sin productos argentinos para esta búsqueda.');
+        setOffResults(items);
+        setOffUnavailable(unavailable);
+        if (unavailable) setOffError(null);
+        else if (items.length === 0) setOffError('Sin productos argentinos para esta búsqueda.');
       } catch {
         if (!ctrl.signal.aborted) setOffError('Error de conexión.');
       } finally {
@@ -143,6 +149,7 @@ export const FoodSearchPicker: React.FC<FoodSearchPickerProps> = ({ open, onClos
             results={currentResults}
             loading={tab === 'off' && offLoading}
             error={tab === 'off' ? offError : null}
+            offUnavailable={tab === 'off' && offUnavailable}
             onPick={handlePick}
             onClose={onClose}
             onAddManual={onAddManual}
@@ -163,10 +170,11 @@ const SearchStage: React.FC<{
   results: FoodLibraryItem[];
   loading: boolean;
   error: string | null;
+  offUnavailable: boolean;
   onPick: (item: FoodLibraryItem) => void;
   onClose: () => void;
   onAddManual?: () => void;
-}> = ({ query, onQueryChange, tab, onTabChange, results, loading, error, onPick, onClose, onAddManual }) => (
+}> = ({ query, onQueryChange, tab, onTabChange, results, loading, error, offUnavailable, onPick, onClose, onAddManual }) => (
   <>
     {/* Header */}
     <div className="flex items-center gap-2 p-3 border-b border-slate-100 dark:border-slate-800">
@@ -203,17 +211,29 @@ const SearchStage: React.FC<{
 
     {/* Results */}
     <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
+      {tab === 'off' && offUnavailable && (
+        <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300">
+          <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+          <div className="text-[11px] leading-relaxed">
+            <p className="font-semibold">Open Food Facts no responde en este momento.</p>
+            <p className="opacity-80 mt-0.5">
+              Probá más tarde, o buscá en <button type="button" onClick={() => onTabChange('local')} className="underline font-semibold">Biblioteca</button> (ya incluye marcas comunes: Don Satur, Bagley, Arcor, Ser, etc.).
+            </p>
+          </div>
+        </div>
+      )}
+
       {tab === 'off' && loading && (
         <div className="flex items-center justify-center py-10 text-slate-400 text-xs gap-2">
           <Loader2 size={14} className="animate-spin" /> Buscando en Open Food Facts…
         </div>
       )}
 
-      {tab === 'off' && !loading && error && results.length === 0 && (
+      {tab === 'off' && !loading && !offUnavailable && error && results.length === 0 && (
         <EmptyState message={error} query={query} onAddManual={onAddManual} />
       )}
 
-      {!loading && results.length === 0 && !error && (
+      {!loading && !offUnavailable && results.length === 0 && !error && (
         <EmptyState
           message={
             query.trim()

@@ -28,6 +28,7 @@ export interface FoodLibraryItem {
 interface LocalFoodRaw {
   id: string;
   name: string;
+  brand?: string;
   category?: string;
   per100g: FoodMacros;
   commonPortions?: FoodPortion[];
@@ -53,15 +54,17 @@ export function searchLocal(query: string, limit = 15): FoodLibraryItem[] {
   const scored: { item: LocalFoodRaw; score: number }[] = [];
   for (const item of LOCAL_FOODS) {
     const name = normalize(item.name);
+    const brand = normalize(item.brand ?? '');
     const category = normalize(item.category ?? '');
     const aliases = (item.aliases ?? []).map(normalize);
-    const haystack = `${name} ${category} ${aliases.join(' ')}`;
+    const haystack = `${name} ${brand} ${category} ${aliases.join(' ')}`;
 
     if (!tokens.every(t => haystack.includes(t))) continue;
 
     let score = 0;
     for (const t of tokens) {
-      if (name.startsWith(t)) score += 4;
+      if (brand && brand.includes(t)) score += 5;
+      else if (name.startsWith(t)) score += 4;
       else if (name.includes(` ${t}`) || name.includes(`,${t}`) || name.includes(`, ${t}`)) score += 3;
       else if (aliases.some(a => a.startsWith(t))) score += 2;
       else if (name.includes(t) || aliases.some(a => a.includes(t))) score += 1;
@@ -75,6 +78,7 @@ export function searchLocal(query: string, limit = 15): FoodLibraryItem[] {
   return scored.slice(0, limit).map(({ item }) => ({
     id: `local:${item.id}`,
     name: item.name,
+    brand: item.brand,
     category: item.category,
     per100g: item.per100g,
     commonPortions: item.commonPortions,
@@ -147,12 +151,17 @@ function mapOFFProduct(p: OFFProduct): FoodLibraryItem | null {
   };
 }
 
+export interface OFFSearchResult {
+  items: FoodLibraryItem[];
+  unavailable: boolean;
+}
+
 export async function searchOpenFoodFacts(
   query: string,
   opts: { signal?: AbortSignal; pageSize?: number } = {},
-): Promise<FoodLibraryItem[]> {
+): Promise<OFFSearchResult> {
   const q = query.trim();
-  if (!q) return [];
+  if (!q) return { items: [], unavailable: false };
 
   const pageSize = opts.pageSize ?? 12;
   const base = 'https://world.openfoodfacts.org/api/v2/search';
@@ -166,30 +175,35 @@ export async function searchOpenFoodFacts(
 
   // OFF occasionally serves an HTML "Page temporarily unavailable" instead of
   // JSON (especially on brand-tag queries). Guard against that so one bad
-  // endpoint never kills the whole search — we only rethrow AbortError so the
-  // outer abort flow keeps working.
-  const fetchProducts = async (url: string): Promise<OFFProduct[]> => {
+  // endpoint never kills the whole search. `ok: false` lets the caller
+  // detect full-service outages (both endpoints down) and show a banner.
+  const fetchProducts = async (url: string): Promise<{ products: OFFProduct[]; ok: boolean }> => {
     try {
       const res = await fetch(url, { signal: opts.signal });
-      if (!res.ok) return [];
+      if (!res.ok) return { products: [], ok: false };
       const ct = res.headers.get('content-type') ?? '';
-      if (!ct.includes('application/json')) return [];
+      if (!ct.includes('application/json')) return { products: [], ok: false };
       const json = (await res.json()) as OFFResponse;
-      return json.products ?? [];
+      return { products: json.products ?? [], ok: true };
     } catch (err) {
       if ((err as { name?: string })?.name === 'AbortError') throw err;
-      return [];
+      return { products: [], ok: false };
     }
   };
 
   try {
-    const [brandProducts, termProducts] = await Promise.all([
-      brandsUrl ? fetchProducts(brandsUrl) : Promise.resolve<OFFProduct[]>([]),
+    const [brandRes, termRes] = await Promise.all([
+      brandsUrl ? fetchProducts(brandsUrl) : Promise.resolve({ products: [] as OFFProduct[], ok: true }),
       fetchProducts(termsUrl),
     ]);
 
+    // If the only endpoint we actually queried failed, OFF is unavailable.
+    // (When brandsUrl is null we resolve `ok: true` above so we don't falsely
+    // flag short queries as outage.)
+    const unavailable = !brandRes.ok && !termRes.ok;
+
     // Brand-filter hits first, then full-text hits; dedupe by code.
-    const combined = [...brandProducts, ...termProducts];
+    const combined = [...brandRes.products, ...termRes.products];
     const seen = new Set<string>();
     const out: FoodLibraryItem[] = [];
     for (const p of combined) {
@@ -220,11 +234,11 @@ export async function searchOpenFoodFacts(
     };
     out.sort((a, b) => scoreItem(b) - scoreItem(a));
 
-    return out.slice(0, pageSize);
+    return { items: out.slice(0, pageSize), unavailable };
   } catch (err) {
-    if ((err as { name?: string })?.name === 'AbortError') return [];
+    if ((err as { name?: string })?.name === 'AbortError') return { items: [], unavailable: false };
     console.warn('OFF search error:', err);
-    return [];
+    return { items: [], unavailable: true };
   }
 }
 
