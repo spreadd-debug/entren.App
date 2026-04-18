@@ -2,12 +2,14 @@ import React, { useMemo, useState } from 'react';
 import { Card, Button, Input } from '../../UI';
 import {
   ChevronLeft, ChevronRight, Check, FileText, Calculator, Target, ClipboardCheck,
-  Flame, Beef, Wheat, Droplets, Pencil,
+  Flame, Beef, Wheat, Droplets, Pencil, Utensils,
 } from 'lucide-react';
 import type { NutritionDetailLevel, NutritionActivityLevel, NutritionTmbGoalType } from '../../../../shared/types';
 import { TMBCalculator, TMBApplyPayload } from './TMBCalculator';
 import { ACTIVITY_LABELS, GOAL_LABELS } from '../../../utils/tmbMath';
 import type { TmbInputs } from '../../../utils/tmbMath';
+import { MealsEditor, DraftMeal } from './MealsEditor';
+import type { CreateMealInput, CreateFoodInput } from '../../../services/pt/NutritionPlanService';
 
 type PrefillInputs = Partial<TmbInputs> & {
   activityLevel?: NutritionActivityLevel;
@@ -20,6 +22,7 @@ export interface NutritionPlanWizardSubmit {
   description: string | null;
   detail_level: NutritionDetailLevel;
   payload: TMBApplyPayload;
+  meals: CreateMealInput[];
 }
 
 interface NutritionPlanWizardProps {
@@ -29,12 +32,13 @@ interface NutritionPlanWizardProps {
   onCancel: () => void;
 }
 
-type Step = 'basics' | 'tmb' | 'targets' | 'review';
+type Step = 'basics' | 'tmb' | 'targets' | 'meals' | 'review';
 
-const STEPS: { id: Step; label: string; icon: React.ComponentType<{ size?: number; className?: string }> }[] = [
+const BASE_STEPS: { id: Step; label: string; icon: React.ComponentType<{ size?: number; className?: string }> }[] = [
   { id: 'basics',  label: 'Básicos',  icon: FileText },
   { id: 'tmb',     label: 'Cálculo',  icon: Calculator },
   { id: 'targets', label: 'Targets',  icon: Target },
+  { id: 'meals',   label: 'Comidas',  icon: Utensils },
   { id: 'review',  label: 'Revisión', icon: ClipboardCheck },
 ];
 
@@ -44,6 +48,39 @@ const DETAIL_LEVELS: { value: NutritionDetailLevel; label: string; hint: string 
   { value: 'detailed', label: 'Plan detallado',   hint: 'Todo lo anterior + alimentos con gramajes' },
 ];
 
+const draftToCreateMeal = (m: DraftMeal, order: number, includeFoods: boolean): CreateMealInput => {
+  const num = (s: string): number | null => {
+    if (!s) return null;
+    const n = Number(s);
+    return Number.isFinite(n) ? n : null;
+  };
+  const foods: CreateFoodInput[] | undefined = includeFoods
+    ? m.foods
+        .filter(f => f.food_name.trim().length > 0)
+        .map((f, i) => ({
+          food_name: f.food_name.trim(),
+          amount: num(f.amount),
+          unit: f.unit.trim() || null,
+          calories: num(f.calories),
+          protein_g: num(f.protein_g),
+          carbs_g: num(f.carbs_g),
+          fat_g: num(f.fat_g),
+          order_index: i,
+        }))
+    : undefined;
+  return {
+    meal_type: m.meal_type,
+    order_index: order,
+    name: m.name.trim() || null,
+    time_hint: m.time_hint.trim() || null,
+    calories: num(m.calories),
+    protein_g: num(m.protein_g),
+    carbs_g: num(m.carbs_g),
+    fat_g: num(m.fat_g),
+    foods,
+  };
+};
+
 export const NutritionPlanWizard: React.FC<NutritionPlanWizardProps> = ({
   prefillInputs, saving, onSubmit, onCancel,
 }) => {
@@ -52,16 +89,28 @@ export const NutritionPlanWizard: React.FC<NutritionPlanWizardProps> = ({
   const [description, setDescription] = useState('');
   const [detailLevel, setDetailLevel] = useState<NutritionDetailLevel>('macros');
   const [payload, setPayload] = useState<TMBApplyPayload | null>(null);
+  const [meals, setMeals] = useState<DraftMeal[]>([]);
 
-  const stepIndex = STEPS.findIndex(s => s.id === step);
+  // Steps visibles según nivel de detalle (si es 'macros', saltamos el paso de comidas)
+  const activeSteps = useMemo(
+    () => (detailLevel === 'macros' ? BASE_STEPS.filter(s => s.id !== 'meals') : BASE_STEPS),
+    [detailLevel]
+  );
+
+  // Si el paso actual ya no está en activeSteps (coach bajó a 'macros' estando en 'meals'), volver a basics
+  React.useEffect(() => {
+    if (!activeSteps.some(s => s.id === step)) setStep('basics');
+  }, [activeSteps, step]);
+
+  const stepIndex = activeSteps.findIndex(s => s.id === step);
   const canAdvanceBasics = title.trim().length > 0;
 
   const goNext = () => {
-    const next = STEPS[stepIndex + 1];
+    const next = activeSteps[stepIndex + 1];
     if (next) setStep(next.id);
   };
   const goBack = () => {
-    const prev = STEPS[stepIndex - 1];
+    const prev = activeSteps[stepIndex - 1];
     if (prev) setStep(prev.id);
   };
 
@@ -72,18 +121,23 @@ export const NutritionPlanWizard: React.FC<NutritionPlanWizardProps> = ({
 
   const handleSubmit = async () => {
     if (!payload) return;
+    const includeFoods = detailLevel === 'detailed';
+    const mealsToCreate = detailLevel === 'macros'
+      ? []
+      : meals.map((m, i) => draftToCreateMeal(m, i, includeFoods));
     await onSubmit({
       title: title.trim(),
       description: description.trim() || null,
       detail_level: detailLevel,
       payload,
+      meals: mealsToCreate,
     });
   };
 
   // ── Progress indicator ─────────────────────────────────────────────────
   const progress = (
     <div className="flex items-center justify-between gap-1 px-1">
-      {STEPS.map((s, i) => {
+      {activeSteps.map((s, i) => {
         const Icon = s.icon;
         const isActive = s.id === step;
         const isDone = i < stepIndex;
@@ -103,7 +157,7 @@ export const NutritionPlanWizard: React.FC<NutritionPlanWizardProps> = ({
                 : 'text-slate-400'
               }`}>{s.label}</span>
             </div>
-            {i < STEPS.length - 1 && (
+            {i < activeSteps.length - 1 && (
               <div className={`h-0.5 flex-1 rounded-full -mt-4 ${
                 isDone ? 'bg-violet-500/40' : 'bg-slate-200 dark:bg-slate-700'
               }`} />
@@ -114,7 +168,7 @@ export const NutritionPlanWizard: React.FC<NutritionPlanWizardProps> = ({
     </div>
   );
 
-  // ── Step 1: Básicos ────────────────────────────────────────────────────
+  // ── Step: Básicos ──────────────────────────────────────────────────────
   const basicsStep = (
     <div className="space-y-3">
       <div>
@@ -166,7 +220,7 @@ export const NutritionPlanWizard: React.FC<NutritionPlanWizardProps> = ({
     </div>
   );
 
-  // ── Step 2: TMB ────────────────────────────────────────────────────────
+  // ── Step: TMB ──────────────────────────────────────────────────────────
   const tmbStep = (
     <TMBCalculator
       variant="embedded"
@@ -184,7 +238,7 @@ export const NutritionPlanWizard: React.FC<NutritionPlanWizardProps> = ({
     />
   );
 
-  // ── Step 3: Targets (read-only confirm) ───────────────────────────────
+  // ── Step: Targets (read-only confirm) ─────────────────────────────────
   const targetsStep = useMemo(() => {
     if (!payload) {
       return (
@@ -258,11 +312,23 @@ export const NutritionPlanWizard: React.FC<NutritionPlanWizardProps> = ({
     );
   }, [payload]);
 
-  // ── Step 4: Review ─────────────────────────────────────────────────────
+  // ── Step: Meals ────────────────────────────────────────────────────────
+  const mealsStep = (
+    <div className="space-y-3">
+      <div className="p-2.5 rounded-xl bg-violet-500/5 border border-violet-500/20 text-[11px] text-slate-600 dark:text-slate-400">
+        {detailLevel === 'detailed'
+          ? 'Cargá las comidas del día y, dentro de cada una, los alimentos con sus gramajes.'
+          : 'Cargá las comidas del día. Podés dejar los macros por comida en blanco si solo querés indicar qué come en cada momento.'}
+      </div>
+      <MealsEditor meals={meals} onChange={setMeals} detailLevel={detailLevel} />
+    </div>
+  );
+
+  // ── Step: Review ───────────────────────────────────────────────────────
   const reviewStep = (
     <div className="space-y-3">
       <p className="text-[11px] text-slate-500 dark:text-slate-400">
-        Revisá el resumen y creá el plan. Más adelante vas a poder agregar comidas y alimentos.
+        Revisá el resumen y creá el plan. Después de crearlo vas a poder ajustarlo desde la ficha.
       </p>
 
       <Card className="p-3 space-y-2">
@@ -306,36 +372,55 @@ export const NutritionPlanWizard: React.FC<NutritionPlanWizardProps> = ({
             </div>
           </div>
         )}
-      </Card>
 
-      <div className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/60 text-[11px] text-slate-500 dark:text-slate-400">
-        El editor de comidas y alimentos está en camino. Por ahora el plan se crea solo con los objetivos diarios.
-      </div>
+        {detailLevel !== 'macros' && (
+          <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+            <p className="text-[10px] font-medium text-violet-500 uppercase tracking-wider">Comidas</p>
+            {meals.length === 0 ? (
+              <p className="text-[11px] text-slate-400 mt-1">Sin comidas cargadas.</p>
+            ) : (
+              <div className="mt-1 space-y-0.5">
+                <p className="text-[11px] text-slate-600 dark:text-slate-300">
+                  <span className="font-medium">{meals.length}</span> comida{meals.length === 1 ? '' : 's'}
+                  {detailLevel === 'detailed' && (() => {
+                    const totalFoods = meals.reduce((acc, m) => acc + m.foods.filter(f => f.food_name.trim()).length, 0);
+                    return ` · ${totalFoods} alimento${totalFoods === 1 ? '' : 's'}`;
+                  })()}
+                </p>
+                <p className="text-[10px] text-slate-400">
+                  {meals.map(m => m.name.trim() || m.meal_type.replace('_', ' ')).join(' · ')}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+      </Card>
     </div>
   );
 
   // ── Nav buttons ────────────────────────────────────────────────────────
-  // TMB step manages its own buttons (calculator renders them)
+  const isFirst = stepIndex === 0;
+  const isLast = stepIndex === activeSteps.length - 1;
+  const disableNext =
+    step === 'basics' ? !canAdvanceBasics
+    : step === 'targets' ? !payload
+    : false;
+
   const nav = step === 'tmb' ? null : (
     <div className="flex gap-2 pt-2">
-      {step === 'basics' ? (
+      {isFirst ? (
         <Button variant="outline" fullWidth onClick={onCancel} disabled={saving}>Cancelar</Button>
       ) : (
         <Button variant="outline" fullWidth onClick={goBack} disabled={saving}>
           <ChevronLeft size={15} className="inline mr-1" /> Atrás
         </Button>
       )}
-      {step === 'review' ? (
+      {isLast ? (
         <Button variant="secondary" fullWidth onClick={handleSubmit} disabled={saving || !payload}>
           {saving ? 'Creando...' : 'Crear plan'}
         </Button>
       ) : (
-        <Button
-          variant="secondary"
-          fullWidth
-          onClick={goNext}
-          disabled={step === 'basics' ? !canAdvanceBasics : step === 'targets' ? !payload : false}
-        >
+        <Button variant="secondary" fullWidth onClick={goNext} disabled={disableNext}>
           Siguiente <ChevronRight size={15} className="inline ml-1" />
         </Button>
       )}
@@ -348,13 +433,14 @@ export const NutritionPlanWizard: React.FC<NutritionPlanWizardProps> = ({
         <h4 className="text-xs font-black text-violet-500 uppercase tracking-wider">
           Nuevo plan nutricional
         </h4>
-        <span className="text-[10px] text-slate-400">Paso {stepIndex + 1} de {STEPS.length}</span>
+        <span className="text-[10px] text-slate-400">Paso {stepIndex + 1} de {activeSteps.length}</span>
       </div>
       {progress}
       <div className="pt-1">
         {step === 'basics' && basicsStep}
         {step === 'tmb' && tmbStep}
         {step === 'targets' && targetsStep}
+        {step === 'meals' && mealsStep}
         {step === 'review' && reviewStep}
       </div>
       {nav}

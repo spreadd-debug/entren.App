@@ -223,6 +223,7 @@ export const NutritionPlanPanel: React.FC<NutritionPlanPanelProps> = ({ studentI
         calc_height_cm: args.payload.calc_height_cm,
         calc_age: args.payload.calc_age,
         calc_biological_sex: args.payload.calc_biological_sex,
+        meals: args.meals.length > 0 ? args.meals : undefined,
       });
       toast.success('Plan nutricional creado');
       closeForm();
