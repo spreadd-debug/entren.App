@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Flame, Beef, Wheat, Droplets, RotateCcw, AlertTriangle, Calculator } from 'lucide-react';
+import { Flame, Beef, Wheat, Droplets, RotateCcw, AlertTriangle, Calculator, Info, Sparkles } from 'lucide-react';
 import { Card, Button, Input, Select } from '../../UI';
 import type { NutritionActivityLevel, NutritionTmbGoalType } from '../../../../shared/types';
 import {
@@ -59,6 +59,15 @@ export const TMBCalculator: React.FC<TMBCalculatorProps> = ({
   variant = 'standalone',
 }) => {
   const [manualMode, setManualMode] = useState(false);
+  const [showHow, setShowHow] = useState(false);
+  const [hasPrefill] = useState(() =>
+    Boolean(
+      initialInputs?.weightKg ||
+      initialInputs?.heightCm ||
+      initialInputs?.age ||
+      initialInputs?.biologicalSex
+    )
+  );
 
   // Inputs alumno
   const [weightKg, setWeightKg] = useState(initialInputs?.weightKg?.toString() ?? '');
@@ -234,13 +243,8 @@ export const TMBCalculator: React.FC<TMBCalculatorProps> = ({
   };
 
   // ─── Render ─────────────────────────────────────────────────────────────────
-  const Wrapper: React.FC<{ children: React.ReactNode }> = ({ children }) =>
-    variant === 'embedded'
-      ? <div className="space-y-4">{children}</div>
-      : <Card className="p-4 space-y-4 border-violet-200 dark:border-violet-500/30">{children}</Card>;
-
-  return (
-    <Wrapper>
+  const content = (
+    <>
       <div className="flex items-center gap-2">
         <Calculator size={14} className="text-violet-500" />
         <h4 className="text-xs font-black text-violet-500 uppercase tracking-wider">
@@ -248,11 +252,42 @@ export const TMBCalculator: React.FC<TMBCalculatorProps> = ({
         </h4>
       </div>
 
+      {/* ── Intro / explicación ──────────────────────────────────────── */}
+      {!manualMode && (
+        <div className="rounded-xl bg-violet-500/5 border border-violet-500/20 p-2.5 text-[11px] text-slate-600 dark:text-slate-400">
+          <button
+            type="button"
+            onClick={() => setShowHow(s => !s)}
+            className="flex items-center justify-between gap-1.5 font-medium text-violet-600 dark:text-violet-400 w-full text-left"
+          >
+            <span className="inline-flex items-center gap-1.5">
+              <Info size={12} /> ¿Cómo funciona el cálculo?
+            </span>
+            <span className="text-slate-400">{showHow ? '−' : '+'}</span>
+          </button>
+          {showHow && (
+            <div className="mt-2 space-y-1.5 leading-relaxed">
+              <p>• <strong className="text-slate-700 dark:text-slate-200">TMB</strong> (Tasa Metabólica Basal): calorías que quema el cuerpo en reposo. Calculado con Mifflin-St Jeor.</p>
+              <p>• <strong className="text-slate-700 dark:text-slate-200">GET</strong> (Gasto Energético Total): TMB × factor de actividad — lo que el alumno gasta por día.</p>
+              <p>• <strong className="text-slate-700 dark:text-slate-200">Objetivo</strong>: GET ± un % según la meta (perder grasa, mantener, ganar músculo).</p>
+              <p className="pt-1 text-slate-500 dark:text-slate-500">Los valores sugeridos son una recomendación. Editalos si tenés más contexto del alumno.</p>
+            </div>
+          )}
+        </div>
+      )}
+
       {!manualMode && (
         <>
           {/* ── Sección A: Datos del alumno ────────────────────────────── */}
           <div className="space-y-3">
-            <p className="text-xs font-bold text-slate-600 dark:text-slate-300">Datos del alumno</p>
+            <div className="flex items-center justify-between flex-wrap gap-1">
+              <p className="text-xs font-bold text-slate-600 dark:text-slate-300">Datos del alumno</p>
+              {hasPrefill && (
+                <span className="inline-flex items-center gap-1 text-[10px] text-violet-600 dark:text-violet-400">
+                  <Sparkles size={10} /> Cargado desde el perfil — editá si necesitás
+                </span>
+              )}
+            </div>
 
             <div className="grid grid-cols-2 gap-2">
               <Input
@@ -487,6 +522,10 @@ export const TMBCalculator: React.FC<TMBCalculatorProps> = ({
           {applyLabel}
         </Button>
       </div>
-    </Wrapper>
+    </>
   );
+
+  return variant === 'embedded'
+    ? <div className="space-y-4">{content}</div>
+    : <Card className="p-4 space-y-4 border-violet-200 dark:border-violet-500/30">{content}</Card>;
 };

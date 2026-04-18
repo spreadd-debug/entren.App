@@ -2,9 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { Plus, Trash2, Archive, Apple, Flame, Beef, Wheat, Droplets, Info } from 'lucide-react';
 import { Card, Button, Input } from '../UI';
 import { NutritionPlanService, NutritionPlanFull } from '../../services/pt/NutritionPlanService';
+import { AnthropometryService } from '../../services/pt/AnthropometryService';
+import { PlanProfileService } from '../../services/pt/PlanProfileService';
 import { NutritionPlan, NutritionDetailLevel, MealType } from '../../../shared/types';
 import { useToast } from '../../context/ToastContext';
 import { TMBCalculator, TMBApplyPayload } from './nutrition/TMBCalculator';
+import type { TmbInputs } from '../../utils/tmbMath';
 
 interface NutritionPlanPanelProps {
   studentId: string;
@@ -41,6 +44,8 @@ export const NutritionPlanPanel: React.FC<NutritionPlanPanelProps> = ({ studentI
     description: '',
     detail_level: 'macros' as NutritionDetailLevel,
   });
+  const [prefillData, setPrefillData] = useState<Partial<TmbInputs> | null>(null);
+  const [prefillLoading, setPrefillLoading] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -60,6 +65,26 @@ export const NutritionPlanPanel: React.FC<NutritionPlanPanelProps> = ({ studentI
   const resetForm = () => setPlanForm({
     title: '', description: '', detail_level: 'macros',
   });
+
+  const handleStartCreate = async () => {
+    setPrefillLoading(true);
+    try {
+      const [anth, profile] = await Promise.all([
+        AnthropometryService.getByStudent(studentId).catch(() => []),
+        PlanProfileService.get(studentId).catch(() => null),
+      ]);
+      const latest = anth[0];
+      const prefill: Partial<TmbInputs> = {};
+      if (latest?.weight_kg != null) prefill.weightKg = latest.weight_kg;
+      if (latest?.height_cm != null) prefill.heightCm = latest.height_cm;
+      if (profile?.age != null) prefill.age = profile.age;
+      if (profile?.biological_sex) prefill.biologicalSex = profile.biological_sex;
+      setPrefillData(Object.keys(prefill).length > 0 ? prefill : null);
+    } finally {
+      setPrefillLoading(false);
+      setShowNewPlan(true);
+    }
+  };
 
   const handleApplyAndCreate = async (payload: TMBApplyPayload) => {
     if (!planForm.title.trim()) { toast.error('Ingresá un título para el plan'); return; }
@@ -235,9 +260,9 @@ export const NutritionPlanPanel: React.FC<NutritionPlanPanelProps> = ({ studentI
         <Card className="p-6 text-center">
           <Apple className="mx-auto mb-2 text-slate-300 dark:text-slate-600" size={32} />
           <p className="text-slate-500 dark:text-slate-400 text-sm">Sin plan nutricional activo</p>
-          <Button variant="outline" className="mt-4" onClick={() => setShowNewPlan(true)}>
+          <Button variant="outline" className="mt-4" onClick={handleStartCreate} disabled={prefillLoading}>
             <Plus size={15} className="inline mr-1" />
-            Crear plan nutricional
+            {prefillLoading ? 'Cargando datos...' : 'Crear plan nutricional'}
           </Button>
         </Card>
       ) : null}
@@ -278,8 +303,9 @@ export const NutritionPlanPanel: React.FC<NutritionPlanPanelProps> = ({ studentI
             <TMBCalculator
               variant="embedded"
               applyLabel={saving ? 'Guardando...' : 'Crear plan'}
+              initialInputs={prefillData ?? undefined}
               onApply={handleApplyAndCreate}
-              onCancel={() => { setShowNewPlan(false); resetForm(); }}
+              onCancel={() => { setShowNewPlan(false); resetForm(); setPrefillData(null); }}
             />
           </div>
         </Card>
