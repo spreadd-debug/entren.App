@@ -7,6 +7,7 @@ import { PlanProfileService } from '../../services/pt/PlanProfileService';
 import { NutritionPlan, NutritionDetailLevel, MealType, NutritionActivityLevel, NutritionTmbGoalType } from '../../../shared/types';
 import { useToast } from '../../context/ToastContext';
 import { TMBCalculator, TMBApplyPayload } from './nutrition/TMBCalculator';
+import { NutritionPlanWizard, NutritionPlanWizardSubmit } from './nutrition/NutritionPlanWizard';
 import type { TmbInputs } from '../../utils/tmbMath';
 
 type PrefillInputs = Partial<TmbInputs> & {
@@ -200,6 +201,38 @@ export const NutritionPlanPanel: React.FC<NutritionPlanPanelProps> = ({ studentI
     setSaving(false);
   };
 
+  const handleWizardSubmit = async (args: NutritionPlanWizardSubmit) => {
+    setSaving(true);
+    try {
+      await NutritionPlanService.createPlan({
+        gym_id: gymId,
+        student_id: studentId,
+        title: args.title,
+        description: args.description,
+        detail_level: args.detail_level,
+        calories_target: args.payload.calories_target,
+        protein_g: args.payload.protein_g,
+        carbs_g: args.payload.carbs_g,
+        fat_g: args.payload.fat_g,
+        tmb_kcal: args.payload.tmb_kcal,
+        tdee_kcal: args.payload.tdee_kcal,
+        activity_level: args.payload.activity_level,
+        tmb_goal_type: args.payload.tmb_goal_type,
+        goal_adjustment_pct: args.payload.goal_adjustment_pct,
+        calc_weight_kg: args.payload.calc_weight_kg,
+        calc_height_cm: args.payload.calc_height_cm,
+        calc_age: args.payload.calc_age,
+        calc_biological_sex: args.payload.calc_biological_sex,
+      });
+      toast.success('Plan nutricional creado');
+      closeForm();
+      await load();
+    } catch (err: any) {
+      toast.error(err?.message ?? 'Error al crear');
+    }
+    setSaving(false);
+  };
+
   const handleArchivePlan = async (planId: string) => {
     try {
       await NutritionPlanService.archivePlan(planId);
@@ -375,11 +408,20 @@ export const NutritionPlanPanel: React.FC<NutritionPlanPanelProps> = ({ studentI
         </Card>
       ) : null}
 
-      {/* Form crear / editar plan */}
-      {showNewPlan && (
+      {/* Form crear (wizard) / editar (inline) */}
+      {showNewPlan && !editingPlanId && (
+        <NutritionPlanWizard
+          prefillInputs={prefillData}
+          saving={saving}
+          onSubmit={handleWizardSubmit}
+          onCancel={closeForm}
+        />
+      )}
+
+      {showNewPlan && editingPlanId && (
         <Card className="p-4 space-y-3 border-violet-200 dark:border-violet-500/30">
           <h4 className="text-xs font-black text-violet-500 uppercase tracking-wider">
-            {editingPlanId ? 'Editar plan nutricional' : 'Nuevo plan nutricional'}
+            Editar plan nutricional
           </h4>
 
           <Input
@@ -412,7 +454,7 @@ export const NutritionPlanPanel: React.FC<NutritionPlanPanelProps> = ({ studentI
           <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
             <TMBCalculator
               variant="embedded"
-              applyLabel={saving ? 'Guardando...' : (editingPlanId ? 'Guardar cambios' : 'Crear plan')}
+              applyLabel={saving ? 'Guardando...' : 'Guardar cambios'}
               initialInputs={prefillData ?? undefined}
               initialTargets={prefillTargets ?? undefined}
               initialMode={initialMode}
