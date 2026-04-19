@@ -469,6 +469,12 @@ export const NutritionPlanPanel: React.FC<NutritionPlanPanelProps> = ({ studentI
                 meals={editMeals}
                 onChange={setEditMeals}
                 detailLevel={planForm.detail_level}
+                targets={prefillTargets ? {
+                  kcal: prefillTargets.caloriesTarget,
+                  protein: prefillTargets.proteinG,
+                  carbs: prefillTargets.carbsG,
+                  fat: prefillTargets.fatG,
+                } : undefined}
               />
             </div>
           )}

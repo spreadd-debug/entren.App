@@ -320,7 +320,17 @@ export const NutritionPlanWizard: React.FC<NutritionPlanWizardProps> = ({
           ? 'Cargá las comidas del día y, dentro de cada una, los alimentos con sus gramajes.'
           : 'Cargá las comidas del día. Podés dejar los macros por comida en blanco si solo querés indicar qué come en cada momento.'}
       </div>
-      <MealsEditor meals={meals} onChange={setMeals} detailLevel={detailLevel} />
+      <MealsEditor
+        meals={meals}
+        onChange={setMeals}
+        detailLevel={detailLevel}
+        targets={payload ? {
+          kcal: payload.calories_target,
+          protein: payload.protein_g,
+          carbs: payload.carbs_g,
+          fat: payload.fat_g,
+        } : undefined}
+      />
     </div>
   );
 

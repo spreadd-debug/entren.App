@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Card, Button, Input, Select } from '../../UI';
 import {
   Plus, Trash2, ChevronUp, ChevronDown, Utensils, Apple, Flame, Beef, Wheat, Droplets, Search, AlertCircle,
@@ -223,20 +223,180 @@ const TEMPLATES: { label: string; mealTypes: MealType[] }[] = [
   { label: '6 comidas',  mealTypes: ['desayuno', 'media_mañana', 'almuerzo', 'merienda', 'cena', 'snack'] },
 ];
 
+// ─── Daily totals ──────────────────────────────────────────────────────────
+
+export interface MealsDailyTotals {
+  kcal: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+}
+
+export interface MealsTargets {
+  kcal?: number | null;
+  protein?: number | null;
+  carbs?: number | null;
+  fat?: number | null;
+}
+
+const toNumOrZero = (s: string): number => {
+  const n = Number(s);
+  return Number.isFinite(n) ? n : 0;
+};
+
+// En 'detailed' la suma sale de los alimentos (los macros por comida se ignoran).
+// En 'meals' sale de los macros cargados a nivel comida.
+export function computeMealTotals(
+  meals: DraftMeal[],
+  detailLevel: NutritionDetailLevel,
+): MealsDailyTotals {
+  const t: MealsDailyTotals = { kcal: 0, protein: 0, carbs: 0, fat: 0 };
+  for (const m of meals) {
+    if (detailLevel === 'detailed') {
+      for (const f of m.foods) {
+        t.kcal    += toNumOrZero(f.calories);
+        t.protein += toNumOrZero(f.protein_g);
+        t.carbs   += toNumOrZero(f.carbs_g);
+        t.fat     += toNumOrZero(f.fat_g);
+      }
+    } else {
+      t.kcal    += toNumOrZero(m.calories);
+      t.protein += toNumOrZero(m.protein_g);
+      t.carbs   += toNumOrZero(m.carbs_g);
+      t.fat     += toNumOrZero(m.fat_g);
+    }
+  }
+  return t;
+}
+
+function pctBarColor(pct: number): string {
+  if (pct < 95) return 'bg-violet-500';
+  if (pct <= 105) return 'bg-emerald-500';
+  if (pct <= 115) return 'bg-amber-500';
+  return 'bg-rose-500';
+}
+
+function pctTextColor(pct: number): string {
+  if (pct < 95) return 'text-violet-600 dark:text-violet-400';
+  if (pct <= 105) return 'text-emerald-600 dark:text-emerald-400';
+  if (pct <= 115) return 'text-amber-600 dark:text-amber-400';
+  return 'text-rose-600 dark:text-rose-400';
+}
+
+interface TotalRowProps {
+  icon: React.ReactNode;
+  label: string;
+  current: number;
+  target: number;
+  unit: string;
+}
+
+const TotalRow: React.FC<TotalRowProps> = ({ icon, label, current, target, unit }) => {
+  const pct = target > 0 ? (current / target) * 100 : 0;
+  const barWidth = Math.min(100, Math.max(0, pct));
+  return (
+    <div className="flex items-center gap-2">
+      <div className="shrink-0 w-4 flex justify-center">{icon}</div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-baseline justify-between gap-2 mb-0.5">
+          <span className="text-[11px] text-slate-600 dark:text-slate-300 truncate">
+            <span className="font-bold text-slate-900 dark:text-white">{Math.round(current)}</span>
+            <span className="text-slate-400"> / {Math.round(target)}{unit}</span>
+            <span className="text-slate-400 ml-1">{label}</span>
+          </span>
+          <span className={`text-[10px] font-semibold shrink-0 ${pctTextColor(pct)}`}>{Math.round(pct)}%</span>
+        </div>
+        <div className="h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+          <div
+            className={`h-full ${pctBarColor(pct)} transition-all`}
+            style={{ width: `${barWidth}%` }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+interface MealsTotalsPanelProps {
+  totals: MealsDailyTotals;
+  targets: MealsTargets;
+}
+
+const MealsTotalsPanel: React.FC<MealsTotalsPanelProps> = ({ totals, targets }) => {
+  const rows: TotalRowProps[] = [];
+  if ((targets.kcal ?? 0) > 0) {
+    rows.push({ icon: <Flame size={12} className="text-orange-500" />, label: 'kcal', current: totals.kcal, target: targets.kcal!, unit: '' });
+  }
+  if ((targets.protein ?? 0) > 0) {
+    rows.push({ icon: <Beef size={12} className="text-rose-500" />, label: 'prot', current: totals.protein, target: targets.protein!, unit: 'g' });
+  }
+  if ((targets.carbs ?? 0) > 0) {
+    rows.push({ icon: <Wheat size={12} className="text-amber-500" />, label: 'carb', current: totals.carbs, target: targets.carbs!, unit: 'g' });
+  }
+  if ((targets.fat ?? 0) > 0) {
+    rows.push({ icon: <Droplets size={12} className="text-cyan-500" />, label: 'gra', current: totals.fat, target: targets.fat!, unit: 'g' });
+  }
+  if (rows.length === 0) return null;
+
+  const remaining: string[] = [];
+  const excess: string[] = [];
+  const pushDiff = (cur: number, tgt: number | null | undefined, unit: string, label: string) => {
+    if (!tgt || tgt <= 0) return;
+    const d = tgt - cur;
+    if (d > 0.5) remaining.push(`${Math.round(d)}${unit} ${label}`);
+    else if (d < -0.5) excess.push(`${Math.round(-d)}${unit} ${label}`);
+  };
+  pushDiff(totals.kcal, targets.kcal, '', 'kcal');
+  pushDiff(totals.protein, targets.protein, 'g', 'P');
+  pushDiff(totals.carbs, targets.carbs, 'g', 'C');
+  pushDiff(totals.fat, targets.fat, 'g', 'G');
+
+  return (
+    <Card className="p-3 bg-violet-500/5 border-violet-500/20">
+      <p className="text-[10px] font-black text-violet-500 uppercase tracking-wider mb-2">
+        Totales del día
+      </p>
+      <div className="space-y-2">
+        {rows.map(r => (
+          <TotalRow key={r.label} {...r} />
+        ))}
+      </div>
+      {(remaining.length > 0 || excess.length > 0) && (
+        <div className="mt-2.5 pt-2 border-t border-violet-500/15 text-[10px] space-y-0.5">
+          {remaining.length > 0 && (
+            <p className="text-slate-500 dark:text-slate-400">
+              Faltan: <span className="font-semibold text-slate-700 dark:text-slate-200">{remaining.join(' · ')}</span>
+            </p>
+          )}
+          {excess.length > 0 && (
+            <p className="text-rose-500 dark:text-rose-400">
+              Excedido: <span className="font-semibold">{excess.join(' · ')}</span>
+            </p>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+};
+
 // ─── Props ──────────────────────────────────────────────────────────────────
 
 interface MealsEditorProps {
   meals: DraftMeal[];
   onChange: (meals: DraftMeal[]) => void;
   detailLevel: NutritionDetailLevel;  // 'meals' | 'detailed'
+  targets?: MealsTargets;
 }
 
 // ─── Component ──────────────────────────────────────────────────────────────
 
-export const MealsEditor: React.FC<MealsEditorProps> = ({ meals, onChange, detailLevel }) => {
+export const MealsEditor: React.FC<MealsEditorProps> = ({ meals, onChange, detailLevel, targets }) => {
   const [expandedId, setExpandedId] = useState<string | null>(meals[0]?.tempId ?? null);
   const [pickerForMeal, setPickerForMeal] = useState<string | null>(null);
   const showFoods = detailLevel === 'detailed';
+
+  const totals = useMemo(() => computeMealTotals(meals, detailLevel), [meals, detailLevel]);
+  const totalsPanel = targets ? <MealsTotalsPanel totals={totals} targets={targets} /> : null;
 
   const updateMeal = (tempId: string, patch: Partial<DraftMeal>) => {
     onChange(meals.map(m => (m.tempId === tempId ? { ...m, ...patch } : m)));
@@ -296,6 +456,7 @@ export const MealsEditor: React.FC<MealsEditorProps> = ({ meals, onChange, detai
   if (meals.length === 0) {
     return (
       <div className="space-y-3">
+        {totalsPanel}
         <Card className="p-6 text-center bg-slate-50 dark:bg-slate-800/40 border-dashed">
           <Utensils className="mx-auto mb-2 text-slate-300 dark:text-slate-600" size={28} />
           <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
@@ -324,6 +485,7 @@ export const MealsEditor: React.FC<MealsEditorProps> = ({ meals, onChange, detai
   // ── List ─────────────────────────────────────────────────────────────
   return (
     <div className="space-y-2">
+      {totalsPanel}
       {meals.map((m, idx) => {
         const label = MEAL_LABELS[m.meal_type];
         const expanded = expandedId === m.tempId;

@@ -439,7 +439,7 @@ const PortionStage: React.FC<{
     </div>
 
     {/* Footer */}
-    <div className="flex gap-2 p-3 border-t border-slate-100 dark:border-slate-800">
+    <div className="flex gap-2 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] border-t border-slate-100 dark:border-slate-800">
       <Button variant="outline" onClick={onBack} className="flex-1">Volver</Button>
       <Button variant="primary" onClick={onConfirm} disabled={confirmDisabled} className="flex-1">
         Agregar al plan
