@@ -44,8 +44,22 @@ interface PTLiveSessionViewProps {
 
 // ─── Quick-increment buttons ──────────────────────────────────────────────────
 
-const WEIGHT_INCREMENTS = [1.25, 2.5, 5, 10];
+const WEIGHT_INCREMENTS = [0.5, 2.5, 5, 10];
 const REP_INCREMENTS = [1, 2, 5];
+
+// Parse weight string (acepta "," o "."), snap al 0.5 más cercano
+const parseWeightKg = (s: string): number | null => {
+  if (!s) return null;
+  const n = Number(s.replace(',', '.'));
+  if (!isFinite(n) || n < 0) return null;
+  return Math.round(n * 2) / 2;
+};
+
+// Normaliza string para mostrar en el input (snap a 0.5)
+const normalizeWeightDisplay = (s: string): string => {
+  const n = parseWeightKg(s);
+  return n === null ? '' : String(n);
+};
 
 // ─── Timer display ────────────────────────────────────────────────────────────
 
@@ -187,9 +201,14 @@ export const PTLiveSessionView: React.FC<PTLiveSessionViewProps> = ({
             }
           }
 
-          // Auto-expand first exercise without sets
-          const firstEmpty = fullSession.exercises.find((e) => e.sets_data.length === 0);
-          setExpandedExercise(firstEmpty?.id ?? fullSession.exercises[0]?.id ?? null);
+          // Auto-expand first exercise that still has pending sets (completed < planned).
+          // Si no hay info de sets planificados, lo tratamos como incompleto apenas no esté marcado como terminado.
+          const firstIncomplete = fullSession.exercises.find((e) => {
+            if (e.completed) return false;
+            const planned = typeof e.sets === 'number' && e.sets > 0 ? e.sets : null;
+            return planned === null ? true : e.sets_data.length < planned;
+          });
+          setExpandedExercise(firstIncomplete?.id ?? fullSession.exercises[0]?.id ?? null);
           setLoading(false);
           return;
         }
@@ -740,40 +759,57 @@ const ExerciseCard: React.FC<ExerciseCardProps> = ({
 }) => {
   const hasSets = exercise.sets_data.length > 0;
   const plannedCount = plannedSets.length || exercise.sets || 3;
+  const isComplete = exercise.sets_data.length >= plannedCount;
 
   return (
-    <div className={`bg-white dark:bg-slate-900 rounded-2xl border transition-all ${
-      hasSets
-        ? 'border-emerald-200 dark:border-emerald-800/50'
-        : 'border-slate-200 dark:border-slate-800'
+    <div className={`rounded-2xl border transition-all duration-300 ${
+      isComplete
+        ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-400 dark:border-emerald-500/60 shadow-md shadow-emerald-500/10 ring-1 ring-emerald-400/30'
+        : hasSets
+          ? 'bg-white dark:bg-slate-900 border-emerald-200 dark:border-emerald-800/50'
+          : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'
     }`}>
       {/* Exercise header — tappable */}
       <button
         onClick={onToggle}
         className="w-full text-left p-4 flex items-center gap-3"
       >
-        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-sm font-black ${
-          hasSets
-            ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-            : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-sm font-black transition-all duration-300 ${
+          isComplete
+            ? 'bg-emerald-500 text-white scale-105 shadow-sm shadow-emerald-500/30'
+            : hasSets
+              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+              : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
         }`}>
-          {hasSets ? <CheckCircle2 size={18} /> : index + 1}
+          {hasSets ? <CheckCircle2 size={isComplete ? 20 : 18} /> : index + 1}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-bold text-slate-900 dark:text-white text-sm truncate">
+          <p className={`font-bold text-sm truncate transition-colors ${
+            isComplete
+              ? 'text-emerald-700 dark:text-emerald-300 line-through decoration-emerald-500/60 decoration-2'
+              : 'text-slate-900 dark:text-white'
+          }`}>
             {exercise.exercise_name}
           </p>
-          <p className="text-xs text-slate-500">
+          <p className={`text-xs transition-colors ${
+            isComplete ? 'text-emerald-600/70 dark:text-emerald-400/70' : 'text-slate-500'
+          }`}>
             {exercise.sets ?? '–'}×{exercise.reps ?? '–'}
             {exercise.weight ? ` · ${exercise.weight}` : ''}
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <span className={`text-xs font-bold ${
-            hasSets ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'
-          }`}>
-            {exercise.sets_data.length}/{plannedCount}
-          </span>
+          {isComplete ? (
+            <span className="text-[10px] font-black uppercase tracking-wider px-2 py-1 rounded-full bg-emerald-500 text-white">
+              Hecho
+            </span>
+          ) : (
+            <span className={`text-xs font-bold ${
+              hasSets ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'
+            }`}>
+              {exercise.sets_data.length}/{plannedCount}
+            </span>
+          )}
           {isExpanded ? (
             <ChevronUp size={18} className="text-slate-400" />
           ) : (
@@ -881,8 +917,8 @@ const SetRow: React.FC<SetRowProps> = ({ exerciseId, set, onSave, isSaving }) =>
     if (saveTimeout.current) clearTimeout(saveTimeout.current);
     saveTimeout.current = setTimeout(() => {
       onSave(exerciseId, set.set_number, {
-        weight_kg: w ? Number(w) : null,
-        reps_done: r ? Number(r) : null,
+        weight_kg: parseWeightKg(w),
+        reps_done: r ? Number(r.replace(',', '.')) : null,
       });
       setDirty(false);
     }, 800);
@@ -906,10 +942,11 @@ const SetRow: React.FC<SetRowProps> = ({ exerciseId, set, onSave, isSaving }) =>
       <div className="flex-1 flex items-center gap-2">
         <div className="flex items-center gap-1 flex-1">
           <input
-            type="number"
+            type="text"
             inputMode="decimal"
             value={weight}
             onChange={(e) => handleWeightChange(e.target.value)}
+            onBlur={() => setWeight((w) => normalizeWeightDisplay(w))}
             className="w-16 text-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-1 py-1.5 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500/30"
           />
           <span className="text-xs text-slate-400">kg</span>
@@ -975,21 +1012,21 @@ const AddSetRow: React.FC<AddSetRowProps> = ({
 
   const handleAdd = async () => {
     await onSave(exerciseId, nextSetNumber, {
-      weight_kg: weight ? Number(weight) : null,
-      reps_done: reps ? Number(reps) : null,
+      weight_kg: parseWeightKg(weight),
+      reps_done: reps ? Number(reps.replace(',', '.')) : null,
     });
     // Reset for next set with same values
     // (values will be updated via useEffect when lastSet changes)
   };
 
   const adjustWeight = (delta: number) => {
-    const current = Number(weight) || 0;
-    const next = Math.max(0, current + delta);
+    const current = parseWeightKg(weight) ?? 0;
+    const next = Math.max(0, Math.round((current + delta) * 2) / 2);
     setWeight(String(next));
   };
 
   const adjustReps = (delta: number) => {
-    const current = Number(reps) || 0;
+    const current = Number(reps.replace(',', '.')) || 0;
     const next = Math.max(0, current + delta);
     setReps(String(next));
   };
@@ -1001,10 +1038,11 @@ const AddSetRow: React.FC<AddSetRowProps> = ({
         <div className="flex-1 flex items-center gap-2">
           <div className="flex items-center gap-1 flex-1">
             <input
-              type="number"
+              type="text"
               inputMode="decimal"
               value={weight}
               onChange={(e) => setWeight(e.target.value)}
+              onBlur={() => setWeight((w) => normalizeWeightDisplay(w))}
               placeholder="0"
               className="w-16 text-center bg-white dark:bg-slate-800 border border-violet-200 dark:border-violet-800/50 rounded-lg px-1 py-1.5 text-sm font-bold text-slate-900 dark:text-white placeholder:text-slate-300 dark:placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-violet-500/30"
             />

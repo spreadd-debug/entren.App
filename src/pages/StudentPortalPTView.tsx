@@ -635,14 +635,11 @@ export default function StudentPortalPTView({
                 <div className="flex items-center gap-1.5 flex-1">
                   <Scale size={14} className="text-violet-500 shrink-0" />
                   <input
-                    type="number"
+                    type="text"
                     inputMode="decimal"
-                    step="0.1"
-                    min="20"
-                    max="350"
                     value={weightInput}
-                    onChange={(e) => setWeightInput(e.target.value)}
-                    placeholder="Ej: 70.5"
+                    onChange={(e) => setWeightInput(e.target.value.replace(/[^0-9.,]/g, ''))}
+                    placeholder="Ej: 70,5"
                     autoFocus
                     className="w-24 px-3 py-2 rounded-xl border border-violet-300 dark:border-violet-500/50 bg-white dark:bg-slate-800 text-sm font-bold text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500/40"
                     onKeyDown={(e) => { if (e.key === 'Enter') handleWeightSave(); if (e.key === 'Escape') setWeightOpen(false); }}
@@ -687,14 +684,11 @@ export default function StudentPortalPTView({
               <div className="flex items-center gap-2 justify-center">
                 <Scale size={14} className="text-violet-500 shrink-0" />
                 <input
-                  type="number"
+                  type="text"
                   inputMode="decimal"
-                  step="0.1"
-                  min="20"
-                  max="350"
                   value={weightInput}
-                  onChange={(e) => setWeightInput(e.target.value)}
-                  placeholder="Ej: 70.5"
+                  onChange={(e) => setWeightInput(e.target.value.replace(/[^0-9.,]/g, ''))}
+                  placeholder="Ej: 70,5"
                   autoFocus
                   className="w-24 px-3 py-2 rounded-xl border border-violet-300 dark:border-violet-500/50 bg-white dark:bg-slate-800 text-sm font-bold text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500/40"
                   onKeyDown={(e) => { if (e.key === 'Enter') handleWeightSave(); if (e.key === 'Escape') setWeightOpen(false); }}
