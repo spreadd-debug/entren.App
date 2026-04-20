@@ -201,6 +201,7 @@ export function SAOutreach() {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const fetchAll = useCallback(async () => {
     setIsLoading(true);
@@ -221,6 +222,7 @@ export function SAOutreach() {
 
   const handleSave = async () => {
     setSaving(true);
+    setSaveError(null);
     try {
       const updated = await api.outreach.upsertDay(selectedDate, {
         messages_sent: Number(form.messages_sent) || 0,
@@ -234,6 +236,14 @@ export function SAOutreach() {
         return [updated, ...without].sort((a, b) => b.date.localeCompare(a.date));
       });
       setLastSavedAt(updated.updated_at);
+    } catch (err: any) {
+      console.error('outreach save failed:', err);
+      const msg = err?.message || 'No se pudo guardar';
+      setSaveError(
+        /outreach_daily_logs|relation.*does not exist|schema cache/i.test(msg)
+          ? 'La tabla outreach_daily_logs no existe en la base. Corré scripts/outreach_migration.sql en el SQL Editor de Supabase.'
+          : msg,
+      );
     } finally {
       setSaving(false);
     }
@@ -365,6 +375,13 @@ export function SAOutreach() {
             className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-white resize-none"
           />
         </div>
+
+        {saveError && (
+          <div className="mt-4 rounded-xl border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/30 px-4 py-3 text-xs text-red-700 dark:text-red-300 flex items-start gap-2">
+            <AlertCircle size={14} strokeWidth={2.5} className="shrink-0 mt-0.5" />
+            <span className="leading-relaxed">{saveError}</span>
+          </div>
+        )}
 
         <div className="flex items-center justify-between mt-4 gap-3 flex-wrap">
           <p className="text-[11px] text-slate-400 dark:text-slate-500">

@@ -26,8 +26,10 @@ CREATE INDEX IF NOT EXISTS idx_gym_activity_events_type_date
 -- Evita duplicar logins del mismo gym en el mismo día calendario (UTC),
 -- para que el conteo de retención sea por-día-único sin tener que deduplicar
 -- en el cliente.
+-- Nota: DATE(timestamptz) es STABLE (depende del TZ de sesión) y Postgres no la
+-- acepta en expresiones de índice. Convertimos a timestamp UTC primero, que sí es IMMUTABLE.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_gym_activity_events_login_daily_unique
-  ON gym_activity_events (gym_id, event_type, (DATE(created_at)))
+  ON gym_activity_events (gym_id, event_type, ((created_at AT TIME ZONE 'UTC')::date))
   WHERE event_type = 'login';
 
 -- Evita registrar dos veces el mismo "first_*" para un gym.
