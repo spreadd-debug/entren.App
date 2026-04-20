@@ -121,14 +121,19 @@ export const NutritionPlanWizard: React.FC<NutritionPlanWizardProps> = ({
 
   const handleSubmit = async () => {
     if (!payload) return;
-    const includeFoods = detailLevel === 'detailed';
-    const mealsToCreate = detailLevel === 'macros'
+    // Auto-promo: si el coach eligió 'meals' pero igual cargó alimentos, el
+    // plan pasa a 'detailed' para que esos alimentos se persistan.
+    const anyFoodAdded = meals.some(m => m.foods.some(f => f.food_name.trim().length > 0));
+    const effectiveLevel: NutritionDetailLevel =
+      detailLevel === 'meals' && anyFoodAdded ? 'detailed' : detailLevel;
+    const includeFoods = effectiveLevel === 'detailed';
+    const mealsToCreate = effectiveLevel === 'macros'
       ? []
       : meals.map((m, i) => draftToCreateMeal(m, i, includeFoods));
     await onSubmit({
       title: title.trim(),
       description: description.trim() || null,
-      detail_level: detailLevel,
+      detail_level: effectiveLevel,
       payload,
       meals: mealsToCreate,
     });
@@ -318,7 +323,7 @@ export const NutritionPlanWizard: React.FC<NutritionPlanWizardProps> = ({
       <div className="p-2.5 rounded-xl bg-violet-500/5 border border-violet-500/20 text-[11px] text-slate-600 dark:text-slate-400">
         {detailLevel === 'detailed'
           ? 'Cargá las comidas del día y, dentro de cada una, los alimentos con sus gramajes.'
-          : 'Cargá las comidas del día. Podés dejar los macros por comida en blanco si solo querés indicar qué come en cada momento.'}
+          : 'Cargá las comidas del día. Podés dejar los macros por comida en blanco, o usar Buscar para agregar alimentos (el plan se marca como detallado al guardar).'}
       </div>
       <MealsEditor
         meals={meals}

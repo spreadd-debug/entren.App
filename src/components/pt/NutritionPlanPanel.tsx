@@ -158,10 +158,17 @@ export const NutritionPlanPanel: React.FC<NutritionPlanPanelProps> = ({ studentI
     setSaving(true);
     try {
       if (editingPlanId) {
+        // Auto-promo: si el coach cargó alimentos en modo 'meals', el plan pasa
+        // a 'detailed'. Así los alimentos se persisten y al reabrir el plan se
+        // ven los gramajes en vez de desaparecer.
+        const anyFoodAdded = editMeals.some(m => m.foods.some(f => f.food_name.trim().length > 0));
+        const effectiveLevel: NutritionDetailLevel =
+          planForm.detail_level === 'meals' && anyFoodAdded ? 'detailed' : planForm.detail_level;
+
         await NutritionPlanService.updatePlan(editingPlanId, {
           title: planForm.title.trim(),
           description: planForm.description.trim() || null,
-          detail_level: planForm.detail_level,
+          detail_level: effectiveLevel,
           calories_target: payload.calories_target,
           protein_g: payload.protein_g,
           carbs_g: payload.carbs_g,
@@ -178,8 +185,8 @@ export const NutritionPlanPanel: React.FC<NutritionPlanPanelProps> = ({ studentI
         });
 
         // Guardar meals: si detail_level='macros' se borran todas.
-        const includeFoods = planForm.detail_level === 'detailed';
-        const draftsToSave = planForm.detail_level === 'macros'
+        const includeFoods = effectiveLevel === 'detailed';
+        const draftsToSave = effectiveLevel === 'macros'
           ? []
           : editMeals.map((m, i) => parseDraftMeal(m, i, includeFoods));
         await NutritionPlanService.saveMealsForPlan(editingPlanId, draftsToSave, originalMealIds);

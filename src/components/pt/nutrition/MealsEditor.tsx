@@ -244,26 +244,38 @@ const toNumOrZero = (s: string): number => {
   return Number.isFinite(n) ? n : 0;
 };
 
-// En 'detailed' la suma sale de los alimentos (los macros por comida se ignoran).
-// En 'meals' sale de los macros cargados a nivel comida.
+// En 'detailed' la suma sale siempre de los alimentos.
+// En 'meals', si la comida tiene alimentos con macros cargados se usa la suma de
+// alimentos (single source of truth); si no, los macros por comida.
 export function computeMealTotals(
   meals: DraftMeal[],
   detailLevel: NutritionDetailLevel,
 ): MealsDailyTotals {
   const t: MealsDailyTotals = { kcal: 0, protein: 0, carbs: 0, fat: 0 };
   for (const m of meals) {
-    if (detailLevel === 'detailed') {
-      for (const f of m.foods) {
-        t.kcal    += toNumOrZero(f.calories);
-        t.protein += toNumOrZero(f.protein_g);
-        t.carbs   += toNumOrZero(f.carbs_g);
-        t.fat     += toNumOrZero(f.fat_g);
-      }
+    const foodSum = { kcal: 0, protein: 0, carbs: 0, fat: 0 };
+    let foodHasAny = false;
+    for (const f of m.foods) {
+      const fk = toNumOrZero(f.calories);
+      const fp = toNumOrZero(f.protein_g);
+      const fc = toNumOrZero(f.carbs_g);
+      const ff = toNumOrZero(f.fat_g);
+      if (fk > 0 || fp > 0 || fc > 0 || ff > 0) foodHasAny = true;
+      foodSum.kcal += fk;
+      foodSum.protein += fp;
+      foodSum.carbs += fc;
+      foodSum.fat += ff;
+    }
+    if (detailLevel === 'detailed' || foodHasAny) {
+      t.kcal += foodSum.kcal;
+      t.protein += foodSum.protein;
+      t.carbs += foodSum.carbs;
+      t.fat += foodSum.fat;
     } else {
-      t.kcal    += toNumOrZero(m.calories);
+      t.kcal += toNumOrZero(m.calories);
       t.protein += toNumOrZero(m.protein_g);
-      t.carbs   += toNumOrZero(m.carbs_g);
-      t.fat     += toNumOrZero(m.fat_g);
+      t.carbs += toNumOrZero(m.carbs_g);
+      t.fat += toNumOrZero(m.fat_g);
     }
   }
   return t;
@@ -393,7 +405,11 @@ interface MealsEditorProps {
 export const MealsEditor: React.FC<MealsEditorProps> = ({ meals, onChange, detailLevel, targets }) => {
   const [expandedId, setExpandedId] = useState<string | null>(meals[0]?.tempId ?? null);
   const [pickerForMeal, setPickerForMeal] = useState<string | null>(null);
-  const showFoods = detailLevel === 'detailed';
+  // En 'meals' y 'detailed' el coach puede cargar alimentos. La diferencia
+  // queda en los macros por comida: se muestran sólo en 'meals' (en 'detailed'
+  // los macros de la comida salen siempre de los alimentos).
+  const showFoods = detailLevel !== 'macros';
+  const showPerMealMacros = detailLevel === 'meals';
 
   const totals = useMemo(() => computeMealTotals(meals, detailLevel), [meals, detailLevel]);
   const totalsPanel = targets ? <MealsTotalsPanel totals={totals} targets={targets} /> : null;
@@ -572,8 +588,8 @@ export const MealsEditor: React.FC<MealsEditorProps> = ({ meals, onChange, detai
                   />
                 </div>
 
-                {/* Per-meal macros (solo cuando no detallamos alimentos — ahí los macros los dan los alimentos) */}
-                {!showFoods && (
+                {/* Per-meal macros (solo en 'meals' — en 'detailed' los macros salen siempre de los alimentos) */}
+                {showPerMealMacros && (
                   <div>
                     <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1.5 px-1">Macros de la comida (opcional)</p>
                     <div className="grid grid-cols-4 gap-1.5">
