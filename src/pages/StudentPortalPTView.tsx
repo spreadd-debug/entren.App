@@ -23,8 +23,11 @@ import {
   Heart,
   Camera,
   X,
+  Play,
+  Loader2,
 } from "lucide-react";
 import { WorkoutPlanService } from "../services/WorkoutPlanService";
+import { PTSessionService } from "../services/pt/PTSessionService";
 import { ExerciseVideoModal } from "../components/ExerciseVideoModal";
 import {
   WorkoutOption,
@@ -37,6 +40,7 @@ import {
   NoteCategory,
   WellnessCheckIn,
   MealType,
+  SessionSet,
 } from "../../shared/types";
 import { WellnessCheckInService } from "../services/pt/WellnessCheckInService";
 import { NutritionPlanService, NutritionPlanFull } from "../services/pt/NutritionPlanService";
@@ -79,6 +83,12 @@ export interface StudentPortalPTViewProps {
   adherenceStats: AdherenceStats | null;
   onAnthropometryUpdate?: (data: ClientAnthropometry[]) => void;
   lastPerfMap?: Record<string, { weight: number; reps: number; date: string }>;
+  /** Inicia la sesión de hoy. Se muestra a alumnos con is_online = true. */
+  onStartTodaySession?: () => void | Promise<void>;
+  /** Marca la sesión activa como completada. */
+  onCompleteSession?: () => void | Promise<void>;
+  isStartingSession?: boolean;
+  isCompletingSession?: boolean;
 }
 
 // ─── Theme constants ───────────────────────────────────────────────────────────
@@ -210,6 +220,10 @@ export default function StudentPortalPTView({
   adherenceStats,
   onAnthropometryUpdate,
   lastPerfMap = {},
+  onStartTodaySession,
+  onCompleteSession,
+  isStartingSession = false,
+  isCompletingSession = false,
 }: StudentPortalPTViewProps) {
   // Weekly view state
   const [viewingDay, setViewingDay] = useState<number>(new Date().getDay());
@@ -335,6 +349,104 @@ export default function StudentPortalPTView({
   const [weightInput, setWeightInput] = useState('');
   const [weightSaving, setWeightSaving] = useState(false);
 
+  // ─── Online session: sets logging state ──────────────────────────────────
+  const [localSets, setLocalSets] = useState<Record<string, SessionSet[]>>({});
+  type Draft = { weight: string; reps: string };
+  const [setDrafts, setSetDrafts] = useState<Record<string, Draft>>({});
+  const [savingSetKey, setSavingSetKey] = useState<string | null>(null);
+
+  // Load sets whenever the active session id changes
+  useEffect(() => {
+    if (!activeSession?.id) {
+      setLocalSets({});
+      return;
+    }
+    let cancelled = false;
+    PTSessionService.loadFullSession(activeSession)
+      .then((full) => {
+        if (cancelled) return;
+        const map: Record<string, SessionSet[]> = {};
+        for (const ex of full.exercises) {
+          map[ex.id] = ex.sets_data;
+        }
+        setLocalSets(map);
+      })
+      .catch((err) => console.error('Failed to load session sets:', err));
+    return () => {
+      cancelled = true;
+    };
+  }, [activeSession?.id]);
+
+  // Seed drafts from localSets so saved values pre-fill the inputs
+  useEffect(() => {
+    setSetDrafts((prev) => {
+      const next: Record<string, Draft> = { ...prev };
+      for (const [exId, sets] of Object.entries(localSets)) {
+        for (const s of sets) {
+          const key = `${exId}-${s.set_number}`;
+          if (!next[key]) {
+            next[key] = {
+              weight: s.weight_kg != null ? String(s.weight_kg) : '',
+              reps: s.reps_done != null ? String(s.reps_done) : '',
+            };
+          }
+        }
+      }
+      return next;
+    });
+  }, [localSets]);
+
+  const getDraft = (exId: string, setNumber: number): Draft => {
+    return setDrafts[`${exId}-${setNumber}`] ?? { weight: '', reps: '' };
+  };
+
+  const updateDraft = (exId: string, setNumber: number, patch: Partial<Draft>) => {
+    setSetDrafts((prev) => {
+      const key = `${exId}-${setNumber}`;
+      const current = prev[key] ?? { weight: '', reps: '' };
+      return { ...prev, [key]: { ...current, ...patch } };
+    });
+  };
+
+  const isSetSaved = (exId: string, setNumber: number): boolean => {
+    const sets = localSets[exId] ?? [];
+    return sets.some(
+      (s) => s.set_number === setNumber && (s.weight_kg != null || s.reps_done != null),
+    );
+  };
+
+  const handleSaveSet = async (exId: string, setNumber: number) => {
+    const key = `${exId}-${setNumber}`;
+    const draft = setDrafts[key] ?? { weight: '', reps: '' };
+    const weight = parseFloat(draft.weight.replace(',', '.'));
+    const reps = parseInt(draft.reps, 10);
+    if (isNaN(weight) && isNaN(reps)) return;
+    setSavingSetKey(key);
+    try {
+      const saved = await PTSessionService.saveSet(
+        exId,
+        setNumber,
+        {
+          weight_kg: isNaN(weight) ? null : weight,
+          reps_done: isNaN(reps) ? null : reps,
+        },
+        'student',
+      );
+      setLocalSets((prev) => {
+        const arr = [...(prev[exId] ?? [])];
+        const idx = arr.findIndex((s) => s.set_number === setNumber);
+        if (idx >= 0) arr[idx] = saved;
+        else arr.push(saved);
+        arr.sort((a, b) => a.set_number - b.set_number);
+        return { ...prev, [exId]: arr };
+      });
+    } catch (err) {
+      console.error('Failed to save set:', err);
+    } finally {
+      setSavingSetKey(null);
+    }
+  };
+
   const handleWeightSave = async () => {
     const val = parseFloat(weightInput.replace(',', '.'));
     if (!student?.id || !student?.gym_id || isNaN(val) || val < 20 || val > 350) return;
@@ -366,6 +478,7 @@ export default function StudentPortalPTView({
 
   // Today's routine
   const sessionCompleted = !!activeSession?.completed_at;
+  const isOnline = !!(student?.is_online ?? student?.isOnline);
   const todayDay = new Date().getDay();
   const isViewingToday = viewingDay === todayDay;
   const todayOption = options.find((o) => o.days_of_week?.includes(todayDay)) ?? options[0] ?? null;
@@ -377,6 +490,12 @@ export default function StudentPortalPTView({
     }
     return s;
   }, [options]);
+
+  // For online students, expand the routine card automatically so the set
+  // inputs are visible without an extra tap.
+  useEffect(() => {
+    if (isOnline) setShowRoutine(true);
+  }, [isOnline]);
 
   const exercisesToShow = activeSession
     ? sessionItems
@@ -1002,66 +1121,199 @@ export default function StudentPortalPTView({
                       );
                     }
 
+                    const showOnlineLogging =
+                      isOnline && isViewingToday && !!activeSession && !sessionCompleted;
+                    const showStartButton =
+                      isOnline && isViewingToday && !activeSession && !!currentOption;
+
                     return (
-                      <div className={`divide-y ${cardDivider}`}>
-                        {exercises.map((item: any, idx: number) => {
-                          const perf = getLastPerf(item.exercise_name);
-                          return (
-                            <div key={item.id ?? idx} className="px-4 py-2.5 flex items-center gap-3">
-                              <div className="shrink-0 w-6 h-6 rounded-lg bg-violet-500/10 flex items-center justify-center">
-                                <span className="text-[10px] font-black text-violet-400">{idx + 1}</span>
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className={`text-sm font-bold truncate ${
-                                  item.completed
-                                    ? "text-slate-400 dark:text-slate-600 line-through"
-                                    : "text-slate-900 dark:text-white"
-                                }`}>
-                                  {item.exercise_name}
-                                </p>
-                                <p className="text-xs text-slate-400 dark:text-slate-500">
-                                  {[
-                                    item.sets && `${item.sets} series`,
-                                    item.reps && `${item.reps} reps`,
-                                    item.weight,
-                                  ].filter(Boolean).join(" · ") || "Sin datos"}
-                                </p>
-                                {perf && !item.completed && (
-                                  <p className="text-[11px] text-amber-500 dark:text-amber-400 mt-0.5">
-                                    Última vez: {perf.weight}kg × {perf.reps} · {formatRelative(perf.date)}
-                                  </p>
-                                )}
-                                {item.notes && (
-                                  <p className="text-xs text-slate-400 dark:text-slate-600 italic mt-0.5">{item.notes}</p>
-                                )}
-                              </div>
-                              {item.video_url && (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setVideoModal({
-                                      isOpen: true,
-                                      exerciseName: item.exercise_name,
-                                      videoUrl: item.video_url!,
-                                    })
-                                  }
-                                  className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20 hover:bg-violet-500/20 text-xs font-bold border transition-colors"
-                                >
-                                  <Image size={13} />
-                                  Ver
-                                </button>
+                      <div>
+                        {showStartButton && (
+                          <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800/80">
+                            <button
+                              onClick={() => onStartTodaySession?.()}
+                              disabled={isStartingSession || !onStartTodaySession}
+                              className="w-full inline-flex items-center justify-center gap-2 py-3 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 text-white font-bold text-sm hover:from-violet-500 hover:to-purple-500 shadow-sm shadow-violet-500/25 transition-all active:scale-[0.98] disabled:opacity-60"
+                            >
+                              {isStartingSession ? (
+                                <>
+                                  <Loader2 size={15} className="animate-spin" />
+                                  Iniciando...
+                                </>
+                              ) : (
+                                <>
+                                  <Play size={15} />
+                                  Iniciar entrenamiento
+                                </>
                               )}
-                            </div>
-                          );
-                        })}
-                        {isViewingToday && sessionCompleted && (
-                          <div className="px-4 py-3">
-                            <div className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-sm font-bold">
-                              <Trophy size={15} />
-                              ¡Entrenamiento completado!
-                            </div>
+                            </button>
+                            <p className="mt-1.5 text-[11px] text-center text-slate-400 dark:text-slate-500">
+                              Vas a poder cargar el peso y las repes de cada serie.
+                            </p>
                           </div>
                         )}
+
+                        <div className={`divide-y ${cardDivider}`}>
+                          {exercises.map((item: any, idx: number) => {
+                            const perf = getLastPerf(item.exercise_name);
+                            const plannedSetsCount = showOnlineLogging
+                              ? Math.max(1, Math.min(12, Number(item.sets) || 3))
+                              : 0;
+                            return (
+                              <div key={item.id ?? idx} className="px-4 py-2.5">
+                                <div className="flex items-center gap-3">
+                                  <div className="shrink-0 w-6 h-6 rounded-lg bg-violet-500/10 flex items-center justify-center">
+                                    <span className="text-[10px] font-black text-violet-400">{idx + 1}</span>
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className={`text-sm font-bold truncate ${
+                                      item.completed
+                                        ? "text-slate-400 dark:text-slate-600 line-through"
+                                        : "text-slate-900 dark:text-white"
+                                    }`}>
+                                      {item.exercise_name}
+                                    </p>
+                                    <p className="text-xs text-slate-400 dark:text-slate-500">
+                                      {[
+                                        item.sets && `${item.sets} series`,
+                                        item.reps && `${item.reps} reps`,
+                                        item.weight,
+                                      ].filter(Boolean).join(" · ") || "Sin datos"}
+                                    </p>
+                                    {perf && !item.completed && (
+                                      <p className="text-[11px] text-amber-500 dark:text-amber-400 mt-0.5">
+                                        Última vez: {perf.weight}kg × {perf.reps} · {formatRelative(perf.date)}
+                                      </p>
+                                    )}
+                                    {item.notes && (
+                                      <p className="text-xs text-slate-400 dark:text-slate-600 italic mt-0.5">{item.notes}</p>
+                                    )}
+                                  </div>
+                                  {item.video_url && (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setVideoModal({
+                                          isOpen: true,
+                                          exerciseName: item.exercise_name,
+                                          videoUrl: item.video_url!,
+                                        })
+                                      }
+                                      className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20 hover:bg-violet-500/20 text-xs font-bold border transition-colors"
+                                    >
+                                      <Image size={13} />
+                                      Ver
+                                    </button>
+                                  )}
+                                </div>
+
+                                {showOnlineLogging && item.id && (
+                                  <div className="mt-3 ml-9 space-y-1.5">
+                                    <div className="grid grid-cols-[28px_1fr_1fr_60px] gap-2 items-center px-1">
+                                      <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Set</span>
+                                      <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Kg</span>
+                                      <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Reps</span>
+                                      <span />
+                                    </div>
+                                    {Array.from({ length: plannedSetsCount }, (_, i) => i + 1).map((setNum) => {
+                                      const draft = getDraft(item.id, setNum);
+                                      const key = `${item.id}-${setNum}`;
+                                      const saved = isSetSaved(item.id, setNum);
+                                      const saving = savingSetKey === key;
+                                      const hasInput = draft.weight.trim() !== '' || draft.reps.trim() !== '';
+                                      return (
+                                        <div
+                                          key={setNum}
+                                          className="grid grid-cols-[28px_1fr_1fr_60px] gap-2 items-center"
+                                        >
+                                          <span className="text-xs font-bold text-slate-500 dark:text-slate-400 text-center">
+                                            {setNum}
+                                          </span>
+                                          <input
+                                            type="text"
+                                            inputMode="decimal"
+                                            placeholder="—"
+                                            value={draft.weight}
+                                            onChange={(e) =>
+                                              updateDraft(item.id, setNum, {
+                                                weight: e.target.value.replace(/[^0-9.,]/g, ''),
+                                              })
+                                            }
+                                            className="h-9 px-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-bold text-slate-900 dark:text-white placeholder-slate-300 dark:placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-violet-500/40"
+                                          />
+                                          <input
+                                            type="text"
+                                            inputMode="numeric"
+                                            placeholder="—"
+                                            value={draft.reps}
+                                            onChange={(e) =>
+                                              updateDraft(item.id, setNum, {
+                                                reps: e.target.value.replace(/[^0-9]/g, ''),
+                                              })
+                                            }
+                                            className="h-9 px-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-bold text-slate-900 dark:text-white placeholder-slate-300 dark:placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-violet-500/40"
+                                          />
+                                          <button
+                                            type="button"
+                                            onClick={() => handleSaveSet(item.id, setNum)}
+                                            disabled={saving || !hasInput}
+                                            className={`h-9 rounded-lg text-[11px] font-bold transition-colors ${
+                                              saved
+                                                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                                                : hasInput
+                                                  ? 'bg-violet-500 text-white hover:bg-violet-600'
+                                                  : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 border border-slate-200 dark:border-slate-700'
+                                            } disabled:cursor-not-allowed flex items-center justify-center gap-1`}
+                                          >
+                                            {saving ? (
+                                              <Loader2 size={12} className="animate-spin" />
+                                            ) : saved ? (
+                                              <>
+                                                <CheckCircle2 size={12} />
+                                                OK
+                                              </>
+                                            ) : (
+                                              'Guardar'
+                                            )}
+                                          </button>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                          {showOnlineLogging && (
+                            <div className="px-4 py-3">
+                              <button
+                                onClick={() => onCompleteSession?.()}
+                                disabled={isCompletingSession || !onCompleteSession}
+                                className="w-full inline-flex items-center justify-center gap-2 py-3 rounded-xl bg-emerald-500 text-white font-bold text-sm hover:bg-emerald-600 shadow-sm shadow-emerald-500/20 transition-all active:scale-[0.98] disabled:opacity-60"
+                              >
+                                {isCompletingSession ? (
+                                  <>
+                                    <Loader2 size={15} className="animate-spin" />
+                                    Finalizando...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Trophy size={15} />
+                                    Finalizar entrenamiento
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          )}
+                          {isViewingToday && sessionCompleted && (
+                            <div className="px-4 py-3">
+                              <div className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-sm font-bold">
+                                <Trophy size={15} />
+                                ¡Entrenamiento completado!
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     );
                   })()}

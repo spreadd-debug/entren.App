@@ -67,7 +67,7 @@ export const StudentsView: React.FC<StudentsViewProps> = ({ students, onSelectSt
         ...student,
         displayName: fullName || 'Sin nombre',
         firstLetter: (nombre || '?').charAt(0).toUpperCase(),
-        planDisplay: student.planName ?? student.plan_nombre ?? 'Sin plan',
+        planDisplay: student.planName ?? student.plan_nombre ?? 'Sin cuota asignada',
         nextDueDisplay: nextDueDate,
         dueStatus,
       };
@@ -187,7 +187,7 @@ export const StudentsView: React.FC<StudentsViewProps> = ({ students, onSelectSt
                 </div>
               ) : (
                 <div className="text-xs">
-                  <p className="text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold mb-0.5">Plan</p>
+                  <p className="text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold mb-0.5">Cuota</p>
                   <p className="font-bold text-slate-900 dark:text-white">{student.planDisplay}</p>
                 </div>
               )}

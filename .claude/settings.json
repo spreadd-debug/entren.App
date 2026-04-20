@@ -43,7 +43,13 @@
       "Bash(curl -sL \"https://world.openfoodfacts.org/country/argentina/1.json?fields=code,product_name,brands,countries_tags,nutriments,unique_scans_n\" -o /tmp/off-test.json --max-time 30 -w \"%{http_code}\\\\n%{content_type}\\\\n%{size_download}\\\\n\")",
       "Bash(curl -sI \"https://static.openfoodfacts.org/data/dataforgood/openfoodfacts_parquet_data_for_good_argentina.parquet\" -w \"%{http_code}\\\\n\")",
       "Bash(grep -E \"\\\\.\\(tsx|ts\\)$\")",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(npx tsc *)",
+      "Read(//tmp/**)",
+      "Bash(echo \"---exit $?---\")"
+    ],
+    "additionalDirectories": [
+      "\\tmp"
     ]
   }
 }

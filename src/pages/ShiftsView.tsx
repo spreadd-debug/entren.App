@@ -244,7 +244,7 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ shift, allStudents, o
                     </div>
                     <div>
                       <p className="font-bold text-slate-900 dark:text-white text-sm">{name || 'Sin nombre'}</p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">{student.planName ?? student.plan_nombre ?? 'Sin plan'}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">{student.planName ?? student.plan_nombre ?? 'Sin cuota asignada'}</p>
                     </div>
                   </div>
                   <button

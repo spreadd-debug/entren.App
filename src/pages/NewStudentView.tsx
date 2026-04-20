@@ -11,17 +11,35 @@ import {
   ShieldCheck,
   MessageSquare,
   HeartPulse,
+  Repeat,
+  Layers,
+  Zap,
+  Gift,
+  Wifi,
 } from 'lucide-react';
 import { Card, Button, Input } from '../components/UI';
 import { useToast } from '../context/ToastContext';
-import { Plan, Student } from '../../shared/types';
+import { Plan, Student, PricingModel, PaymentMethod } from '../../shared/types';
 import { calculateNextDueDate } from '../utils/dateUtils';
+import { PTRateSettingsService, PackageTemplate } from '../services/PTRateSettingsService';
+
+export interface PackageInit {
+  sessionsTotal: number;
+  pricePaid: number;
+  paymentMethod: PaymentMethod;
+}
 
 interface NewStudentViewProps {
   plans: Plan[];
   onBack: () => void;
-  onCreateStudent: (student: Partial<Student>, registerPayment: boolean) => void;
+  onCreateStudent: (
+    student: Partial<Student>,
+    registerPayment: boolean,
+    packageInit?: PackageInit,
+  ) => void;
   gymType?: 'gym' | 'personal_trainer';
+  /** PT mode: used to read rate defaults + package templates from settings */
+  gymId?: string;
 }
 
 type ScholarshipTypeUI = 'ninguna' | 'parcial' | 'completa';
@@ -32,10 +50,16 @@ export const NewStudentView: React.FC<NewStudentViewProps> = ({
   onBack,
   onCreateStudent,
   gymType = 'gym',
+  gymId,
 }) => {
   const isPT = gymType === 'personal_trainer';
   const toast = useToast();
   const safePlans = Array.isArray(plans) ? plans : [];
+
+  const rateSettings = useMemo(() => {
+    if (!isPT || !gymId) return { defaultSessionRate: 0, packageTemplates: [] as PackageTemplate[] };
+    return PTRateSettingsService.get(gymId);
+  }, [isPT, gymId]);
 
   const normalizedPlans = useMemo(() => {
     return safePlans.map((plan: any) => ({
@@ -66,7 +90,30 @@ export const NewStudentView: React.FC<NewStudentViewProps> = ({
     whatsapp_opt_in: true,
     tipo_beca: 'ninguna' as ScholarshipTypeUI,
     observaciones_cobranza: '',
+    pricing_model: 'mensual' as PricingModel,
+    session_rate: 0,
+    package_sessions: 10,
+    package_price: 0,
+    package_method: 'cash' as PaymentMethod,
+    is_online: false,
   });
+
+  // Pre-fill session_rate from PT settings on mount (only if user hasn't typed anything yet)
+  useEffect(() => {
+    if (!isPT) return;
+    if (rateSettings.defaultSessionRate > 0 && formData.session_rate === 0) {
+      setFormData((prev) => ({ ...prev, session_rate: rateSettings.defaultSessionRate }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rateSettings.defaultSessionRate, isPT]);
+
+  const applyPackageTemplate = (tpl: PackageTemplate) => {
+    setFormData((prev) => ({
+      ...prev,
+      package_sessions: tpl.sessionsTotal,
+      package_price: tpl.pricePaid,
+    }));
+  };
 
   useEffect(() => {
     if (activePlans.length > 0 && !formData.planId) {
@@ -95,41 +142,86 @@ export const NewStudentView: React.FC<NewStudentViewProps> = ({
       return;
     }
 
-    const selectedPlan = activePlans.find((p: any) => p.id === formData.planId);
-    if (!selectedPlan) {
-      toast.error('Seleccioná un plan');
+    const model = formData.pricing_model;
+
+    // Validations per model
+    if (model === 'mensual') {
+      const selectedPlan = activePlans.find((p: any) => p.id === formData.planId);
+      if (!selectedPlan) {
+        toast.error('Seleccioná un plan');
+        return;
+      }
+    }
+    if (model === 'por_sesion' && formData.session_rate <= 0) {
+      toast.error('Ingresá la tarifa por sesión');
       return;
     }
+    if (model === 'paquete') {
+      if (formData.package_sessions <= 0) {
+        toast.error('Ingresá cantidad de sesiones del paquete');
+        return;
+      }
+      if (formData.package_price <= 0) {
+        toast.error('Ingresá el precio del paquete');
+        return;
+      }
+    }
 
-    const nextDueDate = calculateNextDueDate(
-      formData.startDate,
-      selectedPlan.durationDays
-    );
+    const selectedPlan = activePlans.find((p: any) => p.id === formData.planId);
+    const nextDueDate =
+      model === 'mensual' && selectedPlan
+        ? calculateNextDueDate(formData.startDate, selectedPlan.durationDays)
+        : null;
+
+    // cobra_cuota derived from pricing_model: libre = false, otros = true
+    const cobraCuota = model === 'libre' ? false : formData.cobra_cuota;
 
     const newStudent: Partial<Student> = {
       nombre: formData.nombre,
       apellido: formData.apellido,
       telefono: formData.telefono,
-      plan_id: formData.planId,
+      plan_id: model === 'mensual' ? formData.planId : null,
       status: formData.status,
-      last_payment_date: registerPayment ? formData.startDate : null,
+      last_payment_date: registerPayment && model === 'mensual' ? formData.startDate : null,
       next_due_date: nextDueDate,
       observaciones: formData.observaciones,
       emergency_contact_name: formData.emergency_contact_name || undefined,
       emergency_contact_phone: formData.emergency_contact_phone || undefined,
-      cobra_cuota: formData.cobra_cuota,
-      recordatorio_automatico: formData.recordatorio_automatico,
+      cobra_cuota: cobraCuota,
+      recordatorio_automatico: cobraCuota ? formData.recordatorio_automatico : false,
       precio_personalizado:
-        formData.price !== selectedPlan.price ? formData.price : undefined,
+        model === 'mensual' && selectedPlan && formData.price !== selectedPlan.price
+          ? formData.price
+          : undefined,
       tipo_beca: formData.tipo_beca,
       whatsapp_opt_in: formData.whatsapp_opt_in,
       whatsapp_opt_in_at: formData.whatsapp_opt_in
         ? new Date().toISOString()
         : undefined,
-      debt: registerPayment ? 0 : formData.cobra_cuota ? formData.price : 0,
+      pricing_model: model,
+      session_rate: model === 'por_sesion' ? formData.session_rate : undefined,
+      debt:
+        registerPayment || model === 'paquete' || model === 'libre'
+          ? 0
+          : model === 'mensual' && cobraCuota
+            ? formData.price
+            : 0,
+      is_online: isPT ? formData.is_online : false,
     } as any;
 
-    onCreateStudent(newStudent, registerPayment);
+    const packageInit: PackageInit | undefined =
+      model === 'paquete'
+        ? {
+            sessionsTotal: formData.package_sessions,
+            pricePaid: formData.package_price,
+            paymentMethod: formData.package_method,
+          }
+        : undefined;
+
+    // For packages, the package creation IS the initial payment — don't also register a monthly one.
+    const shouldRegisterPayment = registerPayment && model === 'mensual';
+
+    onCreateStudent(newStudent, shouldRegisterPayment, packageInit);
   };
 
   return (
@@ -251,40 +343,127 @@ export const NewStudentView: React.FC<NewStudentViewProps> = ({
 
         <section className="space-y-3">
           <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 px-1">
-            Datos del Plan
+            {isPT ? '¿Cómo le cobrás?' : 'Datos del Plan'}
           </h4>
           <Card className="p-5 space-y-4">
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 ml-1">
-                Seleccionar Plan
-              </label>
-              <div className="relative">
-                <CreditCard
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-                  size={16}
-                />
-                <select
-                  className="w-full pl-9 pr-4 h-12 rounded-2xl border border-slate-200 dark:border-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-slate-900 dark:text-white font-bold text-sm bg-white dark:bg-slate-700 appearance-none"
-                  value={formData.planId}
-                  onChange={(e) => handlePlanChange(e.target.value)}
-                >
-                  {activePlans.length === 0 ? (
-                    <option value="">No hay planes activos</option>
-                  ) : (
-                    activePlans.map((plan: any) => (
-                      <option key={plan.id} value={plan.id}>
-                        {plan.name} - ${plan.price}
-                      </option>
-                    ))
-                  )}
-                </select>
+            {isPT && (
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  { id: 'mensual', label: 'Mensual', desc: 'Cuota recurrente', icon: Repeat },
+                  { id: 'por_sesion', label: 'Por sesión', desc: 'Cobra cada clase', icon: Zap },
+                  { id: 'paquete', label: 'Paquete', desc: 'N sesiones prepagas', icon: Layers },
+                  { id: 'libre', label: 'Libre / beca', desc: 'Sin cobro', icon: Gift },
+                ] as const).map((opt) => {
+                  const Icon = opt.icon;
+                  const active = formData.pricing_model === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() =>
+                        setFormData({ ...formData, pricing_model: opt.id as PricingModel })
+                      }
+                      className={`text-left p-3 rounded-2xl border-2 transition-all ${
+                        active
+                          ? 'bg-indigo-50 dark:bg-indigo-500/10 border-indigo-500 shadow-sm'
+                          : 'bg-white dark:bg-slate-700 border-slate-100 dark:border-slate-600'
+                      }`}
+                    >
+                      <Icon
+                        size={18}
+                        className={active ? 'text-indigo-500' : 'text-slate-400'}
+                      />
+                      <p
+                        className={`mt-1.5 text-sm font-bold ${
+                          active ? 'text-indigo-600 dark:text-indigo-300' : 'text-slate-900 dark:text-white'
+                        }`}
+                      >
+                        {opt.label}
+                      </p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400">{opt.desc}</p>
+                    </button>
+                  );
+                })}
               </div>
-            </div>
+            )}
 
-            <div className="grid grid-cols-2 gap-4">
+            {formData.pricing_model === 'mensual' && (
+              <>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 ml-1">
+                    Seleccionar Plan
+                  </label>
+                  <div className="relative">
+                    <CreditCard
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                      size={16}
+                    />
+                    <select
+                      className="w-full pl-9 pr-4 h-12 rounded-2xl border border-slate-200 dark:border-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-slate-900 dark:text-white font-bold text-sm bg-white dark:bg-slate-700 appearance-none"
+                      value={formData.planId}
+                      onChange={(e) => handlePlanChange(e.target.value)}
+                    >
+                      {activePlans.length === 0 ? (
+                        <option value="">No hay planes activos</option>
+                      ) : (
+                        activePlans.map((plan: any) => (
+                          <option key={plan.id} value={plan.id}>
+                            {plan.name} - ${plan.price}
+                          </option>
+                        ))
+                      )}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 ml-1">
+                      Precio Final ($)
+                    </label>
+                    <div className="relative">
+                      <DollarSign
+                        className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                        size={16}
+                      />
+                      <Input
+                        type="number"
+                        className="pl-9 h-12"
+                        value={formData.price}
+                        onChange={(e) =>
+                          setFormData({ ...formData, price: Number(e.target.value) })
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 ml-1">
+                      Fecha Inicio
+                    </label>
+                    <div className="relative">
+                      <Calendar
+                        className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                        size={16}
+                      />
+                      <Input
+                        type="date"
+                        className="pl-9 h-12"
+                        value={formData.startDate}
+                        onChange={(e) =>
+                          setFormData({ ...formData, startDate: e.target.value })
+                        }
+                      />
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {formData.pricing_model === 'por_sesion' && (
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 ml-1">
-                  Precio Final ($)
+                  Tarifa por sesión ($)
                 </label>
                 <div className="relative">
                   <DollarSign
@@ -294,36 +473,160 @@ export const NewStudentView: React.FC<NewStudentViewProps> = ({
                   <Input
                     type="number"
                     className="pl-9 h-12"
-                    value={formData.price}
+                    placeholder="Ej: 5000"
+                    value={formData.session_rate || ''}
                     onChange={(e) =>
-                      setFormData({ ...formData, price: Number(e.target.value) })
+                      setFormData({ ...formData, session_rate: Number(e.target.value) })
                     }
                   />
                 </div>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 ml-1">
+                  Se va a cobrar cada vez que el cliente asista a un turno.
+                </p>
               </div>
+            )}
 
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 ml-1">
-                  Fecha Inicio
-                </label>
-                <div className="relative">
-                  <Calendar
-                    className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-                    size={16}
-                  />
-                  <Input
-                    type="date"
-                    className="pl-9 h-12"
-                    value={formData.startDate}
-                    onChange={(e) =>
-                      setFormData({ ...formData, startDate: e.target.value })
-                    }
-                  />
+            {formData.pricing_model === 'paquete' && (
+              <div className="space-y-4">
+                {rateSettings.packageTemplates.length > 0 && (
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 ml-1">
+                      Plantillas guardadas
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {rateSettings.packageTemplates.map((tpl) => (
+                        <button
+                          key={tpl.id}
+                          type="button"
+                          onClick={() => applyPackageTemplate(tpl)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-violet-200 dark:border-violet-500/30 bg-violet-50 dark:bg-violet-500/10 text-violet-700 dark:text-violet-300 text-xs font-bold hover:bg-violet-100 dark:hover:bg-violet-500/20 transition-all"
+                        >
+                          <Layers size={12} />
+                          {tpl.label ?? `${tpl.sessionsTotal} ses`}
+                          <span className="text-violet-400 dark:text-violet-500 font-medium">
+                            · ${tpl.pricePaid.toLocaleString()}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 ml-1">
+                      Cantidad de sesiones
+                    </label>
+                    <div className="relative">
+                      <Layers
+                        className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                        size={16}
+                      />
+                      <Input
+                        type="number"
+                        className="pl-9 h-12"
+                        placeholder="Ej: 10"
+                        value={formData.package_sessions || ''}
+                        onChange={(e) =>
+                          setFormData({ ...formData, package_sessions: Number(e.target.value) })
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 ml-1">
+                      Precio total ($)
+                    </label>
+                    <div className="relative">
+                      <DollarSign
+                        className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                        size={16}
+                      />
+                      <Input
+                        type="number"
+                        className="pl-9 h-12"
+                        placeholder="Ej: 50000"
+                        value={formData.package_price || ''}
+                        onChange={(e) =>
+                          setFormData({ ...formData, package_price: Number(e.target.value) })
+                        }
+                      />
+                    </div>
+                  </div>
                 </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 ml-1">
+                    Método de pago del paquete
+                  </label>
+                  <div className="flex gap-2">
+                    {(['cash', 'transfer', 'mercadopago'] as const).map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setFormData({ ...formData, package_method: m })}
+                        className={`flex-1 py-2.5 rounded-xl border text-[10px] font-bold uppercase tracking-wider transition-all ${
+                          formData.package_method === m
+                            ? 'bg-slate-900 border-slate-900 text-white'
+                            : 'bg-white dark:bg-slate-700 border-slate-100 dark:border-slate-600 text-slate-400'
+                        }`}
+                      >
+                        {m === 'cash' ? 'Efectivo' : m === 'transfer' ? 'Transferencia' : 'MP'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {formData.package_sessions > 0 && formData.package_price > 0 && (
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 px-1">
+                    ≈ ${Math.round(formData.package_price / formData.package_sessions)} por sesión
+                  </p>
+                )}
               </div>
+            )}
+
+            {formData.pricing_model === 'libre' && (
+              <p className="text-xs text-slate-500 dark:text-slate-400 text-center py-3">
+                Este cliente no paga. Útil para becados, familia o pruebas.
+              </p>
+            )}
+          </Card>
+        </section>
+
+        {isPT && (
+        <section className="space-y-3">
+          <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 px-1">
+            Modalidad
+          </h4>
+          <Card className="p-5">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5 pr-3">
+                <div className="flex items-center gap-2">
+                  <Wifi size={14} className="text-indigo-400" />
+                  <label className="text-sm font-bold text-slate-900 dark:text-white">
+                    Alumno online
+                  </label>
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
+                  Entrena a distancia: desde su portal puede ver la rutina con fotos y cargar peso y repeticiones de cada set.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  setFormData({ ...formData, is_online: !formData.is_online })
+                }
+                className={`w-12 h-6 rounded-full transition-all relative flex-shrink-0 ${
+                  formData.is_online ? 'bg-indigo-500' : 'bg-slate-200 dark:bg-slate-600'
+                }`}
+              >
+                <div
+                  className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${
+                    formData.is_online ? 'right-1' : 'left-1'
+                  }`}
+                />
+              </button>
             </div>
           </Card>
         </section>
+        )}
 
         {!isPT && (
         <section className="space-y-3">

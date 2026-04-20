@@ -2,6 +2,7 @@
 export type StudentStatus = 'active' | 'inactive' | 'expiring' | 'expired';
 export type ScholarshipType = 'none' | 'partial' | 'complete';
 export type PaymentMethod = 'cash' | 'transfer' | 'mercadopago';
+export type PricingModel = 'mensual' | 'por_sesion' | 'paquete' | 'libre';
 
 export type GymType = 'gym' | 'personal_trainer';
 
@@ -38,6 +39,9 @@ export interface Student {
   observaciones_cobranza?: string;
   whatsapp_opt_in: boolean;
   whatsapp_opt_in_at?: string;
+  // Pricing model (explicit billing regime per student)
+  pricing_model: PricingModel;
+  session_rate?: number;
   // Modality (PT only): true = entrena online y carga sus propios sets desde el portal
   is_online: boolean;
   created_at: string;
@@ -447,6 +451,23 @@ export interface ProgressPhoto {
   created_at: string;
 }
 
+// ─── Student Packages (pricing_model='paquete') ────────────────────────────
+
+export interface StudentPackage {
+  id: string;
+  student_id: string;
+  gym_id: string;
+  sessions_total: number;
+  sessions_used: number;
+  price_paid: number;
+  payment_method: PaymentMethod;
+  purchased_at: string;     // "YYYY-MM-DD"
+  expires_at: string | null;
+  active: boolean;
+  notes: string | null;
+  created_at: string;
+}
+
 // ─── PT Shift Payments ─────────────────────────────────────────────────────
 
 export type ShiftPaymentStatus = 'paid' | 'unpaid';
@@ -508,30 +529,26 @@ export interface GymBillingPayment {
   created_at: string;
 }
 
-// ─── Outreach Tracking (SuperAdmin) ────────────────────────────────────────
-
+// ─── Outreach tracking (SuperAdmin) ────────────────────────────────────────
+// Registro diario de cold outreach a gyms potenciales (no están en el sistema).
 export interface OutreachDailyLog {
   id: string;
-  date: string; // YYYY-MM-DD
+  date: string;                    // YYYY-MM-DD
   messages_sent: number;
   replies_received: number;
-  conversations_started: number; // intercambios > 2
+  conversations_started: number;   // >2 intercambios
   demos_scheduled: number;
   notes: string | null;
   created_at: string;
   updated_at: string;
 }
 
-export interface OutreachDailyLogInput {
-  messages_sent: number;
-  replies_received: number;
-  conversations_started: number;
-  demos_scheduled: number;
-  notes?: string | null;
-}
+export type OutreachDailyLogInput = Pick<
+  OutreachDailyLog,
+  'messages_sent' | 'replies_received' | 'conversations_started' | 'demos_scheduled'
+> & { notes?: string | null };
 
-// ─── Gym Activity Events (Onboarding / Retention) ──────────────────────────
-
+// ─── Gym activity events (instrumentación onboarding) ──────────────────────
 export type GymActivityEventType =
   | 'login'
   | 'gym_registered'
@@ -543,9 +560,9 @@ export type GymActivityEventType =
 export interface GymActivityEvent {
   id: string;
   gym_id: string;
+  user_id: string | null;
   event_type: GymActivityEventType;
   event_data: Record<string, any> | null;
-  user_id: string | null;
   created_at: string;
 }
 
@@ -554,14 +571,15 @@ export interface OnboardingFunnel {
   first_student: number;
   first_payment: number;
   activated: number;
+  // Cada flag es el # de gyms que ejecutaron ese paso (orden arbitrario, pueden saltar).
 }
 
 export interface RetentionCohort {
-  cohort_date: string; // YYYY-MM-DD (monday)
-  cohort_size: number;
-  d1: number;
-  d7: number;
-  d30: number;
+  cohort_date: string;    // primer día del período (YYYY-MM-DD)
+  cohort_size: number;    // gyms registrados en ese período
+  d1: number;             // gyms con login en d1
+  d7: number;             // gyms con login en d7 (cualquier día >= 7)
+  d30: number;            // gyms con login en d30
 }
 
 // ─── Smart Planning System ─────────────────────────────────────────────────

@@ -1,16 +1,21 @@
-import React, { useMemo, useState } from 'react';
-import { AlertCircle, MessageSquare, DollarSign, Clock, Search, Bell } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { AlertCircle, MessageSquare, DollarSign, Clock, Search, Bell, Layers } from 'lucide-react';
 import { Card, Button, Input, BillingBadge } from '../components/UI';
-import { Student, Plan } from '../../shared/types';
+import { Student, Plan, StudentPackage, PricingModel } from '../../shared/types';
 import { getDaysLate, formatDate } from '../utils/dateUtils';
 import { RegisterPaymentModal } from '../components/RegisterPaymentModal';
+import { StudentPackageService } from '../services/StudentPackageService';
+import { useToast } from '../context/ToastContext';
 
 const EXPIRING_DAYS = 7;
+const PACKAGE_LOW_THRESHOLD = 2; // sesiones restantes que disparan "por vencer"
 
 interface DefaultersViewProps {
   students: Student[];
   plans: Plan[];
   onRegisterPayment: (data: any) => void;
+  /** Optional. When provided, also detects paquete defaulters. */
+  gymId?: string;
 }
 
 const isValidDate = (value: unknown) => {
@@ -33,77 +38,146 @@ function buildWALink(phone: string, message: string): string {
   return `https://wa.me/${formatted}?text=${encodeURIComponent(message)}`;
 }
 
-function buildMessage(name: string, dueDate: string, isExpired: boolean): string {
+function buildMensualMessage(name: string, dueDate: string, isExpired: boolean): string {
   const dateStr = isValidDate(dueDate) ? formatDate(dueDate) : dueDate;
   if (isExpired) {
-    return `Hola ${name}, te recordamos que tu cuota del gimnasio venció el ${dateStr}. ¡Pasate cuando puedas para regularizarla!`;
+    return `Hola ${name}, te recordamos que tu cuota venció el ${dateStr}. ¡Pasate cuando puedas para regularizarla!`;
   }
-  return `Hola ${name}, te avisamos que tu cuota del gimnasio vence el ${dateStr}. ¡Te esperamos!`;
+  return `Hola ${name}, te avisamos que tu cuota vence el ${dateStr}. ¡Te esperamos!`;
+}
+
+function buildPackageMessage(name: string, remaining: number): string {
+  if (remaining <= 0) {
+    return `Hola ${name}, se te terminó el paquete de sesiones. ¿Renovamos?`;
+  }
+  return `Hola ${name}, te quedan ${remaining} sesión${remaining === 1 ? '' : 'es'} del paquete. ¡Avisame cuando quieras renovar!`;
 }
 
 export const DefaultersView: React.FC<DefaultersViewProps> = ({
   students,
   plans,
   onRegisterPayment,
+  gymId,
 }) => {
+  const toast = useToast();
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [packagesByStudent, setPackagesByStudent] = useState<Record<string, StudentPackage>>({});
 
   const safeStudents = Array.isArray(students) ? students : [];
   const safePlans = Array.isArray(plans) ? plans : [];
+
+  const hasPackageStudents = useMemo(
+    () => safeStudents.some((s: any) => s.pricing_model === 'paquete'),
+    [safeStudents],
+  );
+
+  useEffect(() => {
+    if (!gymId || !hasPackageStudents) {
+      setPackagesByStudent({});
+      return;
+    }
+    let cancelled = false;
+    StudentPackageService.getActiveByGym(gymId)
+      .then((pkgs) => {
+        if (cancelled) return;
+        const map: Record<string, StudentPackage> = {};
+        for (const p of pkgs) map[p.student_id] = p;
+        setPackagesByStudent(map);
+      })
+      .catch((err) => console.error('DefaultersView: failed to load packages', err));
+    return () => { cancelled = true; };
+  }, [gymId, hasPackageStudents, safeStudents.length]);
 
   const { expired, expiring } = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const normalized = safeStudents
-      .filter((s: any) => {
-        if (s.status !== 'activo') return false;
-        if (!s.cobra_cuota) return false;
+    const expired: any[] = [];
+    const expiring: any[] = [];
+
+    for (const s of safeStudents as any[]) {
+      if (s.status !== 'activo') continue;
+
+      const pricingModel: PricingModel = s.pricing_model ?? (s.cobra_cuota === false ? 'libre' : 'mensual');
+      if (pricingModel === 'libre') continue;
+      if (pricingModel === 'por_sesion') continue; // fuera de scope: requiere cruzar shift_students
+
+      const nombre = s.nombre ?? s.name ?? '';
+      const apellido = s.apellido ?? s.lastName ?? '';
+      const displayName = `${nombre} ${apellido}`.trim() || 'Sin nombre';
+      if (!displayName.toLowerCase().includes(searchTerm.toLowerCase())) continue;
+      const phone = s.telefono ?? s.phone ?? '';
+      const firstLetter = (nombre || '?').charAt(0).toUpperCase();
+
+      if (pricingModel === 'mensual') {
+        if (!s.cobra_cuota) continue;
         const dueDateRaw = s.next_due_date ?? s.nextDueDate;
-        if (!isValidDate(dueDateRaw)) return false;
+        if (!isValidDate(dueDateRaw)) continue;
         const dueDate = new Date(String(dueDateRaw));
         dueDate.setHours(0, 0, 0, 0);
         const diffDays = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-        return diffDays < EXPIRING_DAYS; // includes negative (expired) and 0..6
-      })
-      .map((student: any) => {
-        const nombre = student.nombre ?? student.name ?? '';
-        const apellido = student.apellido ?? student.lastName ?? '';
-        const nextDueDate = student.next_due_date ?? student.nextDueDate ?? null;
-        const matchingPlan = safePlans.find((p: any) => p.id === student.plan_id || p.id === student.planId);
-        const debt = Number(
-          student.debt ?? student.precio_personalizado ?? (matchingPlan as any)?.precio ?? student.plan_precio ?? 0
-        );
-        const dueDate = new Date(String(nextDueDate));
-        dueDate.setHours(0, 0, 0, 0);
-        const diffDays = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-        const phone = student.telefono ?? student.phone ?? '';
-        const displayName = `${nombre} ${apellido}`.trim() || 'Sin nombre';
+        if (diffDays >= EXPIRING_DAYS) continue;
 
-        return {
-          ...student,
+        const matchingPlan = safePlans.find((p: any) => p.id === s.plan_id || p.id === s.planId);
+        const debt = Number(
+          s.debt ?? s.precio_personalizado ?? (matchingPlan as any)?.precio ?? s.plan_precio ?? 0,
+        );
+        const isExpired = diffDays < 0;
+        const entry = {
+          ...s,
           displayName,
-          firstLetter: (nombre || '?').charAt(0).toUpperCase(),
-          planDisplay: student.planName ?? student.plan_nombre ?? (matchingPlan as any)?.nombre ?? 'Sin plan',
-          dueDateDisplay: nextDueDate,
+          firstLetter,
+          mode: 'mensual' as const,
+          planDisplay: s.planName ?? s.plan_nombre ?? (matchingPlan as any)?.nombre ?? 'Sin cuota asignada',
+          dueDateDisplay: dueDateRaw,
           debtDisplay: debt,
           diffDays,
           phone,
-          isExpired: diffDays < 0,
+          isExpired,
           waLink: phone
-            ? buildWALink(phone, buildMessage(nombre || displayName, nextDueDate ?? '', diffDays < 0))
+            ? buildWALink(phone, buildMensualMessage(nombre || displayName, dueDateRaw ?? '', isExpired))
             : null,
         };
-      })
-      .filter((s: any) => s.displayName.toLowerCase().includes(searchTerm.toLowerCase()))
-      .sort((a: any, b: any) => a.diffDays - b.diffDays);
+        (isExpired ? expired : expiring).push(entry);
+        continue;
+      }
 
-    return {
-      expired: normalized.filter((s: any) => s.isExpired),
-      expiring: normalized.filter((s: any) => !s.isExpired),
-    };
-  }, [safeStudents, safePlans, searchTerm]);
+      if (pricingModel === 'paquete') {
+        const pkg = packagesByStudent[s.id];
+        const remaining = pkg ? Math.max(0, pkg.sessions_total - pkg.sessions_used) : 0;
+        const exhausted = !pkg || remaining <= 0;
+        const low = !exhausted && remaining <= PACKAGE_LOW_THRESHOLD;
+        if (!exhausted && !low) continue;
+
+        const debt = Number(pkg?.price_paid ?? s.precio_personalizado ?? 0);
+        const entry = {
+          ...s,
+          displayName,
+          firstLetter,
+          mode: 'paquete' as const,
+          planDisplay: pkg
+            ? `Paquete ${pkg.sessions_used}/${pkg.sessions_total}`
+            : 'Sin paquete activo',
+          dueDateDisplay: pkg?.purchased_at ?? null,
+          debtDisplay: debt,
+          remaining,
+          totalSessions: pkg?.sessions_total ?? 0,
+          phone,
+          isExpired: exhausted,
+          waLink: phone
+            ? buildWALink(phone, buildPackageMessage(nombre || displayName, remaining))
+            : null,
+        };
+        (exhausted ? expired : expiring).push(entry);
+        continue;
+      }
+    }
+
+    expired.sort((a, b) => (a.diffDays ?? 0) - (b.diffDays ?? 0));
+    expiring.sort((a, b) => (a.remaining ?? a.diffDays ?? 0) - (b.remaining ?? b.diffDays ?? 0));
+    return { expired, expiring };
+  }, [safeStudents, safePlans, searchTerm, packagesByStudent]);
 
   const allStudents = [...expired, ...expiring];
 
@@ -129,7 +203,7 @@ export const DefaultersView: React.FC<DefaultersViewProps> = ({
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-amber-200 dark:border-amber-500/20 p-4 flex flex-col gap-1 shadow-sm dark:shadow-none">
           <p className="text-[10px] font-black text-amber-500 uppercase tracking-[0.12em]">Por vencer</p>
           <p className="text-3xl font-black text-amber-500 leading-none tabular-nums">{expiring.length}</p>
-          <p className="text-[11px] text-slate-400 dark:text-slate-600 font-medium">próximos {EXPIRING_DAYS} días</p>
+          <p className="text-[11px] text-slate-400 dark:text-slate-600 font-medium">cuotas + paquetes bajos</p>
         </div>
       </div>
 
@@ -170,13 +244,40 @@ export const DefaultersView: React.FC<DefaultersViewProps> = ({
                       tipo_beca={student.tipo_beca}
                       whatsapp_opt_in={student.whatsapp_opt_in}
                     />
+                    {student.mode === 'paquete' && (
+                      <span className="inline-flex items-center gap-1 bg-violet-100 dark:bg-violet-500/15 text-violet-700 dark:text-violet-300 text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full">
+                        <Layers size={10} />
+                        Paquete
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs text-slate-500 dark:text-slate-400">{student.planDisplay}</p>
                 </div>
               </div>
 
               <div className="text-right shrink-0 ml-2">
-                {student.isExpired ? (
+                {student.mode === 'paquete' ? (
+                  student.isExpired ? (
+                    <>
+                      <p className="text-xs font-bold text-rose-500 uppercase">Agotado</p>
+                      {student.debtDisplay > 0 && (
+                        <p className="font-black text-slate-900 dark:text-white text-sm">
+                          ${student.debtDisplay.toLocaleString()}
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <span className="inline-flex items-center gap-1 bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400 text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full">
+                        <Layers size={10} />
+                        {student.remaining} restante{student.remaining === 1 ? '' : 's'}
+                      </span>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                        de {student.totalSessions}
+                      </p>
+                    </>
+                  )
+                ) : student.isExpired ? (
                   <>
                     <p className="text-xs font-bold text-rose-500 uppercase flex items-center gap-1 justify-end">
                       <Clock size={11} />
@@ -223,8 +324,8 @@ export const DefaultersView: React.FC<DefaultersViewProps> = ({
                 className="gap-2"
                 onClick={() => setSelectedStudent(student)}
               >
-                <DollarSign size={15} />
-                Cobrar
+                {student.mode === 'paquete' ? <Layers size={15} /> : <DollarSign size={15} />}
+                {student.mode === 'paquete' ? 'Renovar' : 'Cobrar'}
               </Button>
             </div>
           </Card>
@@ -237,7 +338,7 @@ export const DefaultersView: React.FC<DefaultersViewProps> = ({
             </div>
             <h3 className="text-lg font-bold text-slate-900 dark:text-white">¡Todo al día!</h3>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-              No hay cuotas vencidas ni por vencer en los próximos {EXPIRING_DAYS} días.
+              No hay cuotas vencidas, paquetes agotados ni vencimientos en los próximos {EXPIRING_DAYS} días.
             </p>
           </div>
         )}
@@ -252,6 +353,25 @@ export const DefaultersView: React.FC<DefaultersViewProps> = ({
           onConfirm={(data) => {
             onRegisterPayment({ studentId: selectedStudent.id, ...data });
             setSelectedStudent(null);
+          }}
+          onConfirmPackage={async (pkg) => {
+            try {
+              const gid = gymId ?? (selectedStudent as any).gym_id ?? (selectedStudent as any).gymId;
+              if (!gid) throw new Error('Falta gymId para crear el paquete');
+              const created = await StudentPackageService.create({
+                studentId: selectedStudent.id,
+                gymId: gid,
+                sessionsTotal: pkg.sessionsTotal,
+                pricePaid: pkg.pricePaid,
+                paymentMethod: pkg.method,
+                purchasedAt: pkg.date,
+              });
+              setPackagesByStudent((prev) => ({ ...prev, [selectedStudent.id]: created }));
+              toast.success(`Paquete de ${pkg.sessionsTotal} sesiones creado`);
+              setSelectedStudent(null);
+            } catch (err: any) {
+              toast.error(err?.message ?? 'No se pudo crear el paquete');
+            }
           }}
         />
       )}

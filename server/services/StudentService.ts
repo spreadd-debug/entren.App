@@ -35,6 +35,7 @@ type StudentDbRow = {
   emergency_contact_phone?: string | null;
   access_code?: string | null;
   has_custom_code?: boolean | null;
+  is_online?: boolean | null;
   created_at?: string;
   updated_at?: string;
 };
@@ -66,6 +67,7 @@ export const StudentService = {
         emergency_contact_phone,
         access_code,
         has_custom_code,
+        is_online,
         created_at,
         updated_at
       `)
@@ -103,6 +105,7 @@ export const StudentService = {
         emergency_contact_phone,
         access_code,
         has_custom_code,
+        is_online,
         created_at,
         updated_at
       `)
@@ -136,6 +139,7 @@ export const StudentService = {
       emergency_contact_name: student.emergency_contact_name ?? null,
       emergency_contact_phone: student.emergency_contact_phone ?? null,
       access_code: generateAccessCode(),
+      is_online: student.is_online ?? false,
     };
 
     const { data, error } = await supabase
@@ -162,6 +166,7 @@ export const StudentService = {
         emergency_contact_phone,
         access_code,
         has_custom_code,
+        is_online,
         created_at,
         updated_at
       `)
@@ -270,6 +275,10 @@ export const StudentService = {
       payload.emergency_contact_phone = updates.emergency_contact_phone?.trim() || null;
     }
 
+    if (updates.is_online !== undefined) {
+      payload.is_online = !!updates.is_online;
+    }
+
     const gymId = updates.gym_id ?? updates.gymId ?? DEFAULT_GYM_ID;
     // Don't allow moving a student to a different gym
     delete payload.gym_id;
@@ -307,6 +316,7 @@ export const StudentService = {
         emergency_contact_phone,
         access_code,
         has_custom_code,
+        is_online,
         created_at,
         updated_at
       `)

@@ -28,6 +28,7 @@ import { Card, StatusBadge, Button, BillingBadge, Input } from '../components/UI
 import { Student, Payment, Plan, WorkoutOption, WorkoutUpdateRequest } from '../../shared/types';
 import { formatDate } from '../utils/dateUtils';
 import { RegisterPaymentModal } from '../components/RegisterPaymentModal';
+import { StudentPackageService } from '../services/StudentPackageService';
 import { WorkoutPlanService } from '../services/WorkoutPlanService';
 import { WorkoutRequestService } from '../services/WorkoutRequestService';
 import { WorkoutSessionService } from '../services/WorkoutSessionService';
@@ -683,17 +684,17 @@ export const StudentDetailView: React.FC<StudentDetailViewProps> = ({
 
       <div className="grid gap-4">
         <Card className="p-4 space-y-4">
-          <h3 className="font-bold text-slate-900 dark:text-white border-b border-slate-50 dark:border-slate-700 pb-2">Información del Plan</h3>
+          <h3 className="font-bold text-slate-900 dark:text-white border-b border-slate-50 dark:border-slate-700 pb-2">Información de la Cuota</h3>
 
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-slate-100 dark:bg-slate-700 rounded-lg text-slate-600 dark:text-slate-300">
                 <Calendar size={18} />
               </div>
-              <span className="text-sm font-medium text-slate-500 dark:text-slate-400">Plan Actual</span>
+              <span className="text-sm font-medium text-slate-500 dark:text-slate-400">Cuota Actual</span>
             </div>
             <span className="text-sm font-bold text-slate-900 dark:text-white">
-              {(student as any).planName ?? (student as any).plan_nombre ?? 'Sin plan'}
+              {(student as any).planName ?? (student as any).plan_nombre ?? 'Sin cuota asignada'}
             </span>
           </div>
 
@@ -1071,6 +1072,22 @@ export const StudentDetailView: React.FC<StudentDetailViewProps> = ({
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onConfirm={handleConfirmPayment}
+        onConfirmPackage={async (pkg) => {
+          try {
+            await StudentPackageService.create({
+              studentId: student.id,
+              gymId: (student as any).gym_id ?? (student as any).gymId,
+              sessionsTotal: pkg.sessionsTotal,
+              pricePaid: pkg.pricePaid,
+              paymentMethod: pkg.method,
+              purchasedAt: pkg.date,
+            });
+            toast.success(`Paquete de ${pkg.sessionsTotal} sesiones creado`);
+            setIsModalOpen(false);
+          } catch (err: any) {
+            toast.error(err?.message ?? 'No se pudo crear el paquete');
+          }
+        }}
       />
 
       <ExerciseVideoModal

@@ -467,6 +467,10 @@ export default function StudentPortalView({
         adherenceStats={adherenceStats}
         onAnthropometryUpdate={setAnthropometry}
         lastPerfMap={lastPerfMap}
+        onStartTodaySession={handleStartSession}
+        onCompleteSession={handleCompleteSession}
+        isStartingSession={isStartingSession}
+        isCompletingSession={isCompletingSession}
       />
     );
   }

@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   DollarSign,
   CreditCard,
@@ -14,6 +15,8 @@ import {
   Search,
   X,
   ArrowLeft,
+  ArrowUpRight,
+  UserPlus,
 } from 'lucide-react';
 import { PTPaymentService } from '../services/pt/PTPaymentService';
 import { ShiftService } from '../services/ShiftService';
@@ -51,6 +54,8 @@ export default function PTPaymentsView({ gymId }: PTPaymentsViewProps) {
   const [payments, setPayments] = useState<PTShiftPayment[]>([]);
   const [stats, setStats] = useState({ todayIncome: 0, monthIncome: 0, monthPaid: 0, monthUnpaid: 0 });
   const [loading, setLoading] = useState(true);
+  const [studentCount, setStudentCount] = useState<number | null>(null);
+  const navigate = useNavigate();
 
   // ── Register modal state ────────────────────────────────────────────
   const [registerStep, setRegisterStep] = useState<'closed' | 'pick-student' | 'pick-shift' | 'payment'>('closed');
@@ -88,6 +93,19 @@ export default function PTPaymentsView({ gymId }: PTPaymentsViewProps) {
   };
 
   useEffect(() => { load(); }, [gymId, filterMonth]);
+
+  useEffect(() => {
+    let cancelled = false;
+    supabase
+      .from('students')
+      .select('id', { count: 'exact', head: true })
+      .eq('gym_id', gymId)
+      .eq('status', 'activo')
+      .then(({ count }) => {
+        if (!cancelled) setStudentCount(count ?? 0);
+      });
+    return () => { cancelled = true; };
+  }, [gymId]);
 
   // ── Register modal helpers ──────────────────────────────────────────
   const openRegister = async () => {
@@ -223,6 +241,31 @@ export default function PTPaymentsView({ gymId }: PTPaymentsViewProps) {
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
           <p className="text-sm text-slate-400">Cargando cobros...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Onboarding empty state: sin clientes y sin cobros ───────────────────
+  if (payments.length === 0 && studentCount === 0) {
+    return (
+      <div className="space-y-6 pb-10">
+        <div className="bg-gradient-to-br from-violet-500 to-violet-600 rounded-3xl p-8 text-white shadow-lg shadow-violet-500/20">
+          <div className="w-14 h-14 bg-white/15 rounded-2xl flex items-center justify-center mb-5">
+            <UserPlus size={28} strokeWidth={2.2} />
+          </div>
+          <h2 className="text-xl font-black tracking-tight mb-2">Sumá tu primer cliente para cobrar</h2>
+          <p className="text-sm text-violet-50/90 font-medium leading-relaxed mb-6">
+            Cuando lo des de alta vas a elegir cómo le cobrás: mensual, por sesión, paquete o libre.
+            Desde ahí registrás cobros y llevás la caja.
+          </p>
+          <button
+            onClick={() => navigate('/clients/new')}
+            className="inline-flex items-center gap-2 bg-white text-violet-700 font-bold text-sm px-5 py-3 rounded-2xl shadow-md hover:shadow-lg transition-all active:scale-[0.98]"
+          >
+            Crear primer cliente
+            <ArrowUpRight size={16} strokeWidth={2.5} />
+          </button>
         </div>
       </div>
     );

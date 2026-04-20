@@ -19,6 +19,7 @@ import {
   Plus,
   Trash2,
   X,
+  DollarSign,
 } from 'lucide-react';
 import { Card, SectionLabel, Toggle } from '../components/UI';
 import { useTheme } from '../context/ThemeContext';
@@ -115,10 +116,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     {
       title: isPT ? 'Mi Negocio' : 'Gimnasio',
       items: [
+        ...(isPT ? [
+          {
+            id: 'pt-rates',
+            label: 'Mi Tarifa',
+            description: 'Tarifa por sesión y plantillas de paquetes',
+            icon: DollarSign,
+            iconBg: 'bg-amber-500/10',
+            iconColor: 'text-amber-500',
+          },
+        ] : []),
         {
           id: 'plans',
-          label: 'Planes y Precios',
-          description: isPT ? 'Gestioná tus planes de entrenamiento' : 'Gestioná los planes de membresía',
+          label: isPT ? 'Planes mensuales' : 'Planes y Precios',
+          description: isPT ? 'Cuotas mensuales para clientes recurrentes' : 'Gestioná los planes de membresía',
           icon: CreditCard,
           iconBg: 'bg-cyan-500/10',
           iconColor: 'text-cyan-500',
@@ -177,6 +188,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const handleItemClick = (id: string) => {
     if (id === 'plans') { onNavigate('plans'); return; }
     if (id === 'automation') { onNavigate('automation'); return; }
+    if (id === 'pt-rates') { onNavigate('pt-rates'); return; }
     toast.warning('Esta sección estará disponible próximamente.');
   };
 

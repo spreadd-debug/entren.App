@@ -96,7 +96,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       nextDueDate,
       dueStatus,
       diffDays,
-      planDisplay: s.planName ?? s.plan_nombre ?? 'Sin plan',
+      planDisplay: s.planName ?? s.plan_nombre ?? 'Sin cuota asignada',
       debtDisplay: toNumber(s.debt ?? s.precio_personalizado ?? 0),
     };
   });

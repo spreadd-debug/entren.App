@@ -206,6 +206,7 @@ export const PTSessionService = {
       rir?: number | null;
       notes?: string | null;
     },
+    loggedBy: 'pt' | 'student' = 'pt',
   ): Promise<SessionSet> {
     const { data: result, error } = await supabase
       .from('session_sets')
@@ -219,6 +220,7 @@ export const PTSessionService = {
           rir: data.rir ?? null,
           notes: data.notes ?? null,
           completed: true,
+          logged_by: loggedBy,
         },
         { onConflict: 'session_exercise_id,set_number' },
       )

@@ -493,7 +493,7 @@ export const PTDashboardView: React.FC<PTDashboardViewProps> = ({
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{student.displayName}</p>
                   <p className="text-xs text-slate-400 dark:text-slate-600 font-medium">
-                    {(student as any).planName ?? (student as any).plan_nombre ?? 'Sin plan'}
+                    {(student as any).planName ?? (student as any).plan_nombre ?? 'Sin cuota asignada'}
                   </p>
                 </div>
                 <ChevronRight size={16} className="text-slate-300 dark:text-slate-700 shrink-0" />

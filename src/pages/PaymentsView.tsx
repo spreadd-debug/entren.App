@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   CreditCard,
   Search,
@@ -11,6 +12,7 @@ import {
   Calendar,
   ChevronRight,
   Users,
+  Tags,
 } from 'lucide-react';
 import { Card, Input, Button } from '../components/UI';
 import { Payment, Student, Plan } from '../../shared/types';
@@ -161,6 +163,36 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
     setStudentSearch('');
   };
 
+  const navigate = useNavigate();
+  const safePlans = Array.isArray(plans) ? plans : [];
+  const hasNoPlans = safePlans.length === 0;
+  const hasNoPayments = normalizedPayments.length === 0;
+
+  // ── Onboarding empty state: sin planes Y sin pagos ──────────────────────
+  if (hasNoPlans && hasNoPayments) {
+    return (
+      <div className="space-y-6 pb-10">
+        <div className="bg-gradient-to-br from-cyan-500 to-cyan-600 rounded-3xl p-8 text-white shadow-lg shadow-cyan-500/20">
+          <div className="w-14 h-14 bg-white/15 rounded-2xl flex items-center justify-center mb-5">
+            <Tags size={28} strokeWidth={2.2} />
+          </div>
+          <h2 className="text-xl font-black tracking-tight mb-2">Antes de cobrar, creá tus planes</h2>
+          <p className="text-sm text-cyan-50/90 font-medium leading-relaxed mb-6">
+            Los planes definen cuánto, por cuánto tiempo y qué incluyen las cuotas de tus alumnos.
+            Son la base para registrar cobros.
+          </p>
+          <button
+            onClick={() => navigate('/plans')}
+            className="inline-flex items-center gap-2 bg-white text-cyan-700 font-bold text-sm px-5 py-3 rounded-2xl shadow-md hover:shadow-lg transition-all active:scale-[0.98]"
+          >
+            Configurar planes
+            <ArrowUpRight size={16} strokeWidth={2.5} />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // ── Render ───────────────────────────────────────────────────────────────
   return (
     <div className="space-y-6 pb-10">
@@ -305,7 +337,7 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
                         {student.displayName}
                       </p>
                       <p className="text-xs text-slate-400 dark:text-slate-600">
-                        {student.planName ?? student.plan_nombre ?? 'Sin plan asignado'}
+                        {student.planName ?? student.plan_nombre ?? 'Sin cuota asignada'}
                       </p>
                     </div>
                     <ChevronRight size={16} className="text-slate-300 dark:text-slate-700 shrink-0" />

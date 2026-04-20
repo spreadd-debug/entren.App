@@ -4,13 +4,15 @@ import {
   Dumbbell, PlayCircle, Bell, HeartPulse,
   Ruler, Target, FileText, Activity, KeyRound, Copy, Check, RefreshCw, Share2,
   TrendingUp, Calendar, Apple, Camera, ClipboardList,
+  Repeat, Layers, Zap, Gift, DollarSign,
 } from 'lucide-react';
 import { Card, StatusBadge, Button, Input } from '../components/UI';
 import { useNavigate } from 'react-router-dom';
-import { Student, Plan, WorkoutUpdateRequest } from '../../shared/types';
+import { Student, Plan, WorkoutUpdateRequest, StudentPackage, PricingModel } from '../../shared/types';
 import { api } from '../services/api';
 import { WorkoutRequestService } from '../services/WorkoutRequestService';
 import { WorkoutSessionService } from '../services/WorkoutSessionService';
+import { StudentPackageService } from '../services/StudentPackageService';
 import { useToast } from '../context/ToastContext';
 
 import { PlanProfileService } from '../services/pt/PlanProfileService';
@@ -78,11 +80,22 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({
   // V2 routine assignments
   const [v2Assignments, setV2Assignments] = useState<(RoutineAssignment & { routine_name: string })[]>([]);
 
+  // Pricing: active package (pricing_model='paquete')
+  const [activePackage, setActivePackage] = useState<StudentPackage | null>(null);
+
   useEffect(() => {
     PlanProfileService.get(student.id)
       .then((p) => { setPlanProfile(p); setHasPlan(!!p); })
       .catch(() => setHasPlan(false));
   }, [student.id]);
+
+  useEffect(() => {
+    const model = (student as any).pricing_model as PricingModel | undefined;
+    if (model !== 'paquete') { setActivePackage(null); return; }
+    StudentPackageService.getActive(student.id)
+      .then(setActivePackage)
+      .catch(() => setActivePackage(null));
+  }, [student.id, (student as any).pricing_model]);
 
   const normalizedPlans = useMemo(() => {
     return (Array.isArray(plans) ? plans : []).map((p: any) => ({
@@ -480,6 +493,12 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({
           {/* Smart Summary */}
           <StudentSummaryCard studentId={student.id} gymId={gymId} studentName={clientName} />
 
+          {/* Modelo de cobro */}
+          <PricingModelCard
+            student={student}
+            activePackage={activePackage}
+          />
+
           {/* Info cards grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {/* Phone */}
@@ -504,11 +523,13 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({
                   <Dumbbell size={16} className="text-violet-500" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Plan</p>
+                  <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                    {planProfile?.sessions_per_week ? 'Entrenamiento' : 'Cuota'}
+                  </p>
                   <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
                     {planProfile?.sessions_per_week
                       ? `${planProfile.sessions_per_week} veces por semana`
-                      : clientPlan?.name ?? (student as any).planName ?? 'Sin plan'}
+                      : clientPlan?.name ?? (student as any).planName ?? 'Sin cuota asignada'}
                   </p>
                 </div>
               </div>
@@ -709,5 +730,106 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({
       )}
 
     </div>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────
+// Pricing model card — shows how this client is billed + package balance.
+// ─────────────────────────────────────────────────────────────────────────
+
+interface PricingModelCardProps {
+  student: Student;
+  activePackage: StudentPackage | null;
+}
+
+const MODEL_META: Record<PricingModel, { label: string; desc: string; icon: React.ElementType; color: string; bg: string }> = {
+  mensual:    { label: 'Cuota mensual',  desc: 'Cobro recurrente por período',    icon: Repeat, color: 'text-indigo-600 dark:text-indigo-400', bg: 'bg-indigo-500/10' },
+  por_sesion: { label: 'Por sesión',      desc: 'Cobro cada vez que asiste',       icon: Zap,    color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-500/10' },
+  paquete:    { label: 'Paquete',         desc: 'N sesiones prepagas',             icon: Layers, color: 'text-violet-600 dark:text-violet-400', bg: 'bg-violet-500/10' },
+  libre:      { label: 'Libre / beca',    desc: 'Sin cobro',                       icon: Gift,   color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-500/10' },
+};
+
+const PricingModelCard: React.FC<PricingModelCardProps> = ({ student, activePackage }) => {
+  const model = ((student as any).pricing_model as PricingModel | undefined) ?? 'mensual';
+  const meta = MODEL_META[model];
+  const Icon = meta.icon;
+
+  const sessionRate = Number((student as any).session_rate ?? 0);
+  const nextDue = (student as any).next_due_date ?? (student as any).nextDueDate;
+  const customPrice = Number((student as any).precio_personalizado ?? 0);
+
+  return (
+    <Card className="p-4">
+      <div className="flex items-center gap-3 mb-3">
+        <div className={`p-2.5 rounded-xl ${meta.bg} shrink-0`}>
+          <Icon size={16} className={meta.color} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Modelo de cobro</p>
+          <p className={`text-sm font-bold ${meta.color}`}>{meta.label}</p>
+        </div>
+      </div>
+
+      {model === 'mensual' && (
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          {customPrice > 0 && (
+            <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
+              <DollarSign size={12} />
+              <span className="font-semibold">${customPrice.toLocaleString('es-AR')}</span>
+            </div>
+          )}
+          {nextDue && (
+            <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
+              <Calendar size={12} />
+              <span className="font-semibold">{new Date(nextDue).toLocaleDateString('es-AR')}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {model === 'por_sesion' && (
+        <div className="flex items-center gap-1.5 text-sm text-slate-700 dark:text-slate-300">
+          <DollarSign size={14} className="text-amber-500" />
+          <span className="font-bold">${sessionRate.toLocaleString('es-AR')}</span>
+          <span className="text-slate-500 dark:text-slate-400 text-xs">por sesión</span>
+        </div>
+      )}
+
+      {model === 'paquete' && activePackage && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between text-xs">
+            <span className="font-bold text-slate-700 dark:text-slate-300">
+              {activePackage.sessions_used} / {activePackage.sessions_total} sesiones
+            </span>
+            <span className="text-slate-500 dark:text-slate-400">
+              {activePackage.sessions_total - activePackage.sessions_used} restantes
+            </span>
+          </div>
+          <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-violet-500 transition-all"
+              style={{
+                width: `${Math.min(100, (activePackage.sessions_used / activePackage.sessions_total) * 100)}%`,
+              }}
+            />
+          </div>
+          {activePackage.sessions_total - activePackage.sessions_used <= 2 && (
+            <p className="text-[11px] font-bold text-amber-600 dark:text-amber-400">
+              Paquete por agotarse — planeá renovación.
+            </p>
+          )}
+        </div>
+      )}
+
+      {model === 'paquete' && !activePackage && (
+        <p className="text-[11px] font-bold text-rose-500">
+          Sin paquete activo. El cliente necesita comprar uno nuevo.
+        </p>
+      )}
+
+      {model === 'libre' && (
+        <p className="text-[11px] text-slate-500 dark:text-slate-400">{meta.desc}</p>
+      )}
+    </Card>
   );
 };

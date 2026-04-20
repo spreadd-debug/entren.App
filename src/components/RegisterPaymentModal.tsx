@@ -1,9 +1,18 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { X, CreditCard, Calendar, DollarSign, Smartphone } from 'lucide-react';
+import { X, CreditCard, Calendar, DollarSign, Smartphone, Layers, Repeat, Zap } from 'lucide-react';
 import { Button, Input } from './UI';
-import { Student, Plan } from '../../shared/types';
+import { Student, Plan, PricingModel } from '../../shared/types';
 import { useToast } from '../context/ToastContext';
 import { calculateNextDueDate, formatDate } from '../utils/dateUtils';
+
+type PaymentMethod = 'cash' | 'transfer' | 'mercadopago';
+
+export interface PackagePaymentData {
+  sessionsTotal: number;
+  pricePaid: number;
+  method: PaymentMethod;
+  date: string;
+}
 
 interface RegisterPaymentModalProps {
   student: Student;
@@ -12,10 +21,12 @@ interface RegisterPaymentModalProps {
   onClose: () => void;
   onConfirm: (paymentData: {
     amount: number;
-    method: 'cash' | 'transfer' | 'mercadopago';
+    method: PaymentMethod;
     date: string;
     nextDueDate: string;
   }) => void;
+  /** Required when student.pricing_model === 'paquete'. Creates a new package row. */
+  onConfirmPackage?: (packageData: PackagePaymentData) => void;
 }
 
 export const RegisterPaymentModal: React.FC<RegisterPaymentModalProps> = ({
@@ -24,9 +35,13 @@ export const RegisterPaymentModal: React.FC<RegisterPaymentModalProps> = ({
   isOpen,
   onClose,
   onConfirm,
+  onConfirmPackage,
 }) => {
   const toast = useToast();
   const safePlans = Array.isArray(plans) ? plans : [];
+
+  const pricingModel: PricingModel =
+    ((student as any).pricing_model as PricingModel) ?? 'mensual';
 
   const normalizedPlans = useMemo(() => {
     return safePlans.map((plan: any) => ({
@@ -45,6 +60,8 @@ export const RegisterPaymentModal: React.FC<RegisterPaymentModalProps> = ({
     durationDays: 30,
   };
 
+  const sessionRate = Number((student as any).session_rate ?? 0);
+
   const studentName =
     (student as any).name ??
     `${(student as any).nombre ?? ''} ${(student as any).apellido ?? ''}`.trim() ??
@@ -52,17 +69,30 @@ export const RegisterPaymentModal: React.FC<RegisterPaymentModalProps> = ({
 
   const today = new Date().toISOString().split('T')[0];
 
-  const [amount, setAmount] = useState<number>(selectedPlan.price || 0);
-  const [method, setMethod] = useState<'cash' | 'transfer' | 'mercadopago'>('cash');
+  const initialAmount =
+    pricingModel === 'por_sesion'
+      ? sessionRate || 0
+      : Number(selectedPlan.price ?? 0);
+
+  const [amount, setAmount] = useState<number>(initialAmount);
+  const [method, setMethod] = useState<PaymentMethod>('cash');
   const [date, setDate] = useState<string>(today);
   const [nextDueDate, setNextDueDate] = useState<string>(
     calculateNextDueDate(today, selectedPlan.durationDays)
   );
 
+  // Paquete-specific state
+  const [pkgSessions, setPkgSessions] = useState<number>(10);
+  const [pkgPrice, setPkgPrice] = useState<number>(0);
+
   useEffect(() => {
-    setAmount(Number(selectedPlan.price ?? 0));
+    if (pricingModel === 'por_sesion') {
+      setAmount(sessionRate || 0);
+    } else if (pricingModel === 'mensual') {
+      setAmount(Number(selectedPlan.price ?? 0));
+    }
     setNextDueDate(calculateNextDueDate(date, selectedPlan.durationDays));
-  }, [selectedPlan.id]);
+  }, [selectedPlan.id, pricingModel]);
 
   useEffect(() => {
     setNextDueDate(calculateNextDueDate(date, selectedPlan.durationDays));
@@ -70,12 +100,63 @@ export const RegisterPaymentModal: React.FC<RegisterPaymentModalProps> = ({
 
   if (!isOpen) return null;
 
+  const isPackage = pricingModel === 'paquete';
+  const isLibre = pricingModel === 'libre';
+
+  const modeLabel =
+    isPackage ? 'Renovar paquete' :
+    pricingModel === 'por_sesion' ? 'Cobrar sesión' :
+    isLibre ? 'Registrar pago (libre)' :
+    'Registrar pago';
+
+  const modeIcon =
+    isPackage ? <Layers size={18} className="text-violet-500" /> :
+    pricingModel === 'por_sesion' ? <Zap size={18} className="text-amber-500" /> :
+    <Repeat size={18} className="text-sky-500" />;
+
+  const handleConfirm = () => {
+    if (isPackage) {
+      if (!onConfirmPackage) {
+        toast.error('Este cliente tiene modelo paquete pero la vista no soporta renovación. Hablá con el equipo.');
+        return;
+      }
+      if (!pkgSessions || pkgSessions <= 0) {
+        toast.error('La cantidad de sesiones debe ser mayor a 0');
+        return;
+      }
+      if (!pkgPrice || pkgPrice <= 0) {
+        toast.error('El precio del paquete debe ser mayor a $0');
+        return;
+      }
+      if (!date) {
+        toast.error('Seleccioná una fecha');
+        return;
+      }
+      onConfirmPackage({ sessionsTotal: pkgSessions, pricePaid: pkgPrice, method, date });
+      return;
+    }
+
+    // libre: allow $0 pass-through if user insists (rare), but normally libre never opens this modal
+    if (!isLibre && (!amount || amount <= 0)) {
+      toast.error('El monto debe ser mayor a $0');
+      return;
+    }
+    if (!date) {
+      toast.error('Seleccioná una fecha de pago');
+      return;
+    }
+    onConfirm({ amount, method, date, nextDueDate });
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4 bg-slate-900/60 backdrop-blur-sm">
       <div className="w-full max-w-lg bg-white dark:bg-slate-800 rounded-t-3xl md:rounded-3xl overflow-hidden shadow-2xl animate-in slide-in-from-bottom duration-300">
         <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between bg-slate-50 dark:bg-slate-900">
           <div>
-            <h3 className="text-xl font-bold text-slate-900 dark:text-white">Registrar Pago</h3>
+            <div className="flex items-center gap-2">
+              {modeIcon}
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white">{modeLabel}</h3>
+            </div>
             <p className="text-sm text-slate-500 dark:text-slate-400">{studentName}</p>
           </div>
           <button
@@ -87,18 +168,63 @@ export const RegisterPaymentModal: React.FC<RegisterPaymentModalProps> = ({
         </div>
 
         <div className="p-6 space-y-6 max-h-[80vh] overflow-y-auto">
-          <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">Monto a Cobrar</label>
-            <div className="relative">
-              <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-              <Input
-                type="number"
-                value={amount}
-                onChange={(e) => setAmount(Number(e.target.value))}
-                className="pl-12 text-xl font-black italic"
-              />
+          {isPackage ? (
+            <>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">Sesiones</label>
+                  <div className="relative">
+                    <Layers className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                    <Input
+                      type="number"
+                      min={1}
+                      value={pkgSessions}
+                      onChange={(e) => setPkgSessions(Number(e.target.value))}
+                      className="pl-11 text-lg font-black italic"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">Precio total</label>
+                  <div className="relative">
+                    <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                    <Input
+                      type="number"
+                      min={0}
+                      value={pkgPrice}
+                      onChange={(e) => setPkgPrice(Number(e.target.value))}
+                      className="pl-11 text-lg font-black italic"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {pkgSessions > 0 && pkgPrice > 0 && (
+                <div className="text-xs text-slate-500 dark:text-slate-400 text-center -mt-2">
+                  ${Math.round(pkgPrice / pkgSessions).toLocaleString()} por sesión
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">Monto a Cobrar</label>
+              <div className="relative">
+                <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                <Input
+                  type="number"
+                  value={amount}
+                  onChange={(e) => setAmount(Number(e.target.value))}
+                  className="pl-12 text-xl font-black italic"
+                />
+              </div>
+              {pricingModel === 'por_sesion' && sessionRate > 0 && (
+                <p className="text-xs text-slate-500 dark:text-slate-400 ml-1">
+                  Tarifa por sesión del cliente: ${sessionRate.toLocaleString()}
+                </p>
+              )}
             </div>
-          </div>
+          )}
 
           <div className="space-y-2">
             <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">Método de Pago</label>
@@ -144,7 +270,7 @@ export const RegisterPaymentModal: React.FC<RegisterPaymentModalProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className={`grid ${isPackage ? 'grid-cols-1' : 'grid-cols-2'} gap-4`}>
             <div className="space-y-2">
               <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">Fecha Pago</label>
               <div className="relative">
@@ -158,46 +284,47 @@ export const RegisterPaymentModal: React.FC<RegisterPaymentModalProps> = ({
               </div>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">Vencimiento</label>
-              <div className="relative">
-                <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-rose-400" size={18} />
-                <Input
-                  type="date"
-                  value={nextDueDate}
-                  onChange={(e) => setNextDueDate(e.target.value)}
-                  className="pl-11 text-sm font-bold text-rose-600"
-                />
+            {!isPackage && (
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">Vencimiento</label>
+                <div className="relative">
+                  <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-rose-400" size={18} />
+                  <Input
+                    type="date"
+                    value={nextDueDate}
+                    onChange={(e) => setNextDueDate(e.target.value)}
+                    className="pl-11 text-sm font-bold text-rose-600"
+                  />
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
-          <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100">
-            <p className="text-xs text-emerald-700 font-medium text-center">
-              Al registrar el pago, el alumno quedará <strong>AL DÍA</strong> hasta el{' '}
-              <strong>{formatDate(nextDueDate)}</strong>.
-            </p>
-          </div>
+          {isPackage ? (
+            <div className="p-4 bg-violet-50 dark:bg-violet-900/20 rounded-2xl border border-violet-100 dark:border-violet-800">
+              <p className="text-xs text-violet-700 dark:text-violet-300 font-medium text-center">
+                Se creará un paquete de <strong>{pkgSessions || 0} sesiones</strong> por{' '}
+                <strong>${(pkgPrice || 0).toLocaleString()}</strong>. Si ya había uno activo, queda reemplazado.
+              </p>
+            </div>
+          ) : (
+            <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100">
+              <p className="text-xs text-emerald-700 font-medium text-center">
+                Al registrar el pago, el alumno quedará <strong>AL DÍA</strong> hasta el{' '}
+                <strong>{formatDate(nextDueDate)}</strong>.
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="p-6 bg-slate-50 dark:bg-slate-900 border-t border-slate-100 dark:border-slate-700">
           <Button
             fullWidth
             size="lg"
-            onClick={() => {
-              if (!amount || amount <= 0) {
-                toast.error('El monto debe ser mayor a $0');
-                return;
-              }
-              if (!date) {
-                toast.error('Seleccioná una fecha de pago');
-                return;
-              }
-              onConfirm({ amount, method, date, nextDueDate });
-            }}
+            onClick={handleConfirm}
             className="shadow-xl shadow-slate-200 dark:shadow-slate-900"
           >
-            Confirmar Pago
+            {isPackage ? 'Crear paquete' : 'Confirmar Pago'}
           </Button>
         </div>
       </div>

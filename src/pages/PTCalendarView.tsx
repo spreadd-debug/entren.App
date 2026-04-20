@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { ShiftService } from '../services/ShiftService';
 import { PTPaymentService } from '../services/pt/PTPaymentService';
 import { PlanProfileService } from '../services/pt/PlanProfileService';
-import { Student, ShiftWithStudents, PTShiftPayment, PaymentMethod } from '../../shared/types';
+import { StudentPackageService } from '../services/StudentPackageService';
+import { Student, ShiftWithStudents, PTShiftPayment, PaymentMethod, PricingModel, StudentPackage } from '../../shared/types';
 import { useToast } from '../context/ToastContext';
 import {
   CalendarDays,
@@ -480,6 +481,7 @@ export default function PTCalendarView({ gymId, students }: PTCalendarViewProps)
           studentName={paymentModal.studentName}
           shiftName={paymentModal.shiftName}
           date={paymentModal.date}
+          student={students.find((s: any) => s.id === paymentModal.studentId) ?? null}
           existing={paymentMap[`${paymentModal.shiftId}:${paymentModal.studentId}:${paymentModal.date}`]}
           onClose={() => setPaymentModal(null)}
           onSaved={handlePaymentSaved}
@@ -674,23 +676,88 @@ function DayColumn({ day, shifts, isToday, onAddClick, onDeleteShift, deletingId
 
 // ── PaymentModal ────────────────────────────────────────────────────────────
 
-function PaymentModal({ gymId, shiftId, studentId, studentName, shiftName, date, existing, onClose, onSaved }: {
+function PaymentModal({ gymId, shiftId, studentId, studentName, shiftName, date, student, existing, onClose, onSaved }: {
   gymId: string;
   shiftId: string;
   studentId: string;
   studentName: string;
   shiftName: string;
   date: string;
+  student: Student | null;
   existing?: PTShiftPayment;
   onClose: () => void;
   onSaved: (payment: PTShiftPayment) => void;
 }) {
   const toast = useToast();
   const [saving, setSaving] = useState(false);
-  const [amount, setAmount] = useState(existing?.status === 'paid' ? String(existing.amount) : '');
+
+  const pricingModel: PricingModel = ((student as any)?.pricing_model as PricingModel) ?? 'mensual';
+  const sessionRate = Number((student as any)?.session_rate ?? 0);
+
+  const initialAmount =
+    existing?.status === 'paid'
+      ? String(existing.amount)
+      : pricingModel === 'por_sesion' && sessionRate > 0
+        ? String(sessionRate)
+        : '';
+
+  const [amount, setAmount] = useState(initialAmount);
   const [method, setMethod] = useState<PaymentMethod>(existing?.payment_method ?? 'cash');
+  const [activePackage, setActivePackage] = useState<StudentPackage | null>(null);
+
+  useEffect(() => {
+    if (pricingModel !== 'paquete') return;
+    StudentPackageService.getActive(studentId)
+      .then(setActivePackage)
+      .catch(() => setActivePackage(null));
+  }, [studentId, pricingModel]);
 
   const handleMarkPaid = async () => {
+    // Package flow: consume a session, mark attended with amount=0 (pre-paid).
+    if (pricingModel === 'paquete') {
+      if (!activePackage) {
+        toast.error('El cliente no tiene paquete activo. Cobrá uno nuevo primero.');
+        return;
+      }
+      setSaving(true);
+      try {
+        await StudentPackageService.consumeSession(studentId);
+        const payment = await PTPaymentService.markPaid({
+          gymId, shiftId, studentId,
+          paymentDate: date,
+          amount: 0,
+          paymentMethod: 'cash',
+          notes: `Paquete (${activePackage.sessions_used + 1}/${activePackage.sessions_total})`,
+        });
+        toast.success('Sesión descontada del paquete');
+        onSaved(payment);
+      } catch (err: any) {
+        toast.error(err?.message ?? 'Error al descontar sesión');
+      }
+      setSaving(false);
+      return;
+    }
+
+    if (pricingModel === 'libre') {
+      setSaving(true);
+      try {
+        const payment = await PTPaymentService.markPaid({
+          gymId, shiftId, studentId,
+          paymentDate: date,
+          amount: 0,
+          paymentMethod: 'cash',
+          notes: 'Libre / beca',
+        });
+        toast.success('Asistencia registrada');
+        onSaved(payment);
+      } catch (err: any) {
+        toast.error(err?.message ?? 'Error al registrar');
+      }
+      setSaving(false);
+      return;
+    }
+
+    // Mensual / por_sesion — require amount.
     const numAmount = Number(amount);
     if (!numAmount || numAmount <= 0) {
       toast.error('Ingresá un monto válido');
@@ -767,57 +834,110 @@ function PaymentModal({ gymId, shiftId, studentId, studentName, shiftName, date,
             </div>
           )}
 
-          {/* Amount */}
-          <div>
-            <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Monto</label>
-            <div className="relative mt-1">
-              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">$</span>
-              <input
-                type="number"
-                value={amount}
-                onChange={e => setAmount(e.target.value)}
-                placeholder="0"
-                className="w-full pl-8 pr-3 py-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xl font-black text-slate-900 dark:text-white tabular-nums focus:outline-none focus:ring-2 focus:ring-violet-500/30"
-              />
+          {/* Package flow */}
+          {pricingModel === 'paquete' && (
+            <div className="rounded-xl bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-500/20 p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-widest text-violet-600 dark:text-violet-400">
+                  Modelo Paquete
+                </span>
+              </div>
+              {activePackage ? (
+                <>
+                  <p className="text-sm font-bold text-violet-700 dark:text-violet-300">
+                    {activePackage.sessions_used} / {activePackage.sessions_total} sesiones usadas
+                  </p>
+                  <div className="h-2 bg-white dark:bg-slate-800 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-violet-500 transition-all"
+                      style={{ width: `${(activePackage.sessions_used / activePackage.sessions_total) * 100}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-violet-600 dark:text-violet-400">
+                    Al marcar asistencia se descuenta 1 sesión. No se cobra dinero (ya está pre-pagado).
+                  </p>
+                </>
+              ) : (
+                <p className="text-xs text-rose-500 font-bold">
+                  Sin paquete activo. El cliente necesita comprar uno nuevo antes de asistir.
+                </p>
+              )}
             </div>
-          </div>
+          )}
 
-          {/* Payment method */}
-          <div>
-            <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Medio de pago</label>
-            <div className="grid grid-cols-3 gap-2 mt-1.5">
-              {([
-                { id: 'cash' as PaymentMethod, label: 'Efectivo', Icon: Wallet },
-                { id: 'transfer' as PaymentMethod, label: 'Transf.', Icon: CreditCard },
-                { id: 'mercadopago' as PaymentMethod, label: 'M.Pago', Icon: Smartphone },
-              ]).map(({ id, label, Icon }) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => setMethod(id)}
-                  className={`flex flex-col items-center gap-1.5 py-3 rounded-xl border-2 font-bold text-xs transition-all ${
-                    method === id
-                      ? 'border-violet-500 bg-violet-500/10 text-violet-600 dark:text-violet-400'
-                      : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-500 hover:border-slate-300 dark:hover:border-slate-600'
-                  }`}
-                >
-                  <Icon size={18} />
-                  <span className="uppercase tracking-wide text-[10px]">{label}</span>
-                </button>
-              ))}
+          {/* Libre flow */}
+          {pricingModel === 'libre' && (
+            <div className="rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 p-4">
+              <p className="text-xs text-emerald-700 dark:text-emerald-400 font-bold">
+                Cliente sin cobro (libre / beca). Solo se registra asistencia.
+              </p>
             </div>
-          </div>
+          )}
+
+          {/* Amount + method — only for mensual / por_sesion */}
+          {(pricingModel === 'mensual' || pricingModel === 'por_sesion') && (
+            <>
+              <div>
+                <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  {pricingModel === 'por_sesion' ? 'Monto (tarifa x sesión)' : 'Monto'}
+                </label>
+                <div className="relative mt-1">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">$</span>
+                  <input
+                    type="number"
+                    value={amount}
+                    onChange={e => setAmount(e.target.value)}
+                    placeholder="0"
+                    className="w-full pl-8 pr-3 py-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xl font-black text-slate-900 dark:text-white tabular-nums focus:outline-none focus:ring-2 focus:ring-violet-500/30"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Medio de pago</label>
+                <div className="grid grid-cols-3 gap-2 mt-1.5">
+                  {([
+                    { id: 'cash' as PaymentMethod, label: 'Efectivo', Icon: Wallet },
+                    { id: 'transfer' as PaymentMethod, label: 'Transf.', Icon: CreditCard },
+                    { id: 'mercadopago' as PaymentMethod, label: 'M.Pago', Icon: Smartphone },
+                  ]).map(({ id, label, Icon }) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setMethod(id)}
+                      className={`flex flex-col items-center gap-1.5 py-3 rounded-xl border-2 font-bold text-xs transition-all ${
+                        method === id
+                          ? 'border-violet-500 bg-violet-500/10 text-violet-600 dark:text-violet-400'
+                          : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-500 hover:border-slate-300 dark:hover:border-slate-600'
+                      }`}
+                    >
+                      <Icon size={18} />
+                      <span className="uppercase tracking-wide text-[10px]">{label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Action buttons — sticky footer */}
         <div className="px-5 py-4 border-t border-slate-100 dark:border-slate-800 shrink-0 space-y-2 bg-white dark:bg-slate-900">
           <button
             onClick={handleMarkPaid}
-            disabled={saving}
+            disabled={saving || (pricingModel === 'paquete' && !activePackage)}
             className="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white font-bold text-sm transition-all shadow-md shadow-emerald-500/25 disabled:opacity-50 active:scale-[0.97] flex items-center justify-center gap-2"
           >
             <CheckCircle2 size={16} />
-            {saving ? 'Guardando...' : existing?.status === 'paid' ? 'Actualizar pago' : 'Marcar como PAGÓ'}
+            {saving
+              ? 'Guardando...'
+              : pricingModel === 'paquete'
+                ? 'Descontar 1 sesión'
+                : pricingModel === 'libre'
+                  ? 'Marcar asistencia'
+                  : existing?.status === 'paid'
+                    ? 'Actualizar pago'
+                    : 'Marcar como PAGÓ'}
           </button>
           <button
             onClick={handleMarkUnpaid}

@@ -10,6 +10,7 @@ import {
   Zap,
   LogOut,
   Brain,
+  AlertCircle,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -29,18 +30,19 @@ export const PTShell: React.FC<PTShellProps> = ({
   onLogout,
 }) => {
   const allNavItems = [
-    { id: 'dashboard', label: 'Inicio',   icon: LayoutDashboard },
-    { id: 'students',  label: 'Clientes', icon: Users },
-    { id: 'planning',  label: 'Smart',    icon: Brain },
-    { id: 'calendar',  label: 'Agenda',   icon: CalendarDays },
-    { id: 'payments',  label: 'Cobros',   icon: DollarSign },
-    { id: 'workouts',  label: 'Rutinas',  icon: Dumbbell },
-    { id: 'settings',  label: 'Ajustes',  icon: Settings },
+    { id: 'dashboard',  label: 'Inicio',   icon: LayoutDashboard },
+    { id: 'students',   label: 'Clientes', icon: Users },
+    { id: 'planning',   label: 'Smart',    icon: Brain },
+    { id: 'calendar',   label: 'Agenda',   icon: CalendarDays },
+    { id: 'payments',   label: 'Cobros',   icon: DollarSign },
+    { id: 'defaulters', label: 'Deudores', icon: AlertCircle },
+    { id: 'workouts',   label: 'Rutinas',  icon: Dumbbell },
+    { id: 'settings',   label: 'Ajustes',  icon: Settings },
   ];
 
-  // Mobile bottom nav: only 5 items (Cobros lives in Inicio, Ajustes in header)
+  // Mobile bottom nav: only 5 items (Cobros/Deudores viven en Inicio, Ajustes en header)
   const mobileNavItems = allNavItems.filter(
-    (item) => item.id !== 'payments' && item.id !== 'settings',
+    (item) => item.id !== 'payments' && item.id !== 'defaulters' && item.id !== 'settings',
   );
 
   return (

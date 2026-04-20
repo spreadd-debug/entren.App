@@ -35,7 +35,7 @@ export const AppShell: React.FC<AppShellProps> = ({
   const allBaseItems = [
     { id: 'dashboard', label: 'Inicio',   icon: LayoutDashboard },
     { id: 'students',  label: 'Alumnos',  icon: Users },
-    { id: 'payments',  label: 'Pagos',    icon: CreditCard,  financialOnly: true },
+    { id: 'payments',  label: 'Cobranzas', icon: CreditCard,  financialOnly: true },
     { id: 'defaulters',label: 'Deudores', icon: AlertCircle, financialOnly: true },
     { id: 'workouts',  label: 'Rutinas',  icon: Dumbbell },
   ];

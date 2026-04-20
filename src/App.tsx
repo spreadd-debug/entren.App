@@ -14,6 +14,7 @@ import { SettingsView } from './pages/SettingsView';
 import StudentPortalAccessView from "./pages/StudentPortalAccessView";
 import StudentPortalView from "./pages/StudentPortalView";
 import { PlansView } from './pages/PlansView';
+import { PTRatesView } from './pages/PTRatesView';
 import { NewStudentView } from './pages/NewStudentView';
 import { LoginView } from './pages/LoginView';
 import { RegisterGymView } from './pages/RegisterGymView';
@@ -37,6 +38,7 @@ import { SubscriptionGuard } from './components/SubscriptionGuard';
 import { DemoTour } from './components/DemoTour';
 import { ThemeProvider } from './context/ThemeContext';
 import { ShiftService } from './services/ShiftService';
+import { StudentPackageService } from './services/StudentPackageService';
 import { useToast } from './context/ToastContext';
 import { viewToPath, pathToView } from './utils/routes';
 
@@ -84,6 +86,7 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // ── Log 'login' event (1× por día, dedupe en DB) ─────────────────────────
   useEffect(() => {
     const realGymId = supabaseUser?.user_metadata?.gym_id;
     if (!realGymId || isDemo || isGymTest) return;
@@ -447,7 +450,11 @@ function GymApp({ gymId, userRole, onLogout, isDemo = false, onRegister }: {
     }) ?? null;
   };
 
-  const handleCreateStudent = async (studentData: Partial<Student>, registerPayment: boolean) => {
+  const handleCreateStudent = async (
+    studentData: Partial<Student>,
+    registerPayment: boolean,
+    packageInit?: { sessionsTotal: number; pricePaid: number; paymentMethod: 'cash' | 'transfer' | 'mercadopago' },
+  ) => {
     const phone = (studentData as any).telefono ?? (studentData as any).phone ?? '';
     if (phone.trim()) {
       const dup = findDuplicatePhone(phone);
@@ -468,6 +475,15 @@ function GymApp({ gymId, userRole, onLogout, isDemo = false, onRegister }: {
           metodo_pago: 'cash',
           fecha_pago: new Date().toISOString().split('T')[0],
           next_due_date: newStudent.next_due_date ?? newStudent.nextDueDate,
+        });
+      }
+      if (packageInit) {
+        await StudentPackageService.create({
+          studentId: newStudent.id,
+          gymId,
+          sessionsTotal: packageInit.sessionsTotal,
+          pricePaid: packageInit.pricePaid,
+          paymentMethod: packageInit.paymentMethod,
         });
       }
       const [updatedStudents, updatedPayments] = await Promise.all([
@@ -521,7 +537,7 @@ function GymApp({ gymId, userRole, onLogout, isDemo = false, onRegister }: {
       case 'dashboard':     return 'Panel General';
       case 'students':      return 'Alumnos';
       case 'student-detail': return 'Detalle de Alumno';
-      case 'payments':      return 'Gestión de Pagos';
+      case 'payments':      return 'Cobranzas';
       case 'defaulters':    return 'Morosos y Deudas';
       case 'settings':      return 'Ajustes';
       case 'automation':    return 'Automatización';
@@ -632,7 +648,7 @@ function GymApp({ gymId, userRole, onLogout, isDemo = false, onRegister }: {
             } />
             <Route path="/defaulters" element={
               loadingEl ?? (
-                <DefaultersView students={students} plans={plans} onRegisterPayment={handleRegisterPayment} />
+                <DefaultersView students={students} plans={plans} gymId={gymId} onRegisterPayment={handleRegisterPayment} />
               )
             } />
             <Route path="/workouts" element={
@@ -761,6 +777,22 @@ function PTApp({ gymId, onLogout }: {
     navigate(viewToPath('student-detail', { studentId: student.id, pt: true }));
   };
 
+  const handleRegisterPayment = async (paymentData: {
+    studentId: string;
+    amount: number;
+    method: 'cash' | 'transfer' | 'mercadopago';
+    date: string;
+    nextDueDate: string;
+  }) => {
+    try {
+      await api.payments.register({ ...paymentData, gymId });
+      setStudents(await api.students.getAll(gymId));
+    } catch (error: any) {
+      console.error('Error registering payment:', error);
+      toast.error(`No se pudo registrar el pago: ${error?.message ?? 'Error desconocido'}`);
+    }
+  };
+
   const normalizePhone = (phone: string) => phone.replace(/\D/g, '');
 
   const findDuplicatePhone = (phone: string, excludeId?: string) => {
@@ -853,6 +885,8 @@ function PTApp({ gymId, onLogout }: {
       case 'planning':       return 'Planificacion Smart';
       case 'calendar':       return 'Mi Agenda';
       case 'payments':       return 'Cobros';
+      case 'defaulters':     return 'Deudores';
+      case 'pt-rates':       return 'Mi Tarifa';
       case 'workouts':       return 'Rutinas';
       case 'plans':          return 'Planes y Precios';
       case 'settings':       return 'Ajustes';
@@ -927,6 +961,7 @@ function PTApp({ gymId, onLogout }: {
                 onBack={() => navigate('/clients')}
                 onCreateStudent={handleCreateStudent}
                 gymType="personal_trainer"
+                gymId={gymId}
               />
             )
           } />
@@ -1024,6 +1059,14 @@ function PTApp({ gymId, onLogout }: {
           } />
           <Route path="/payments" element={
             loadingEl ?? <PTPaymentsView gymId={gymId} />
+          } />
+          <Route path="/defaulters" element={
+            loadingEl ?? (
+              <DefaultersView students={students} plans={plans} gymId={gymId} onRegisterPayment={handleRegisterPayment} />
+            )
+          } />
+          <Route path="/pt-rates" element={
+            loadingEl ?? <PTRatesView gymId={gymId} />
           } />
           <Route path="/workouts" element={
             loadingEl ?? <WorkoutPlansView gymId={gymId} />

@@ -87,7 +87,7 @@ function normalizeStudent(student: any, plans: Plan[] = []): Student {
       student.planName ??
       student.plan_nombre ??
       matchedPlan?.name ??
-      'Sin plan',
+      'Sin cuota asignada',
     next_due_date,
     nextDueDate: next_due_date,
     precio_personalizado: student.precio_personalizado ?? student.customPrice ?? null,
@@ -95,10 +95,15 @@ function normalizeStudent(student: any, plans: Plan[] = []): Student {
     cobra_cuota: student.cobra_cuota ?? student.chargeFee ?? true,
     recordatorio_automatico: student.recordatorio_automatico ?? student.automaticReminder ?? true,
     whatsapp_opt_in: student.whatsapp_opt_in ?? student.whatsappOptIn ?? false,
+    pricing_model:
+      student.pricing_model ??
+      ((student.cobra_cuota ?? student.chargeFee ?? true) ? 'mensual' : 'libre'),
+    session_rate:
+      student.session_rate != null ? Number(student.session_rate) : null,
+    is_online: !!(student.is_online ?? student.isOnline ?? false),
     emergency_contact_name: student.emergency_contact_name ?? null,
     emergency_contact_phone: student.emergency_contact_phone ?? null,
     access_code: student.access_code ?? null,
-    is_online: !!(student.is_online ?? student.isOnline ?? false),
     status: derivedStatus,
     debt: Number(
       student.debt ??
@@ -426,6 +431,73 @@ export const api = {
     },
   },
 
+  activity: {
+    async log(params: {
+      gym_id: string;
+      event_type: Extract<GymActivityEventType, 'login' | 'onboarding_step_completed'>;
+      event_data?: Record<string, any>;
+      user_id?: string | null;
+    }): Promise<void> {
+      try {
+        await fetchJson(`${API_BASE}/activity/log`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(params),
+        });
+      } catch (error) {
+        // Silent — no queremos romper la UX por un log de telemetría
+        console.warn('activity.log failed:', error);
+      }
+    },
+
+    async getFunnel(): Promise<OnboardingFunnel | null> {
+      try {
+        return await fetchJson(`${API_BASE}/activity/funnel`);
+      } catch (error) {
+        console.error('activity.getFunnel failed:', error);
+        return null;
+      }
+    },
+
+    async getRetention(weeks = 8): Promise<RetentionCohort[]> {
+      try {
+        const raw = await fetchJson(`${API_BASE}/activity/retention?weeks=${weeks}`);
+        return ensureArray<RetentionCohort>(raw);
+      } catch (error) {
+        console.error('activity.getRetention failed:', error);
+        return [];
+      }
+    },
+  },
+
+  outreach: {
+    async getRange(from?: string, to?: string): Promise<OutreachDailyLog[]> {
+      try {
+        const params = new URLSearchParams();
+        if (from) params.set('from', from);
+        if (to) params.set('to', to);
+        const qs = params.toString();
+        const raw = await fetchJson(`${API_BASE}/outreach${qs ? `?${qs}` : ''}`);
+        return ensureArray<OutreachDailyLog>(raw);
+      } catch (error) {
+        console.error('outreach.getRange failed:', error);
+        return [];
+      }
+    },
+
+    async upsertDay(date: string, input: OutreachDailyLogInput): Promise<OutreachDailyLog> {
+      return fetchJson(`${API_BASE}/outreach/${date}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+    },
+
+    async remove(date: string): Promise<void> {
+      await fetchJson(`${API_BASE}/outreach/${date}`, { method: 'DELETE' });
+    },
+  },
+
   staff: {
     async getByGym(gymId: string): Promise<{ id: string; email: string; name: string }[]> {
       try {
@@ -447,54 +519,6 @@ export const api = {
 
     async remove(userId: string): Promise<void> {
       await fetchJson(`${API_BASE}/staff/${userId}`, { method: 'DELETE' });
-    },
-  },
-
-  activity: {
-    async log(data: {
-      gym_id: string;
-      event_type: GymActivityEventType;
-      event_data?: Record<string, any> | null;
-      user_id?: string | null;
-    }): Promise<void> {
-      try {
-        await fetchJson(`${API_BASE}/activity/log`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data),
-        });
-      } catch (error) {
-        // Silencioso: perder un evento no debe romper la UX
-        console.error('activity.log failed:', error);
-      }
-    },
-
-    async getFunnel(): Promise<OnboardingFunnel> {
-      return fetchJson(`${API_BASE}/activity/funnel`);
-    },
-
-    async getRetention(weeks = 8): Promise<RetentionCohort[]> {
-      const raw = await fetchJson(`${API_BASE}/activity/retention?weeks=${weeks}`);
-      return ensureArray(raw);
-    },
-  },
-
-  outreach: {
-    async getRange(from: string, to: string): Promise<OutreachDailyLog[]> {
-      const raw = await fetchJson(`${API_BASE}/outreach?from=${from}&to=${to}`);
-      return ensureArray(raw);
-    },
-
-    async upsertDay(date: string, input: OutreachDailyLogInput): Promise<OutreachDailyLog> {
-      return fetchJson(`${API_BASE}/outreach/${date}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(input),
-      });
-    },
-
-    async remove(logDate: string): Promise<void> {
-      await fetchJson(`${API_BASE}/outreach/${logDate}`, { method: 'DELETE' });
     },
   },
 };
