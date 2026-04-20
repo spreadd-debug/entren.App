@@ -1,6 +1,7 @@
 import { mapStudentRowToStudent } from '../mappers/student.mapper';
 import { supabase } from '../db/supabase';
 import { Student } from '../../shared/types';
+import { ActivityEventsService } from './ActivityEventsService';
 
 const DEFAULT_GYM_ID = '11111111-1111-1111-1111-111111111111';
 
@@ -191,6 +192,15 @@ export const StudentService = {
         ]);
 
       if (membershipError) throw membershipError;
+    }
+
+    if (createdStudent.gym_id && createdStudent.gym_id !== DEFAULT_GYM_ID) {
+      // El índice único en DB evita duplicados; si ya existía, log() retorna null.
+      ActivityEventsService.log({
+        gym_id: createdStudent.gym_id,
+        event_type: 'first_student_created',
+        event_data: { student_id: createdStudent.id },
+      }).catch(err => console.error('activity log first_student_created failed:', err));
     }
 
     return mapStudentRowToStudent(data as any);

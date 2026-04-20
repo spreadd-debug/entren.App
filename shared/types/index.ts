@@ -38,6 +38,8 @@ export interface Student {
   observaciones_cobranza?: string;
   whatsapp_opt_in: boolean;
   whatsapp_opt_in_at?: string;
+  // Modality (PT only): true = entrena online y carga sus propios sets desde el portal
+  is_online: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -231,6 +233,8 @@ export interface SessionSet {
   rir: number | null;
   completed: boolean;
   notes: string | null;
+  /** Quién cargó el set: 'pt' (desde PTLiveSessionView) o 'student' (alumno online desde el portal). null para sets legacy. */
+  logged_by: 'pt' | 'student' | null;
   created_at: string;
 }
 
@@ -502,6 +506,62 @@ export interface GymBillingPayment {
   notes: string | null;
   recorded_by: string | null;
   created_at: string;
+}
+
+// ─── Outreach Tracking (SuperAdmin) ────────────────────────────────────────
+
+export interface OutreachDailyLog {
+  id: string;
+  date: string; // YYYY-MM-DD
+  messages_sent: number;
+  replies_received: number;
+  conversations_started: number; // intercambios > 2
+  demos_scheduled: number;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OutreachDailyLogInput {
+  messages_sent: number;
+  replies_received: number;
+  conversations_started: number;
+  demos_scheduled: number;
+  notes?: string | null;
+}
+
+// ─── Gym Activity Events (Onboarding / Retention) ──────────────────────────
+
+export type GymActivityEventType =
+  | 'login'
+  | 'gym_registered'
+  | 'first_student_created'
+  | 'first_payment_registered'
+  | 'gym_activated'
+  | 'onboarding_step_completed';
+
+export interface GymActivityEvent {
+  id: string;
+  gym_id: string;
+  event_type: GymActivityEventType;
+  event_data: Record<string, any> | null;
+  user_id: string | null;
+  created_at: string;
+}
+
+export interface OnboardingFunnel {
+  registered: number;
+  first_student: number;
+  first_payment: number;
+  activated: number;
+}
+
+export interface RetentionCohort {
+  cohort_date: string; // YYYY-MM-DD (monday)
+  cohort_size: number;
+  d1: number;
+  d7: number;
+  d30: number;
 }
 
 // ─── Smart Planning System ─────────────────────────────────────────────────

@@ -1,20 +1,24 @@
 import React from 'react';
-import { LayoutDashboard, Building2, DollarSign, Zap, ShieldCheck, LogOut } from 'lucide-react';
+import { LayoutDashboard, Building2, DollarSign, Send, Rocket, Zap, ShieldCheck, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CURRENT_USER } from '../config/currentUser';
 
-export type SAView = 'overview' | 'gyms' | 'billing';
+export type SAView = 'overview' | 'gyms' | 'billing' | 'outreach' | 'onboarding';
 
 export const SA_NAV_ITEMS: { id: SAView; label: string; icon: React.FC<any> }[] = [
-  { id: 'overview', label: 'Overview',   icon: LayoutDashboard },
-  { id: 'gyms',     label: 'Gimnasios',  icon: Building2 },
-  { id: 'billing',  label: 'Cobros',     icon: DollarSign },
+  { id: 'overview',   label: 'Overview',   icon: LayoutDashboard },
+  { id: 'gyms',       label: 'Gimnasios',  icon: Building2 },
+  { id: 'billing',    label: 'Cobros',     icon: DollarSign },
+  { id: 'outreach',   label: 'Outreach',   icon: Send },
+  { id: 'onboarding', label: 'Onboarding', icon: Rocket },
 ];
 
 export const SA_VIEW_TITLES: Record<SAView, string> = {
-  overview: 'Overview',
-  gyms:     'Gimnasios',
-  billing:  'Cobros',
+  overview:   'Overview',
+  gyms:       'Gimnasios',
+  billing:    'Cobros',
+  outreach:   'Outreach',
+  onboarding: 'Onboarding',
 };
 
 interface Props {

@@ -1,5 +1,14 @@
 import { supabase } from '../db/supabase';
 import { GymSubscription, GymBillingPayment, GymPlanTier, GymType } from '../../shared/types';
+import { ActivityEventsService } from './ActivityEventsService';
+
+const DEMO_GYM_ID = '11111111-1111-1111-1111-111111111111';
+
+function fireActivity(gymId: string, eventType: Parameters<typeof ActivityEventsService.log>[0]['event_type'], data?: Record<string, any>) {
+  if (!gymId || gymId === DEMO_GYM_ID) return;
+  ActivityEventsService.log({ gym_id: gymId, event_type: eventType, event_data: data ?? null })
+    .catch(err => console.error(`activity log ${eventType} failed:`, err));
+}
 
 function mapRow(row: any): GymSubscription {
   return {
@@ -62,13 +71,15 @@ export const SubscriptionService = {
         throw new Error('No se puede activar: el gimnasio no tiene pagos registrados. Registrá un pago primero.');
       }
     }
-    return this.upsert(gymId, {
+    const updated = await this.upsert(gymId, {
       status: 'active',
       current_period_start: new Date().toISOString(),
       current_period_end: periodEnd,
       access_enabled: true,
       ...(planTier ? { plan_tier: planTier } : {}),
     });
+    fireActivity(gymId, 'gym_activated');
+    return updated;
   },
 
   async suspend(gymId: string): Promise<GymSubscription> {
@@ -143,7 +154,9 @@ export const SubscriptionService = {
       .single();
 
     if (error) throw error;
-    return mapRow(data);
+    const created = mapRow(data);
+    fireActivity(created.gym_id, 'gym_registered', { plan_tier: planTier, gym_type: gymType });
+    return created;
   },
 
   // ── Billing payments ───────────────────────────────────────────────────────
@@ -215,6 +228,8 @@ export const SubscriptionService = {
       .select('name')
       .eq('id', payment.gym_id)
       .maybeSingle();
+
+    fireActivity(payment.gym_id, 'first_payment_registered', { amount: payload.amount, method: payload.payment_method });
 
     // Activate the subscription for the paid period (skip payment check — we just recorded one)
     await this.activate(payment.gym_id, payment.period_end, undefined, true);

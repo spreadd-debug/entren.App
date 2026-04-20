@@ -19,6 +19,8 @@ import {
 import { GymSubscription, GymBillingPayment, GymSubscriptionStatus, GymPlanTier, GymType } from '../../shared/types';
 import { api } from '../services/api';
 import { SuperAdminShell, SAView } from '../components/SuperAdminShell';
+import { SAOutreach } from '../components/sa/SAOutreach';
+import { SAOnboarding } from '../components/sa/SAOnboarding';
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
@@ -1446,6 +1448,10 @@ export function SuperAdminApp({ onLogout }: { onLogout?: () => void } = {}) {
             onAddBillingPayment={handleAddBillingPayment}
           />
         );
+      case 'outreach':
+        return <SAOutreach />;
+      case 'onboarding':
+        return <SAOnboarding subscriptions={subscriptions} billingPayments={billingPayments} />;
     }
   };
 

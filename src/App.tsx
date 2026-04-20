@@ -84,6 +84,16 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  useEffect(() => {
+    const realGymId = supabaseUser?.user_metadata?.gym_id;
+    if (!realGymId || isDemo || isGymTest) return;
+    api.activity.log({
+      gym_id: realGymId,
+      event_type: 'login',
+      user_id: supabaseUser?.id ?? null,
+    });
+  }, [supabaseUser?.id, isDemo, isGymTest]);
+
   const isAuthenticated = isSuperAdmin || isDemo || isGymTest || isStudentDemo || supabaseUser !== null;
   const gymId = (isDemo || isGymTest) ? DEMO_GYM_ID : (supabaseUser?.user_metadata?.gym_id ?? null);
   const userRole = (supabaseUser?.user_metadata?.role ?? 'admin') as string;
