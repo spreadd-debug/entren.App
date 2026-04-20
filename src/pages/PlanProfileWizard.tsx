@@ -2,6 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { ArrowLeft, ArrowRight, Check, Loader2, User, Target, Dumbbell, Settings2 } from 'lucide-react';
 import { Card } from '../components/UI';
 import { PlanProfileService } from '../services/pt/PlanProfileService';
+import { GoalsService } from '../services/pt/GoalsService';
+import { StudentSummaryService } from '../services/pt/StudentSummaryService';
+import {
+  mapObjectiveToGoalType,
+  buildWizardGoalDescription,
+  OBJECTIVE_LABELS,
+  TIMEFRAME_LABELS,
+} from '../utils/objectiveMapping';
 import type {
   StudentPlanProfile, StudentType, ExperienceLevel, SportSeason,
   TrainingObjective, GoalTimeframe, TrainingPhase, PeriodizationModel,
@@ -39,27 +47,6 @@ const EXPERIENCE_LABELS: Record<ExperienceLevel, string> = {
   advanced: 'Avanzado (2+ anos)',
 };
 
-const OBJECTIVE_LABELS: Record<TrainingObjective, string> = {
-  fat_loss: 'Perder grasa / Bajar de peso',
-  hypertrophy: 'Ganar masa muscular / Hipertrofia',
-  max_strength: 'Ganar fuerza maxima',
-  recomp: 'Recomposicion corporal',
-  sport_performance: 'Mejorar rendimiento deportivo',
-  power: 'Mejorar potencia / Explosividad',
-  endurance: 'Mejorar resistencia cardiovascular',
-  rehab: 'Rehabilitacion / Recuperar movilidad',
-  general_health: 'Mejorar salud general',
-  competition_prep: 'Preparacion para competencia',
-};
-
-const TIMEFRAME_LABELS: Record<GoalTimeframe, string> = {
-  '1_month': '1 mes',
-  '2_months': '2 meses',
-  '3_months': '3 meses',
-  '6_months': '6 meses',
-  '1_year': '1 ano',
-  'no_deadline': 'Sin plazo',
-};
 
 const PHASE_LABELS: Record<TrainingPhase, string> = {
   anatomical_adaptation: 'Adaptacion anatomica / Base',
@@ -300,6 +287,22 @@ const PlanProfileWizard: React.FC<PlanProfileWizardProps> = ({ student, gymId, o
     setSaving(true);
     try {
       await PlanProfileService.save(student.id, gymId, form);
+      try {
+        await GoalsService.upsertWizardGoal({
+          gym_id: gymId,
+          student_id: student.id,
+          goal_type: mapObjectiveToGoalType(form.primary_objective),
+          description: buildWizardGoalDescription(
+            form.primary_objective,
+            form.numeric_goal,
+            form.goal_timeframe,
+          ),
+          target_date: form.goal_deadline,
+        });
+        StudentSummaryService.invalidate(student.id);
+      } catch (goalErr) {
+        console.error('Error syncing wizard goal:', goalErr);
+      }
       onSaved();
     } catch (e) {
       console.error('Error saving plan profile:', e);

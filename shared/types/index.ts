@@ -282,6 +282,7 @@ export interface ClientMeasurement {
 
 export type GoalType = 'lose_weight' | 'gain_muscle' | 'rehab' | 'flexibility' | 'endurance' | 'strength' | 'general_fitness' | 'other';
 export type GoalStatus = 'active' | 'achieved' | 'paused' | 'abandoned';
+export type GoalSource = 'manual' | 'plan_wizard';
 
 export interface ClientGoal {
   id: string;
@@ -292,6 +293,7 @@ export interface ClientGoal {
   target_value: string | null;
   target_date: string | null;
   status: GoalStatus;
+  source: GoalSource;
   created_at: string;
   updated_at: string;
 }

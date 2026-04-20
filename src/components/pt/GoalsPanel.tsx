@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, Target, Trophy, Pause, XCircle, ChevronDown } from 'lucide-react';
+import { Plus, Target, Trophy, Pause, XCircle, ChevronDown, Sparkles } from 'lucide-react';
 import { Card, Button } from '../UI';
 import { GoalsService } from '../../services/pt/GoalsService';
 import { StudentSummaryService } from '../../services/pt/StudentSummaryService';
@@ -207,13 +207,21 @@ const GoalCard: React.FC<{
   const typeInfo = GOAL_TYPES.find(t => t.value === goal.goal_type) ?? GOAL_TYPES[7];
   const statusInfo = STATUS_CONFIG[goal.status];
   const StatusIcon = statusInfo.icon;
+  const isFromWizard = goal.source === 'plan_wizard';
 
   return (
     <Card className={`p-3 ${goal.status !== 'active' ? 'opacity-60' : ''}`}>
       <div className="flex items-start gap-3">
         <span className="text-lg">{typeInfo.emoji}</span>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-bold text-slate-900 dark:text-white">{typeInfo.label}</p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-sm font-bold text-slate-900 dark:text-white">{typeInfo.label}</p>
+            {isFromWizard && (
+              <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 px-1.5 py-0.5 rounded-full">
+                <Sparkles size={9} /> Del plan
+              </span>
+            )}
+          </div>
           {goal.description && (
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{goal.description}</p>
           )}
@@ -254,13 +262,17 @@ const GoalCard: React.FC<{
                   {cfg.label}
                 </button>
               ))}
-              <div className="border-t border-slate-100 dark:border-slate-700 my-1" />
-              <button
-                onClick={() => onDelete(goal.id)}
-                className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors"
-              >
-                Eliminar
-              </button>
+              {!isFromWizard && (
+                <>
+                  <div className="border-t border-slate-100 dark:border-slate-700 my-1" />
+                  <button
+                    onClick={() => onDelete(goal.id)}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors"
+                  >
+                    Eliminar
+                  </button>
+                </>
+              )}
             </div>
           )}
         </div>
