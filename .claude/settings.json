@@ -25,7 +25,25 @@
       "Bash(npx cap:*)",
       "Bash(xargs cat:*)",
       "Bash(grep -E \"\\\\.ts$|\\\\.tsx$\")",
-      "Bash(git stash:*)"
+      "Bash(git stash:*)",
+      "Bash(npx eslint *)",
+      "Bash(echo \"exit:$?\")",
+      "Bash(echo \"exit=$?\")",
+      "Bash(echo \"tsc exit=$?\")",
+      "Bash(curl -s \"https://world.openfoodfacts.org/api/v2/search?search_terms=bizcocho&countries_tags_en=argentina&page_size=5&fields=code,product_name,brands\")",
+      "Bash(curl -s \"https://world.openfoodfacts.org/api/v2/search?brands_tags=don-satur&countries_tags_en=argentina&page_size=5&fields=code,product_name,brands\")",
+      "Bash(curl -s \"https://world.openfoodfacts.org/api/v2/search?search_terms=don+satur&page_size=5&fields=code,product_name,brands,countries_tags\")",
+      "Bash(curl -s \"https://world.openfoodfacts.org/api/v2/search?search_terms=don+satur&countries_tags_en=argentina&page_size=5&fields=code,product_name,brands\")",
+      "Bash(curl -sI \"https://world.openfoodfacts.org/api/v2/search?brands_tags=la-serenisima&countries_tags_en=argentina&page_size=3\")",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code} | %{content_type}\\\\n\" \"https://world.openfoodfacts.org/api/v2/search?search_terms=bizcocho&countries_tags_en=argentina&page_size=5&fields=code,product_name,brands\")",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code} | %{content_type}\\\\n\" \"https://world.openfoodfacts.org/api/v2/search?brands_tags=don-satur&countries_tags_en=argentina&page_size=5&fields=code,product_name,brands\")",
+      "Bash(curl -s \"https://world.openfoodfacts.org/api/v2/search?search_terms=don%20satur&countries_tags_en=argentina&page_size=3&fields=code,product_name,brands\")",
+      "Bash(curl -sI \"https://static.openfoodfacts.org/data/en.openfoodfacts.org.products.csv.gz\")",
+      "Bash(curl -sIL \"https://static.openfoodfacts.org/data/en.openfoodfacts.org.products.csv.gz\")",
+      "Bash(curl -sL \"https://world.openfoodfacts.org/country/argentina/1.json?fields=code,product_name,brands,countries_tags,nutriments,unique_scans_n\" -o /tmp/off-test.json --max-time 30 -w \"%{http_code}\\\\n%{content_type}\\\\n%{size_download}\\\\n\")",
+      "Bash(curl -sI \"https://static.openfoodfacts.org/data/dataforgood/openfoodfacts_parquet_data_for_good_argentina.parquet\" -w \"%{http_code}\\\\n\")",
+      "Bash(grep -E \"\\\\.\\(tsx|ts\\)$\")",
+      "Bash(git commit -m ' *)"
     ]
   }
 }
