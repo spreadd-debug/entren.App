@@ -31,6 +31,7 @@ import { WorkoutPlanService } from "../services/WorkoutPlanService";
 import { PTSessionService } from "../services/pt/PTSessionService";
 import { ExerciseVideoModal } from "../components/ExerciseVideoModal";
 import { RunningTab } from "../components/pt/RunningTab";
+import { StravaConnectCard } from "../components/running/StravaConnectCard";
 import { api } from "../services/api";
 import {
   WorkoutOption,
@@ -1675,7 +1676,8 @@ export default function StudentPortalPTView({
               </button>
 
               {showRunning && (
-                <div className={`border-t ${cardBorder} p-3`}>
+                <div className={`border-t ${cardBorder} p-3 space-y-3`}>
+                  <StravaConnectCard studentId={student.id} />
                   <RunningTab
                     studentId={student.id}
                     gymId={student.gym_id}

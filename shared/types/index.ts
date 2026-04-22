@@ -787,6 +787,9 @@ export type RunningSessionType = 'easy' | 'long' | 'tempo' | 'intervals' | 'race
 
 export type RunningLoggedBy = 'pt' | 'student';
 
+export type RunningSessionSource = 'manual' | 'strava';
+export type RunningExternalProvider = 'strava';
+
 export interface RunningSession {
   id: string;
   gym_id: string;
@@ -800,8 +803,25 @@ export interface RunningSession {
   session_type: RunningSessionType;
   notes?: string | null;
   logged_by: RunningLoggedBy;
+  source: RunningSessionSource;
+  external_provider?: RunningExternalProvider | null;
+  external_id?: string | null;
+  avg_speed_mps?: number | null;
+  elevation_gain_m?: number | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface StravaConnection {
+  id: string;
+  gym_id: string;
+  student_id: string;
+  athlete_id: number;
+  athlete_firstname?: string | null;
+  athlete_lastname?: string | null;
+  scope?: string | null;
+  connected_at: string;
+  last_sync_at?: string | null;
 }
 
 export interface RunningSessionInput {

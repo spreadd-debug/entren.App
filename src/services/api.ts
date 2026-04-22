@@ -18,6 +18,7 @@ import {
   RunningSession,
   RunningSessionInput,
   RunningWeeklyTotal,
+  StravaConnection,
 } from '../../shared/types';
 
 import { isNative } from '../lib/platform';
@@ -593,6 +594,25 @@ export const api = {
 
     async deleteSession(id: string): Promise<void> {
       await fetchJson(`${API_BASE}/running/sessions/${id}`, { method: 'DELETE' });
+    },
+  },
+
+  strava: {
+    async getConnection(studentId: string): Promise<StravaConnection | null> {
+      try {
+        return await fetchJson(`${API_BASE}/strava/connection/${studentId}`);
+      } catch (error) {
+        console.error('strava.getConnection failed:', error);
+        return null;
+      }
+    },
+
+    async startConnect(studentId: string): Promise<{ url: string }> {
+      return fetchJson(`${API_BASE}/strava/authorize?student_id=${encodeURIComponent(studentId)}`);
+    },
+
+    async disconnect(studentId: string): Promise<void> {
+      await fetchJson(`${API_BASE}/strava/connection/${studentId}`, { method: 'DELETE' });
     },
   },
 };

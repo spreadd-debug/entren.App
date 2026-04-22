@@ -13,6 +13,7 @@ import planProfileRoutes from '../server/routes/planProfiles';
 import outreachRoutes from '../server/routes/outreach';
 import activityRoutes from '../server/routes/activity';
 import runningRoutes from '../server/routes/running';
+import stravaRoutes from '../server/routes/strava';
 import { StudentService } from "../server/services/StudentService";
 import { PlanService } from "../server/services/PlanService";
 import { PaymentService } from "../server/services/PaymentService";
@@ -35,6 +36,7 @@ app.use('/api/plan-profiles', planProfileRoutes);
 app.use('/api/outreach', outreachRoutes);
 app.use('/api/activity', activityRoutes);
 app.use('/api/running', runningRoutes);
+app.use('/api/strava', stravaRoutes);
 
 app.get("/api/health", async (_req, res) => {
   const supabaseUrl = process.env.SUPABASE_URL;

@@ -59,6 +59,29 @@ export default function StudentPortalView({
 }: StudentPortalViewProps) {
   const toast = useToast();
 
+  // ─── Strava OAuth callback feedback ────────────────────────────────────────
+  // El portal puede recibir ?strava=success o ?strava=error&reason=... después
+  // del redirect desde nuestro /api/strava/callback. Mostramos un toast y
+  // limpiamos los query params para que no reaparezca en cada refresh.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const stravaFlag = params.get('strava');
+    if (!stravaFlag) return;
+    if (stravaFlag === 'success') {
+      toast.success('Strava conectado, importando tus corridas…');
+    } else {
+      toast.error(`No pudimos conectar Strava (${params.get('reason') || 'error'})`);
+    }
+    params.delete('strava');
+    params.delete('reason');
+    const qs = params.toString();
+    window.history.replaceState(
+      {},
+      '',
+      `${window.location.pathname}${qs ? `?${qs}` : ''}`,
+    );
+  }, [toast]);
+
   // ─── Estado principal ──────────────────────────────────────────────────────
   const [student, setStudent] = useState<any>(null);
   const [options, setOptions] = useState<WorkoutOption[]>([]);

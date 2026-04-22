@@ -213,6 +213,11 @@ export const RunningTab: React.FC<RunningTabProps> = ({
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${TYPE_COLORS[s.session_type]}`}>
                       {TYPE_LABELS[s.session_type]}
                     </span>
+                    {s.source === 'strava' && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold border bg-orange-500/10 text-orange-600 border-orange-500/20">
+                        Strava
+                      </span>
+                    )}
                     <span className="text-sm font-bold text-slate-900 dark:text-white">
                       {Number(s.distance_km).toFixed(2)} km
                     </span>
@@ -231,22 +236,31 @@ export const RunningTab: React.FC<RunningTabProps> = ({
                   )}
                 </div>
                 {!readOnly && (
-                  <div className="flex gap-1 shrink-0">
-                    <button
-                      onClick={() => openEdit(s)}
-                      className="p-2 rounded-lg text-slate-400 hover:text-violet-500 hover:bg-violet-500/10 transition-colors"
-                      title="Editar"
+                  s.source === 'strava' ? (
+                    <div
+                      className="shrink-0 text-[10px] font-semibold text-orange-500"
+                      title="Importada de Strava — editala desde Strava para que el cambio se sincronice"
                     >
-                      <Pencil size={14} />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(s)}
-                      className="p-2 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition-colors"
-                      title="Borrar"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
+                      🔒
+                    </div>
+                  ) : (
+                    <div className="flex gap-1 shrink-0">
+                      <button
+                        onClick={() => openEdit(s)}
+                        className="p-2 rounded-lg text-slate-400 hover:text-violet-500 hover:bg-violet-500/10 transition-colors"
+                        title="Editar"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(s)}
+                        className="p-2 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition-colors"
+                        title="Borrar"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  )
                 )}
               </div>
             ))}

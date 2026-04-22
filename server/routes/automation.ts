@@ -1,6 +1,7 @@
 
 import { Router } from 'express';
 import { BillingReminderService } from '../services/BillingReminderService';
+import { StravaService } from '../services/StravaService';
 import { supabase } from '../db/supabase';
 
 const router = Router();
@@ -74,7 +75,16 @@ router.post('/cron', async (req, res) => {
       ...(r.status === 'fulfilled' ? { result: r.value } : { error: (r as PromiseRejectedResult).reason?.message }),
     }));
 
-    res.json({ ok: true, ran: gymIds.length, summary });
+    // Red de seguridad para Strava: re-importa actividades de las últimas 24h
+    // de cada conexión, por si el webhook perdió algún evento.
+    let stravaSync: { checked: number; imported: number } | { error: string };
+    try {
+      stravaSync = await StravaService.backfillRecentForAllConnections(24);
+    } catch (err: any) {
+      stravaSync = { error: err?.message || String(err) };
+    }
+
+    res.json({ ok: true, ran: gymIds.length, summary, stravaSync });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

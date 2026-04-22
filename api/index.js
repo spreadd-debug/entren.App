@@ -951,6 +951,332 @@ var BillingReminderService = {
   }
 };
 
+// server/services/StravaService.ts
+import crypto from "crypto";
+
+// server/services/StudentDisciplinesService.ts
+var StudentDisciplinesService = {
+  async listForStudent(studentId) {
+    const { data, error } = await supabase.from("student_disciplines").select("*").eq("student_id", studentId).order("created_at", { ascending: true });
+    if (error) throw error;
+    return data || [];
+  },
+  async add(gymId, studentId, discipline) {
+    const { data, error } = await supabase.from("student_disciplines").upsert(
+      { gym_id: gymId, student_id: studentId, discipline },
+      { onConflict: "student_id,discipline", ignoreDuplicates: false }
+    ).select("*").single();
+    if (error) throw error;
+    return data;
+  },
+  async remove(studentId, discipline) {
+    const { error } = await supabase.from("student_disciplines").delete().eq("student_id", studentId).eq("discipline", discipline);
+    if (error) throw error;
+  }
+};
+
+// server/services/StravaService.ts
+var STRAVA_OAUTH_BASE = "https://www.strava.com";
+var STRAVA_API_BASE = "https://www.strava.com/api/v3";
+var STATE_TTL_MS = 15 * 60 * 1e3;
+var TOKEN_REFRESH_MARGIN_MS = 5 * 60 * 1e3;
+var DEDUPE_DISTANCE_TOLERANCE_KM = 0.5;
+var RUN_ACTIVITY_TYPES = /* @__PURE__ */ new Set(["Run", "TrailRun", "VirtualRun"]);
+function env(name) {
+  const v = process.env[name];
+  if (!v) throw new Error(`Missing env var ${name}`);
+  return v;
+}
+function envOptional(name) {
+  return process.env[name] ?? null;
+}
+function signState(payload) {
+  const secret = env("STRAVA_OAUTH_STATE_SECRET");
+  const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
+  const sig = crypto.createHmac("sha256", secret).update(body).digest("base64url");
+  return `${body}.${sig}`;
+}
+function verifyState(state) {
+  const secret = env("STRAVA_OAUTH_STATE_SECRET");
+  const [body, sig] = state.split(".");
+  if (!body || !sig) return null;
+  const expected = crypto.createHmac("sha256", secret).update(body).digest("base64url");
+  if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(body, "base64url").toString("utf8"));
+    if (typeof parsed.sid !== "string" || typeof parsed.ts !== "number") return null;
+    if (Date.now() - parsed.ts > STATE_TTL_MS) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+function publicConnection(row) {
+  return {
+    id: row.id,
+    gym_id: row.gym_id,
+    student_id: row.student_id,
+    athlete_id: row.athlete_id,
+    athlete_firstname: row.athlete_firstname ?? null,
+    athlete_lastname: row.athlete_lastname ?? null,
+    scope: row.scope ?? null,
+    connected_at: row.connected_at,
+    last_sync_at: row.last_sync_at ?? null
+  };
+}
+function mapStravaTypeToSession(type) {
+  if (type === "TrailRun") return "long";
+  if (type === "Run" || type === "VirtualRun") return "easy";
+  return "other";
+}
+function buildNotes(activity) {
+  const parts = [];
+  if (activity.name) parts.push(activity.name);
+  if (activity.description) parts.push(activity.description);
+  const joined = parts.join(" \u2014 ").trim();
+  return joined || null;
+}
+async function postForm(url, params) {
+  return fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams(params).toString()
+  });
+}
+async function fetchAuthed(url, accessToken) {
+  return fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+}
+async function getStoredByStudent(studentId) {
+  const { data, error } = await supabase.from("strava_connections").select("*").eq("student_id", studentId).maybeSingle();
+  if (error) throw error;
+  return data ?? null;
+}
+async function getStoredByAthlete(athleteId) {
+  const { data, error } = await supabase.from("strava_connections").select("*").eq("athlete_id", athleteId).maybeSingle();
+  if (error) throw error;
+  return data ?? null;
+}
+async function persistTokenUpdate(connectionId, tokens) {
+  const { data, error } = await supabase.from("strava_connections").update({
+    access_token: tokens.access_token,
+    refresh_token: tokens.refresh_token,
+    expires_at: new Date(tokens.expires_at * 1e3).toISOString(),
+    updated_at: (/* @__PURE__ */ new Date()).toISOString()
+  }).eq("id", connectionId).select("*").single();
+  if (error) throw error;
+  return data;
+}
+async function refreshAccessToken(connection) {
+  const res = await postForm(`${STRAVA_OAUTH_BASE}/oauth/token`, {
+    client_id: env("STRAVA_CLIENT_ID"),
+    client_secret: env("STRAVA_CLIENT_SECRET"),
+    grant_type: "refresh_token",
+    refresh_token: connection.refresh_token
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Strava token refresh failed: ${res.status} ${text}`);
+  }
+  const tokens = await res.json();
+  return persistTokenUpdate(connection.id, {
+    access_token: tokens.access_token,
+    refresh_token: tokens.refresh_token,
+    expires_at: tokens.expires_at
+  });
+}
+async function getValidConnection(connection) {
+  const expiresAtMs = new Date(connection.expires_at).getTime();
+  if (expiresAtMs - Date.now() > TOKEN_REFRESH_MARGIN_MS) return connection;
+  return refreshAccessToken(connection);
+}
+async function deleteManualDuplicates(studentId, sessionDate, distanceKm) {
+  const minKm = distanceKm - DEDUPE_DISTANCE_TOLERANCE_KM;
+  const maxKm = distanceKm + DEDUPE_DISTANCE_TOLERANCE_KM;
+  const { error } = await supabase.from("running_sessions").delete().eq("student_id", studentId).eq("session_date", sessionDate).eq("source", "manual").gte("distance_km", minKm).lte("distance_km", maxKm);
+  if (error) throw error;
+}
+async function upsertActivity(connection, activity) {
+  if (!RUN_ACTIVITY_TYPES.has(activity.type)) return;
+  const sessionDate = (activity.start_date_local || "").slice(0, 10);
+  const distanceKm = Math.round(activity.distance / 1e3 * 100) / 100;
+  const durationSeconds = Math.round(activity.moving_time);
+  if (!sessionDate || !(distanceKm > 0) || !(durationSeconds > 0)) return;
+  await deleteManualDuplicates(connection.student_id, sessionDate, distanceKm);
+  const payload = {
+    gym_id: connection.gym_id,
+    student_id: connection.student_id,
+    session_date: sessionDate,
+    distance_km: distanceKm,
+    duration_seconds: durationSeconds,
+    avg_hr_bpm: activity.average_heartrate != null ? Math.round(activity.average_heartrate) : null,
+    perceived_effort: null,
+    session_type: mapStravaTypeToSession(activity.type),
+    notes: buildNotes(activity),
+    logged_by: "student",
+    source: "strava",
+    external_provider: "strava",
+    external_id: String(activity.id),
+    avg_speed_mps: activity.average_speed != null ? Math.round(activity.average_speed * 100) / 100 : null,
+    elevation_gain_m: activity.total_elevation_gain != null ? Math.round(activity.total_elevation_gain) : null,
+    updated_at: (/* @__PURE__ */ new Date()).toISOString()
+  };
+  const { error } = await supabase.from("running_sessions").upsert(payload, { onConflict: "external_provider,external_id" });
+  if (error) throw error;
+}
+async function backfillSince(connection, sinceUnix) {
+  const fresh = await getValidConnection(connection);
+  let imported = 0;
+  let page = 1;
+  while (true) {
+    const url = `${STRAVA_API_BASE}/athlete/activities?after=${sinceUnix}&per_page=100&page=${page}`;
+    const res = await fetchAuthed(url, fresh.access_token);
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Strava list activities failed: ${res.status} ${text}`);
+    }
+    const list = await res.json();
+    if (!Array.isArray(list) || list.length === 0) break;
+    for (const activity of list) {
+      try {
+        await upsertActivity(fresh, activity);
+        if (RUN_ACTIVITY_TYPES.has(activity.type)) imported += 1;
+      } catch (err) {
+        console.error("[strava] failed to upsert activity", activity.id, err);
+      }
+    }
+    if (list.length < 100) break;
+    page += 1;
+  }
+  await supabase.from("strava_connections").update({ last_sync_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", fresh.id);
+  return imported;
+}
+var StravaService = {
+  buildAuthUrl(studentId) {
+    const state = signState({ sid: studentId, ts: Date.now() });
+    const params = new URLSearchParams({
+      client_id: env("STRAVA_CLIENT_ID"),
+      response_type: "code",
+      redirect_uri: env("STRAVA_REDIRECT_URI"),
+      approval_prompt: "auto",
+      scope: "read,activity:read",
+      state
+    });
+    return `${STRAVA_OAUTH_BASE}/oauth/authorize?${params.toString()}`;
+  },
+  async handleCallback(code, state) {
+    const verified = verifyState(state);
+    if (!verified) return { ok: false, reason: "invalid_state" };
+    const { data: studentRow, error: studentErr } = await supabase.from("students").select("id, gym_id").eq("id", verified.sid).maybeSingle();
+    if (studentErr) throw studentErr;
+    if (!studentRow) return { ok: false, reason: "student_not_found" };
+    const res = await postForm(`${STRAVA_OAUTH_BASE}/oauth/token`, {
+      client_id: env("STRAVA_CLIENT_ID"),
+      client_secret: env("STRAVA_CLIENT_SECRET"),
+      code,
+      grant_type: "authorization_code"
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      console.error("[strava] token exchange failed", res.status, text);
+      return { ok: false, reason: "token_exchange_failed" };
+    }
+    const tokens = await res.json();
+    if (!tokens.athlete?.id) return { ok: false, reason: "missing_athlete" };
+    const { data: connRow, error: connErr } = await supabase.from("strava_connections").upsert(
+      {
+        gym_id: studentRow.gym_id,
+        student_id: verified.sid,
+        athlete_id: tokens.athlete.id,
+        access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token,
+        expires_at: new Date(tokens.expires_at * 1e3).toISOString(),
+        scope: "read,activity:read",
+        athlete_firstname: tokens.athlete.firstname ?? null,
+        athlete_lastname: tokens.athlete.lastname ?? null,
+        connected_at: (/* @__PURE__ */ new Date()).toISOString(),
+        updated_at: (/* @__PURE__ */ new Date()).toISOString()
+      },
+      { onConflict: "student_id" }
+    ).select("*").single();
+    if (connErr) throw connErr;
+    try {
+      await StudentDisciplinesService.add(studentRow.gym_id, verified.sid, "running");
+    } catch (err) {
+      console.error("[strava] failed to auto-mark running discipline", err);
+    }
+    const since = Math.floor((Date.now() - 30 * 24 * 60 * 60 * 1e3) / 1e3);
+    backfillSince(connRow, since).catch(
+      (err) => console.error("[strava] backfill failed", err)
+    );
+    return { ok: true };
+  },
+  async importActivity(athleteId, activityId) {
+    const stored = await getStoredByAthlete(athleteId);
+    if (!stored) {
+      console.warn("[strava] webhook for unknown athlete", athleteId);
+      return;
+    }
+    const fresh = await getValidConnection(stored);
+    const res = await fetchAuthed(`${STRAVA_API_BASE}/activities/${activityId}`, fresh.access_token);
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Strava get activity ${activityId} failed: ${res.status} ${text}`);
+    }
+    const activity = await res.json();
+    await upsertActivity(fresh, activity);
+    await supabase.from("strava_connections").update({ last_sync_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", fresh.id);
+  },
+  async deleteImportedActivity(athleteId, activityId) {
+    const stored = await getStoredByAthlete(athleteId);
+    if (!stored) return;
+    const { error } = await supabase.from("running_sessions").delete().eq("student_id", stored.student_id).eq("external_provider", "strava").eq("external_id", String(activityId));
+    if (error) throw error;
+  },
+  async disconnect(studentId) {
+    const stored = await getStoredByStudent(studentId);
+    if (!stored) return;
+    try {
+      const fresh = await getValidConnection(stored);
+      await postForm(`${STRAVA_OAUTH_BASE}/oauth/deauthorize`, { access_token: fresh.access_token });
+    } catch (err) {
+      console.warn("[strava] deauthorize failed (ignored)", err);
+    }
+    const { error } = await supabase.from("strava_connections").delete().eq("student_id", studentId);
+    if (error) throw error;
+  },
+  async getConnectionStatus(studentId) {
+    const stored = await getStoredByStudent(studentId);
+    return stored ? publicConnection(stored) : null;
+  },
+  async backfillRecentForAllConnections(windowHours = 24) {
+    const { data, error } = await supabase.from("strava_connections").select("*");
+    if (error) throw error;
+    const since = Math.floor((Date.now() - windowHours * 60 * 60 * 1e3) / 1e3);
+    let imported = 0;
+    for (const row of data || []) {
+      try {
+        imported += await backfillSince(row, since);
+      } catch (err) {
+        console.error("[strava] cron backfill failed for student", row.student_id, err);
+      }
+    }
+    return { checked: (data || []).length, imported };
+  },
+  // Exposed para el script de bootstrap del webhook
+  webhookVerifyToken() {
+    return env("STRAVA_WEBHOOK_VERIFY_TOKEN");
+  },
+  envSummary() {
+    return {
+      hasClientId: !!envOptional("STRAVA_CLIENT_ID"),
+      hasClientSecret: !!envOptional("STRAVA_CLIENT_SECRET"),
+      hasRedirectUri: !!envOptional("STRAVA_REDIRECT_URI"),
+      hasVerifyToken: !!envOptional("STRAVA_WEBHOOK_VERIFY_TOKEN"),
+      hasStateSecret: !!envOptional("STRAVA_OAUTH_STATE_SECRET")
+    };
+  }
+};
+
 // server/routes/automation.ts
 var router5 = Router5();
 router5.get("/status", async (req, res) => {
@@ -1004,7 +1330,13 @@ router5.post("/cron", async (req, res) => {
       status: r.status,
       ...r.status === "fulfilled" ? { result: r.value } : { error: r.reason?.message }
     }));
-    res.json({ ok: true, ran: gymIds.length, summary });
+    let stravaSync;
+    try {
+      stravaSync = await StravaService.backfillRecentForAllConnections(24);
+    } catch (err) {
+      stravaSync = { error: err?.message || String(err) };
+    }
+    res.json({ ok: true, ran: gymIds.length, summary, stravaSync });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -2013,27 +2345,6 @@ var activity_default = router11;
 // server/routes/running.ts
 import { Router as Router12 } from "express";
 
-// server/services/StudentDisciplinesService.ts
-var StudentDisciplinesService = {
-  async listForStudent(studentId) {
-    const { data, error } = await supabase.from("student_disciplines").select("*").eq("student_id", studentId).order("created_at", { ascending: true });
-    if (error) throw error;
-    return data || [];
-  },
-  async add(gymId, studentId, discipline) {
-    const { data, error } = await supabase.from("student_disciplines").upsert(
-      { gym_id: gymId, student_id: studentId, discipline },
-      { onConflict: "student_id,discipline", ignoreDuplicates: false }
-    ).select("*").single();
-    if (error) throw error;
-    return data;
-  },
-  async remove(studentId, discipline) {
-    const { error } = await supabase.from("student_disciplines").delete().eq("student_id", studentId).eq("discipline", discipline);
-    if (error) throw error;
-  }
-};
-
 // server/services/RunningSessionService.ts
 function isoMonday(d) {
   const out = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
@@ -2228,6 +2539,91 @@ router12.delete("/sessions/:id", async (req, res) => {
 });
 var running_default = router12;
 
+// server/routes/strava.ts
+import { Router as Router13 } from "express";
+var router13 = Router13();
+function portalUrl() {
+  return process.env.PORTAL_PUBLIC_URL || "https://entren.app";
+}
+router13.get("/authorize", async (req, res) => {
+  try {
+    const studentId = String(req.query.student_id || "").trim();
+    if (!studentId) return res.status(400).json({ error: "student_id is required" });
+    const url = StravaService.buildAuthUrl(studentId);
+    res.json({ url });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+router13.get("/callback", async (req, res) => {
+  const success = `${portalUrl()}/portal?strava=success`;
+  const failure = (reason) => `${portalUrl()}/portal?strava=error&reason=${encodeURIComponent(reason)}`;
+  if (req.query.error) {
+    return res.redirect(302, failure(String(req.query.error)));
+  }
+  const code = String(req.query.code || "").trim();
+  const state = String(req.query.state || "").trim();
+  if (!code || !state) return res.redirect(302, failure("missing_params"));
+  try {
+    const result = await StravaService.handleCallback(code, state);
+    if (result.ok === true) return res.redirect(302, success);
+    return res.redirect(302, failure(result.reason));
+  } catch (err) {
+    console.error("[strava] callback failed", err);
+    return res.redirect(302, failure("server_error"));
+  }
+});
+router13.get("/webhook", (req, res) => {
+  const mode = req.query["hub.mode"];
+  const token = req.query["hub.verify_token"];
+  const challenge = req.query["hub.challenge"];
+  try {
+    if (mode === "subscribe" && token === StravaService.webhookVerifyToken() && challenge) {
+      return res.json({ "hub.challenge": String(challenge) });
+    }
+    return res.status(403).json({ error: "verification_failed" });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+router13.post("/webhook", async (req, res) => {
+  const event = req.body || {};
+  res.status(200).end();
+  try {
+    if (event.object_type !== "activity") return;
+    const ownerId = Number(event.owner_id);
+    const activityId = Number(event.object_id);
+    if (!ownerId || !activityId) return;
+    if (event.aspect_type === "create" || event.aspect_type === "update") {
+      await StravaService.importActivity(ownerId, activityId);
+    } else if (event.aspect_type === "delete") {
+      await StravaService.deleteImportedActivity(ownerId, activityId);
+    }
+  } catch (err) {
+    console.error("[strava] webhook processing failed", err);
+  }
+});
+router13.get("/connection/:studentId", async (req, res) => {
+  try {
+    const conn = await StravaService.getConnectionStatus(req.params.studentId);
+    res.json(conn);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+router13.delete("/connection/:studentId", async (req, res) => {
+  try {
+    await StravaService.disconnect(req.params.studentId);
+    res.status(204).end();
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+router13.get("/env", (_req, res) => {
+  res.json(StravaService.envSummary());
+});
+var strava_default = router13;
+
 // api/_handler.ts
 var app = express();
 app.use(cors());
@@ -2244,6 +2640,7 @@ app.use("/api/plan-profiles", planProfiles_default);
 app.use("/api/outreach", outreach_default);
 app.use("/api/activity", activity_default);
 app.use("/api/running", running_default);
+app.use("/api/strava", strava_default);
 app.get("/api/health", async (_req, res) => {
   const supabaseUrl2 = process.env.SUPABASE_URL;
   const supabaseKey2 = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_ANON_KEY;
