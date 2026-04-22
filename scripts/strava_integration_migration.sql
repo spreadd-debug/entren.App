@@ -43,9 +43,15 @@ ALTER TABLE running_sessions
   ADD COLUMN IF NOT EXISTS elevation_gain_m   INTEGER     NULL;
 
 -- Idempotencia: si Strava reintenta el webhook, no debemos duplicar la corrida.
-CREATE UNIQUE INDEX IF NOT EXISTS idx_running_sessions_external
-  ON running_sessions (external_provider, external_id)
-  WHERE external_id IS NOT NULL;
+-- Usamos UNIQUE constraint (no índice parcial) para que Supabase JS pueda
+-- referenciarla en `.upsert({ onConflict: 'external_provider,external_id' })`.
+-- Postgres trata (NULL, NULL) como filas distintas, así que las sesiones
+-- manuales (que tienen ambas columnas en NULL) siguen pudiendo coexistir.
+ALTER TABLE running_sessions
+  DROP CONSTRAINT IF EXISTS uq_running_sessions_external;
+DROP INDEX IF EXISTS idx_running_sessions_external;
+ALTER TABLE running_sessions
+  ADD CONSTRAINT uq_running_sessions_external UNIQUE (external_provider, external_id);
 
 -- ── 3. RLS (consistente con el resto del módulo PT) ──────────────────────────
 ALTER TABLE strava_connections ENABLE ROW LEVEL SECURITY;
