@@ -1237,11 +1237,14 @@ var StravaService = {
   async disconnect(studentId) {
     const stored = await getStoredByStudent(studentId);
     if (!stored) return;
-    try {
-      const fresh = await getValidConnection(stored);
-      await postForm(`${STRAVA_OAUTH_BASE}/oauth/deauthorize`, { access_token: fresh.access_token });
-    } catch (err) {
-      console.warn("[strava] deauthorize failed (ignored)", err);
+    const fresh = await getValidConnection(stored);
+    const res = await fetch(`${STRAVA_OAUTH_BASE}/oauth/deauthorize`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${fresh.access_token}` }
+    });
+    if (!res.ok && res.status !== 401) {
+      const text = await res.text();
+      throw new Error(`Strava deauthorize failed: ${res.status} ${text}`);
     }
     const { error } = await supabase.from("strava_connections").delete().eq("student_id", studentId);
     if (error) throw error;

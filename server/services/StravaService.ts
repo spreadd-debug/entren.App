@@ -405,13 +405,22 @@ export const StravaService = {
   async disconnect(studentId: string): Promise<void> {
     const stored = await getStoredByStudent(studentId);
     if (!stored) return;
-    // Best-effort revoke en Strava (si falla, igual borramos local)
-    try {
-      const fresh = await getValidConnection(stored);
-      await postForm(`${STRAVA_OAUTH_BASE}/oauth/deauthorize`, { access_token: fresh.access_token });
-    } catch (err) {
-      console.warn('[strava] deauthorize failed (ignored)', err);
+
+    // Revoke en Strava PRIMERO (con Bearer auth, como pide la API).
+    // Si falla con algo distinto de 401 (que significa "ya revocado"), abortamos
+    // el delete local — si no, el alumno queda en un estado inconsistente
+    // (sin conexión local pero Strava lo sigue contando como athlete autorizado,
+    // bloqueándolo para reconectar contra el cap de la app).
+    const fresh = await getValidConnection(stored);
+    const res = await fetch(`${STRAVA_OAUTH_BASE}/oauth/deauthorize`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${fresh.access_token}` },
+    });
+    if (!res.ok && res.status !== 401) {
+      const text = await res.text();
+      throw new Error(`Strava deauthorize failed: ${res.status} ${text}`);
     }
+
     const { error } = await supabase
       .from('strava_connections')
       .delete()
