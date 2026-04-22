@@ -10,6 +10,9 @@ import subscriptionRoutes from '../server/routes/subscriptions';
 import staffRoutes from '../server/routes/staff';
 import aiRoutes from '../server/routes/ai';
 import planProfileRoutes from '../server/routes/planProfiles';
+import outreachRoutes from '../server/routes/outreach';
+import activityRoutes from '../server/routes/activity';
+import runningRoutes from '../server/routes/running';
 import { StudentService } from "../server/services/StudentService";
 import { PlanService } from "../server/services/PlanService";
 import { PaymentService } from "../server/services/PaymentService";
@@ -29,6 +32,9 @@ app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api/staff', staffRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/plan-profiles', planProfileRoutes);
+app.use('/api/outreach', outreachRoutes);
+app.use('/api/activity', activityRoutes);
+app.use('/api/running', runningRoutes);
 
 app.get("/api/health", async (_req, res) => {
   const supabaseUrl = process.env.SUPABASE_URL;

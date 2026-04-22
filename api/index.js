@@ -28,6 +28,7 @@ function mapStudentRowToStudent(row) {
     emergency_contact_name: row.emergency_contact_name ?? void 0,
     emergency_contact_phone: row.emergency_contact_phone ?? void 0,
     access_code: row.access_code ?? void 0,
+    is_online: row.is_online ?? false,
     createdAt: row.created_at ?? "",
     updatedAt: row.updated_at ?? ""
   };
@@ -45,6 +46,153 @@ if (!supabaseKey) {
   throw new Error("SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY is missing in .env");
 }
 var supabase = createClient(supabaseUrl, supabaseKey);
+
+// server/services/ActivityEventsService.ts
+var TABLE = "gym_activity_events";
+function mapRow(row) {
+  return {
+    id: row.id,
+    gym_id: row.gym_id,
+    user_id: row.user_id ?? null,
+    event_type: row.event_type,
+    event_data: row.event_data ?? null,
+    created_at: row.created_at
+  };
+}
+function isoDate(d) {
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+}
+function addDays(base, days) {
+  const d = new Date(base);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d;
+}
+var ActivityEventsService = {
+  /**
+   * Insert an event. For event types that have unique constraints in DB
+   * (first_*, daily login), Supabase returns an error on conflict — we swallow
+   * it so the caller doesn't care whether the event was already logged.
+   */
+  async log(params) {
+    const { data, error } = await supabase.from(TABLE).insert({
+      gym_id: params.gym_id,
+      event_type: params.event_type,
+      event_data: params.event_data ?? null,
+      user_id: params.user_id ?? null
+    }).select("*").maybeSingle();
+    if (error) {
+      const code = error.code ?? "";
+      if (code === "23505") return null;
+      throw error;
+    }
+    return data ? mapRow(data) : null;
+  },
+  async getForGym(gymId, limit = 200) {
+    const { data, error } = await supabase.from(TABLE).select("*").eq("gym_id", gymId).order("created_at", { ascending: false }).limit(limit);
+    if (error) throw error;
+    return (data || []).map(mapRow);
+  },
+  /**
+   * Funnel: cuántos gyms alcanzaron cada paso del onboarding.
+   * `registered` = COUNT(DISTINCT gym_id WHERE event_type = 'gym_registered').
+   * Los otros son COUNT(DISTINCT gym_id WHERE event_type = 'first_*').
+   */
+  async getFunnel() {
+    const targets = [
+      "gym_registered",
+      "first_student_created",
+      "first_payment_registered",
+      "gym_activated"
+    ];
+    const counts = {};
+    await Promise.all(
+      targets.map(async (type) => {
+        const { count, error } = await supabase.from(TABLE).select("gym_id", { count: "exact", head: true }).eq("event_type", type);
+        if (error) throw error;
+        counts[type] = count ?? 0;
+      })
+    );
+    return {
+      registered: counts["gym_registered"] ?? 0,
+      first_student: counts["first_student_created"] ?? 0,
+      first_payment: counts["first_payment_registered"] ?? 0,
+      activated: counts["gym_activated"] ?? 0
+    };
+  },
+  /**
+   * Retention por cohorte semanal (últimas 8 semanas).
+   * Para cada gym con evento `gym_registered` en la semana, se marca:
+   *   - d1: login en las 24-48hs posteriores al registro
+   *   - d7: login en las horas 144-336 (día 7 ±1)
+   *   - d30: login en las horas 696-888 (día 30 ±1)
+   * Se usan ventanas laxas de ±1 día para no perder gente que entra un día
+   * antes o después del target exacto.
+   */
+  async getRetention(weeks = 8) {
+    const now = /* @__PURE__ */ new Date();
+    const day = now.getUTCDay();
+    const daysSinceMonday = (day + 6) % 7;
+    const thisMonday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - daysSinceMonday));
+    const cohortStarts = [];
+    for (let i = weeks - 1; i >= 0; i--) {
+      cohortStarts.push(addDays(thisMonday, -7 * i));
+    }
+    const windowStart = addDays(cohortStarts[0], -1);
+    const windowEnd = addDays(now, 1);
+    const maxEnd = addDays(cohortStarts[cohortStarts.length - 1], 32);
+    const effectiveEnd = maxEnd > windowEnd ? maxEnd : windowEnd;
+    const [{ data: regRows, error: regErr }, { data: loginRows, error: loginErr }] = await Promise.all([
+      supabase.from(TABLE).select("gym_id, created_at").eq("event_type", "gym_registered").gte("created_at", windowStart.toISOString()).lte("created_at", effectiveEnd.toISOString()),
+      supabase.from(TABLE).select("gym_id, created_at").eq("event_type", "login").gte("created_at", windowStart.toISOString()).lte("created_at", effectiveEnd.toISOString())
+    ]);
+    if (regErr) throw regErr;
+    if (loginErr) throw loginErr;
+    const loginsByGym = /* @__PURE__ */ new Map();
+    for (const r of loginRows ?? []) {
+      const arr = loginsByGym.get(r.gym_id) ?? [];
+      arr.push(new Date(r.created_at).getTime());
+      loginsByGym.set(r.gym_id, arr);
+    }
+    for (const arr of loginsByGym.values()) arr.sort((a, b) => a - b);
+    const registrationByGym = /* @__PURE__ */ new Map();
+    for (const r of regRows ?? []) {
+      const t = new Date(r.created_at).getTime();
+      const current = registrationByGym.get(r.gym_id);
+      if (current == null || t < current) registrationByGym.set(r.gym_id, t);
+    }
+    const hasLoginInWindow = (gymId, startOffsetDays, endOffsetDays, regTime) => {
+      const logins = loginsByGym.get(gymId);
+      if (!logins) return false;
+      const start = regTime + startOffsetDays * 864e5;
+      const end = regTime + endOffsetDays * 864e5;
+      if (Date.now() < start) return false;
+      return logins.some((t) => t >= start && t <= end);
+    };
+    const cohorts = cohortStarts.map((weekStart) => {
+      const weekEnd = addDays(weekStart, 7);
+      const cohortGymIds = [];
+      for (const [gymId, regTime] of registrationByGym.entries()) {
+        if (regTime >= weekStart.getTime() && regTime < weekEnd.getTime()) {
+          cohortGymIds.push({ gymId, regTime });
+        }
+      }
+      let d1 = 0, d7 = 0, d30 = 0;
+      for (const { gymId, regTime } of cohortGymIds) {
+        if (hasLoginInWindow(gymId, 0.5, 2, regTime)) d1++;
+        if (hasLoginInWindow(gymId, 6, 9, regTime)) d7++;
+        if (hasLoginInWindow(gymId, 28, 32, regTime)) d30++;
+      }
+      return {
+        cohort_date: isoDate(weekStart),
+        cohort_size: cohortGymIds.length,
+        d1,
+        d7,
+        d30
+      };
+    });
+    return cohorts;
+  }
+};
 
 // server/services/StudentService.ts
 var DEFAULT_GYM_ID = "11111111-1111-1111-1111-111111111111";
@@ -80,6 +228,7 @@ var StudentService = {
         emergency_contact_phone,
         access_code,
         has_custom_code,
+        is_online,
         created_at,
         updated_at
       `).eq("gym_id", resolvedGymId).order("nombre", { ascending: true });
@@ -109,6 +258,7 @@ var StudentService = {
         emergency_contact_phone,
         access_code,
         has_custom_code,
+        is_online,
         created_at,
         updated_at
       `).eq("id", id).eq("gym_id", resolvedGymId).single();
@@ -135,7 +285,8 @@ var StudentService = {
       observaciones: student.observaciones ?? student.observations ?? null,
       emergency_contact_name: student.emergency_contact_name ?? null,
       emergency_contact_phone: student.emergency_contact_phone ?? null,
-      access_code: generateAccessCode()
+      access_code: generateAccessCode(),
+      is_online: student.is_online ?? false
     };
     const { data, error } = await supabase.from("students").insert([payload]).select(`
         id,
@@ -158,6 +309,7 @@ var StudentService = {
         emergency_contact_phone,
         access_code,
         has_custom_code,
+        is_online,
         created_at,
         updated_at
       `).single();
@@ -180,6 +332,13 @@ var StudentService = {
         }
       ]);
       if (membershipError) throw membershipError;
+    }
+    if (createdStudent.gym_id && createdStudent.gym_id !== DEFAULT_GYM_ID) {
+      ActivityEventsService.log({
+        gym_id: createdStudent.gym_id,
+        event_type: "first_student_created",
+        event_data: { student_id: createdStudent.id }
+      }).catch((err) => console.error("activity log first_student_created failed:", err));
     }
     return mapStudentRowToStudent(data);
   },
@@ -231,6 +390,9 @@ var StudentService = {
     if (updates.emergency_contact_phone !== void 0) {
       payload.emergency_contact_phone = updates.emergency_contact_phone?.trim() || null;
     }
+    if (updates.is_online !== void 0) {
+      payload.is_online = !!updates.is_online;
+    }
     const gymId = updates.gym_id ?? updates.gymId ?? DEFAULT_GYM_ID;
     delete payload.gym_id;
     if (Object.keys(payload).length === 0) {
@@ -259,6 +421,7 @@ var StudentService = {
         emergency_contact_phone,
         access_code,
         has_custom_code,
+        is_online,
         created_at,
         updated_at
       `).maybeSingle();
@@ -853,7 +1016,12 @@ import { Router as Router6 } from "express";
 import { createClient as createClient2 } from "@supabase/supabase-js";
 
 // server/services/SubscriptionService.ts
-function mapRow(row) {
+var DEMO_GYM_ID = "11111111-1111-1111-1111-111111111111";
+function fireActivity(gymId, eventType, data) {
+  if (!gymId || gymId === DEMO_GYM_ID) return;
+  ActivityEventsService.log({ gym_id: gymId, event_type: eventType, event_data: data ?? null }).catch((err) => console.error(`activity log ${eventType} failed:`, err));
+}
+function mapRow2(row) {
   return {
     ...row,
     gym_name: row.gym?.name ?? "Desconocido",
@@ -867,20 +1035,20 @@ var SubscriptionService = {
   async getAll() {
     const { data, error } = await supabase.from("gym_subscriptions").select(GYM_SELECT).order("created_at", { ascending: false });
     if (error) throw error;
-    return (data || []).map(mapRow);
+    return (data || []).map(mapRow2);
   },
   async getByGymId(gymId) {
     const { data, error } = await supabase.from("gym_subscriptions").select(GYM_SELECT).eq("gym_id", gymId).maybeSingle();
     if (error) throw error;
     if (!data) return null;
-    return mapRow(data);
+    return mapRow2(data);
   },
   async upsert(gymId, updates) {
     const { gym_name, owner_email, owner_phone, gym_type, ...rest } = updates;
     const payload = { ...rest, gym_id: gymId };
     const { data, error } = await supabase.from("gym_subscriptions").upsert(payload, { onConflict: "gym_id" }).select(GYM_SELECT).single();
     if (error) throw error;
-    return mapRow(data);
+    return mapRow2(data);
   },
   async activate(gymId, periodEnd, planTier, skipPaymentCheck = false) {
     if (!skipPaymentCheck) {
@@ -889,13 +1057,15 @@ var SubscriptionService = {
         throw new Error("No se puede activar: el gimnasio no tiene pagos registrados. Registr\xE1 un pago primero.");
       }
     }
-    return this.upsert(gymId, {
+    const updated = await this.upsert(gymId, {
       status: "active",
       current_period_start: (/* @__PURE__ */ new Date()).toISOString(),
       current_period_end: periodEnd,
       access_enabled: true,
       ...planTier ? { plan_tier: planTier } : {}
     });
+    fireActivity(gymId, "gym_activated");
+    return updated;
   },
   async suspend(gymId) {
     return this.upsert(gymId, { status: "suspended", access_enabled: false });
@@ -944,7 +1114,9 @@ var SubscriptionService = {
       ...monthlyPrice != null ? { monthly_price: monthlyPrice } : {}
     }]).select(GYM_SELECT).single();
     if (error) throw error;
-    return mapRow(data);
+    const created = mapRow2(data);
+    fireActivity(created.gym_id, "gym_registered", { plan_tier: planTier, gym_type: gymType });
+    return created;
   },
   // ── Billing payments ───────────────────────────────────────────────────────
   async getBillingPayments(gymId) {
@@ -981,6 +1153,7 @@ var SubscriptionService = {
     const { data, error } = await supabase.from("gym_billing_payments").insert([payload]).select("*").single();
     if (error) throw error;
     const { data: gym } = await supabase.from("gyms").select("name").eq("id", payment.gym_id).maybeSingle();
+    fireActivity(payment.gym_id, "first_payment_registered", { amount: payload.amount, method: payload.payment_method });
     await this.activate(payment.gym_id, payment.period_end, void 0, true);
     return { ...data, gym_name: gym?.name ?? "Desconocido" };
   }
@@ -1220,12 +1393,52 @@ REGLAS PRINCIPALES:
    segun la duracion planificada, mencionalo: "Estas en semana 3 de 4 del
    bloque de fuerza, la proxima semana arrancaria la transicion a potencia."
 
-8. FORMATO: Maximo 4-6 oraciones. Directo, sin relleno, sin disclaimers
-   medicos. Hablale al PT como un colega.
+8. FORMATO DE SALIDA: Devolv\xE9 SOLO un objeto JSON v\xE1lido con este schema exacto
+   (sin texto fuera del JSON, sin markdown, sin code fences):
+
+   {
+     "resumen": "una oraci\xF3n (m\xE1x 25 palabras) que sintetice el estado del alumno hoy",
+     "preocupaciones": ["bullet concreto 1", "bullet concreto 2"],
+     "positivos": ["bullet concreto 1"],
+     "sugerencias": ["acci\xF3n espec\xEDfica con ejercicio/peso/reps/RPE", "acci\xF3n 2"],
+     "nota": "opcional \u2014 texto breve de cierre o null"
+   }
+
+   Reglas del JSON:
+   - "resumen" y "sugerencias" son obligatorios. "sugerencias" debe tener al menos 1 item.
+   - "preocupaciones" y "positivos" pueden ser arrays vac\xEDos [] si no hay nada relevante.
+   - M\xE1ximo 4 bullets por array. Cada bullet: una oraci\xF3n, directa, sin "considera"/"tal vez".
+   - "nota" puede ser null si no hace falta. Usala solo para contexto extra, no para otra sugerencia.
+   - Hablale al PT como un colega, sin disclaimers m\xE9dicos ni relleno.
 
 9. Si no hay perfil de planificacion (bloque "planning" vacio o con valores default),
    da sugerencias mas genericas basandote en los datos de progreso y entrenamiento.
-   Esto es aceptable pero menciona que completar el plan mejoraria la precision.`;
+   Esto es aceptable pero mencionalo en "nota".`;
+function normalizeAnalysisJson(raw) {
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") throw new Error("not an object");
+    const normalized = {
+      resumen: typeof parsed.resumen === "string" ? parsed.resumen : "",
+      preocupaciones: Array.isArray(parsed.preocupaciones) ? parsed.preocupaciones.filter((x) => typeof x === "string" && x.trim()) : [],
+      positivos: Array.isArray(parsed.positivos) ? parsed.positivos.filter((x) => typeof x === "string" && x.trim()) : [],
+      sugerencias: Array.isArray(parsed.sugerencias) ? parsed.sugerencias.filter((x) => typeof x === "string" && x.trim()) : [],
+      nota: typeof parsed.nota === "string" && parsed.nota.trim() ? parsed.nota : null
+    };
+    if (!normalized.resumen && normalized.sugerencias.length === 0) {
+      throw new Error("empty required fields");
+    }
+    return JSON.stringify(normalized);
+  } catch {
+    return JSON.stringify({
+      resumen: raw.slice(0, 500),
+      preocupaciones: [],
+      positivos: [],
+      sugerencias: [],
+      nota: null
+    });
+  }
+}
 var AIAnalysisServerService = {
   async countThisWeek(studentId) {
     const now = /* @__PURE__ */ new Date();
@@ -1546,10 +1759,12 @@ ${JSON.stringify(context, null, 2)}`;
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: userMessage }
       ],
-      max_tokens: 500,
-      temperature: 0.7
+      max_tokens: 700,
+      temperature: 0.7,
+      response_format: { type: "json_object" }
     });
-    const content = response.choices[0]?.message?.content ?? "";
+    const rawContent = response.choices[0]?.message?.content ?? "";
+    const content = normalizeAnalysisJson(rawContent);
     const usage = response.usage;
     return {
       content,
@@ -1659,6 +1874,360 @@ router9.delete("/:studentId", async (req, res) => {
 });
 var planProfiles_default = router9;
 
+// server/routes/outreach.ts
+import { Router as Router10 } from "express";
+
+// server/services/OutreachService.ts
+var TABLE2 = "outreach_daily_logs";
+function mapRow3(row) {
+  return {
+    id: row.id,
+    date: row.date,
+    messages_sent: Number(row.messages_sent ?? 0),
+    replies_received: Number(row.replies_received ?? 0),
+    conversations_started: Number(row.conversations_started ?? 0),
+    demos_scheduled: Number(row.demos_scheduled ?? 0),
+    notes: row.notes ?? null,
+    created_at: row.created_at,
+    updated_at: row.updated_at
+  };
+}
+var OutreachService = {
+  async getRange(from, to) {
+    let q = supabase.from(TABLE2).select("*").order("date", { ascending: false });
+    if (from) q = q.gte("date", from);
+    if (to) q = q.lte("date", to);
+    const { data, error } = await q;
+    if (error) throw error;
+    return (data || []).map(mapRow3);
+  },
+  async getByDate(date) {
+    const { data, error } = await supabase.from(TABLE2).select("*").eq("date", date).maybeSingle();
+    if (error) throw error;
+    return data ? mapRow3(data) : null;
+  },
+  async upsertDay(date, input) {
+    const payload = {
+      date,
+      messages_sent: Math.max(0, Math.floor(Number(input.messages_sent ?? 0))),
+      replies_received: Math.max(0, Math.floor(Number(input.replies_received ?? 0))),
+      conversations_started: Math.max(0, Math.floor(Number(input.conversations_started ?? 0))),
+      demos_scheduled: Math.max(0, Math.floor(Number(input.demos_scheduled ?? 0))),
+      notes: input.notes ?? null
+    };
+    const { data, error } = await supabase.from(TABLE2).upsert(payload, { onConflict: "date" }).select("*").single();
+    if (error) throw error;
+    return mapRow3(data);
+  },
+  async deleteDay(date) {
+    const { error } = await supabase.from(TABLE2).delete().eq("date", date);
+    if (error) throw error;
+  }
+};
+
+// server/routes/outreach.ts
+var router10 = Router10();
+router10.get("/", async (req, res) => {
+  try {
+    const from = req.query.from;
+    const to = req.query.to;
+    const logs = await OutreachService.getRange(from, to);
+    res.json(logs);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+router10.get("/:date", async (req, res) => {
+  try {
+    const log = await OutreachService.getByDate(req.params.date);
+    if (!log) return res.status(404).json({ error: "Not found" });
+    res.json(log);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+router10.put("/:date", async (req, res) => {
+  try {
+    const log = await OutreachService.upsertDay(req.params.date, req.body ?? {});
+    res.json(log);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+router10.delete("/:date", async (req, res) => {
+  try {
+    await OutreachService.deleteDay(req.params.date);
+    res.status(204).end();
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+var outreach_default = router10;
+
+// server/routes/activity.ts
+import { Router as Router11 } from "express";
+var router11 = Router11();
+router11.post("/log", async (req, res) => {
+  try {
+    const { gym_id, event_type, event_data, user_id } = req.body ?? {};
+    if (!gym_id || !event_type) {
+      return res.status(400).json({ error: "gym_id y event_type son requeridos" });
+    }
+    const allowed = ["login", "onboarding_step_completed"];
+    if (!allowed.includes(event_type)) {
+      return res.status(400).json({ error: `event_type '${event_type}' no permitido desde el cliente` });
+    }
+    const row = await ActivityEventsService.log({ gym_id, event_type, event_data, user_id });
+    res.status(201).json(row);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+router11.get("/funnel", async (_req, res) => {
+  try {
+    const funnel = await ActivityEventsService.getFunnel();
+    res.json(funnel);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+router11.get("/retention", async (req, res) => {
+  try {
+    const weeks = Math.max(1, Math.min(26, Number(req.query.weeks) || 8));
+    const cohorts = await ActivityEventsService.getRetention(weeks);
+    res.json(cohorts);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+router11.get("/gym/:gymId", async (req, res) => {
+  try {
+    const events = await ActivityEventsService.getForGym(req.params.gymId);
+    res.json(events);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+var activity_default = router11;
+
+// server/routes/running.ts
+import { Router as Router12 } from "express";
+
+// server/services/StudentDisciplinesService.ts
+var StudentDisciplinesService = {
+  async listForStudent(studentId) {
+    const { data, error } = await supabase.from("student_disciplines").select("*").eq("student_id", studentId).order("created_at", { ascending: true });
+    if (error) throw error;
+    return data || [];
+  },
+  async add(gymId, studentId, discipline) {
+    const { data, error } = await supabase.from("student_disciplines").upsert(
+      { gym_id: gymId, student_id: studentId, discipline },
+      { onConflict: "student_id,discipline", ignoreDuplicates: false }
+    ).select("*").single();
+    if (error) throw error;
+    return data;
+  },
+  async remove(studentId, discipline) {
+    const { error } = await supabase.from("student_disciplines").delete().eq("student_id", studentId).eq("discipline", discipline);
+    if (error) throw error;
+  }
+};
+
+// server/services/RunningSessionService.ts
+function isoMonday(d) {
+  const out = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  const dow = out.getUTCDay();
+  const diff = (dow + 6) % 7;
+  out.setUTCDate(out.getUTCDate() - diff);
+  return out;
+}
+function fmtDate(d) {
+  return d.toISOString().slice(0, 10);
+}
+var RunningSessionService = {
+  async getForStudent(studentId, opts = {}) {
+    let q = supabase.from("running_sessions").select("*").eq("student_id", studentId).order("session_date", { ascending: false }).order("created_at", { ascending: false });
+    if (opts.from) q = q.gte("session_date", opts.from);
+    if (opts.to) q = q.lte("session_date", opts.to);
+    if (opts.limit && opts.limit > 0) q = q.limit(opts.limit);
+    const { data, error } = await q;
+    if (error) throw error;
+    return data || [];
+  },
+  async getById(id) {
+    const { data, error } = await supabase.from("running_sessions").select("*").eq("id", id).maybeSingle();
+    if (error) throw error;
+    return data ?? null;
+  },
+  async create(input) {
+    const payload = {
+      gym_id: input.gym_id,
+      student_id: input.student_id,
+      session_date: input.session_date,
+      distance_km: input.distance_km,
+      duration_seconds: input.duration_seconds,
+      avg_hr_bpm: input.avg_hr_bpm ?? null,
+      perceived_effort: input.perceived_effort ?? null,
+      session_type: input.session_type,
+      notes: input.notes ?? null,
+      logged_by: input.logged_by ?? "pt"
+    };
+    const { data, error } = await supabase.from("running_sessions").insert(payload).select("*").single();
+    if (error) throw error;
+    return data;
+  },
+  async update(id, patch) {
+    const allowed = {};
+    if (patch.session_date !== void 0) allowed.session_date = patch.session_date;
+    if (patch.distance_km !== void 0) allowed.distance_km = patch.distance_km;
+    if (patch.duration_seconds !== void 0) allowed.duration_seconds = patch.duration_seconds;
+    if (patch.avg_hr_bpm !== void 0) allowed.avg_hr_bpm = patch.avg_hr_bpm;
+    if (patch.perceived_effort !== void 0) allowed.perceived_effort = patch.perceived_effort;
+    if (patch.session_type !== void 0) allowed.session_type = patch.session_type;
+    if (patch.notes !== void 0) allowed.notes = patch.notes;
+    allowed.updated_at = (/* @__PURE__ */ new Date()).toISOString();
+    const { data, error } = await supabase.from("running_sessions").update(allowed).eq("id", id).select("*").single();
+    if (error) throw error;
+    return data;
+  },
+  async delete(id) {
+    const { error } = await supabase.from("running_sessions").delete().eq("id", id);
+    if (error) throw error;
+  },
+  async getWeeklyTotals(studentId, weeks = 8) {
+    const today = /* @__PURE__ */ new Date();
+    const currentMonday = isoMonday(today);
+    const startMonday = new Date(currentMonday);
+    startMonday.setUTCDate(startMonday.getUTCDate() - (weeks - 1) * 7);
+    const fromIso = fmtDate(startMonday);
+    const { data, error } = await supabase.from("running_sessions").select("session_date, distance_km, duration_seconds").eq("student_id", studentId).gte("session_date", fromIso);
+    if (error) throw error;
+    const buckets = /* @__PURE__ */ new Map();
+    for (let i = 0; i < weeks; i++) {
+      const wk = new Date(startMonday);
+      wk.setUTCDate(wk.getUTCDate() + i * 7);
+      const key = fmtDate(wk);
+      buckets.set(key, { week_start: key, km: 0, minutes: 0, sessions: 0 });
+    }
+    for (const row of data || []) {
+      const d = /* @__PURE__ */ new Date(`${row.session_date}T00:00:00Z`);
+      const key = fmtDate(isoMonday(d));
+      const bucket = buckets.get(key);
+      if (!bucket) continue;
+      bucket.km += Number(row.distance_km) || 0;
+      bucket.minutes += (Number(row.duration_seconds) || 0) / 60;
+      bucket.sessions += 1;
+    }
+    return Array.from(buckets.values()).map((b) => ({
+      ...b,
+      km: Math.round(b.km * 100) / 100,
+      minutes: Math.round(b.minutes * 10) / 10
+    })).sort((a, b) => a.week_start.localeCompare(b.week_start));
+  }
+};
+
+// server/routes/running.ts
+var router12 = Router12();
+var VALID_DISCIPLINES = ["gym", "running"];
+router12.get("/students/:id/disciplines", async (req, res) => {
+  try {
+    const list = await StudentDisciplinesService.listForStudent(req.params.id);
+    res.json(list);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+router12.post("/students/:id/disciplines", async (req, res) => {
+  try {
+    const { gym_id, discipline } = req.body;
+    if (!gym_id) return res.status(400).json({ error: "gym_id is required" });
+    if (!VALID_DISCIPLINES.includes(discipline)) {
+      return res.status(400).json({ error: `discipline must be one of: ${VALID_DISCIPLINES.join(", ")}` });
+    }
+    const row = await StudentDisciplinesService.add(gym_id, req.params.id, discipline);
+    res.status(201).json(row);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+router12.delete("/students/:id/disciplines/:discipline", async (req, res) => {
+  try {
+    const { discipline } = req.params;
+    if (!VALID_DISCIPLINES.includes(discipline)) {
+      return res.status(400).json({ error: `discipline must be one of: ${VALID_DISCIPLINES.join(", ")}` });
+    }
+    await StudentDisciplinesService.remove(req.params.id, discipline);
+    res.status(204).end();
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+router12.get("/students/:id/sessions", async (req, res) => {
+  try {
+    const limit = req.query.limit ? Number(req.query.limit) : void 0;
+    const sessions = await RunningSessionService.getForStudent(req.params.id, {
+      from: req.query.from,
+      to: req.query.to,
+      limit: Number.isFinite(limit) ? limit : void 0
+    });
+    res.json(sessions);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+router12.get("/students/:id/sessions/weekly", async (req, res) => {
+  try {
+    const weeks = req.query.weeks ? Math.max(1, Math.min(52, Number(req.query.weeks))) : 8;
+    const totals = await RunningSessionService.getWeeklyTotals(req.params.id, weeks);
+    res.json(totals);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+router12.post("/sessions", async (req, res) => {
+  try {
+    const body = req.body || {};
+    if (!body.gym_id || !body.student_id || !body.session_date) {
+      return res.status(400).json({ error: "gym_id, student_id, session_date are required" });
+    }
+    if (!(Number(body.distance_km) > 0)) {
+      return res.status(400).json({ error: "distance_km must be > 0" });
+    }
+    if (!(Number(body.duration_seconds) > 0)) {
+      return res.status(400).json({ error: "duration_seconds must be > 0" });
+    }
+    const session = await RunningSessionService.create(body);
+    res.status(201).json(session);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+router12.put("/sessions/:id", async (req, res) => {
+  try {
+    const patch = req.body || {};
+    if (patch.distance_km !== void 0 && !(Number(patch.distance_km) > 0)) {
+      return res.status(400).json({ error: "distance_km must be > 0" });
+    }
+    if (patch.duration_seconds !== void 0 && !(Number(patch.duration_seconds) > 0)) {
+      return res.status(400).json({ error: "duration_seconds must be > 0" });
+    }
+    const session = await RunningSessionService.update(req.params.id, patch);
+    res.json(session);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+router12.delete("/sessions/:id", async (req, res) => {
+  try {
+    await RunningSessionService.delete(req.params.id);
+    res.status(204).end();
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+var running_default = router12;
+
 // api/_handler.ts
 var app = express();
 app.use(cors());
@@ -1672,6 +2241,9 @@ app.use("/api/subscriptions", subscriptions_default);
 app.use("/api/staff", staff_default);
 app.use("/api/ai", ai_default);
 app.use("/api/plan-profiles", planProfiles_default);
+app.use("/api/outreach", outreach_default);
+app.use("/api/activity", activity_default);
+app.use("/api/running", running_default);
 app.get("/api/health", async (_req, res) => {
   const supabaseUrl2 = process.env.SUPABASE_URL;
   const supabaseKey2 = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_ANON_KEY;
