@@ -25,10 +25,13 @@ import {
   X,
   Play,
   Loader2,
+  Footprints,
 } from "lucide-react";
 import { WorkoutPlanService } from "../services/WorkoutPlanService";
 import { PTSessionService } from "../services/pt/PTSessionService";
 import { ExerciseVideoModal } from "../components/ExerciseVideoModal";
+import { RunningTab } from "../components/pt/RunningTab";
+import { api } from "../services/api";
 import {
   WorkoutOption,
   WorkoutSession,
@@ -235,6 +238,18 @@ export default function StudentPortalPTView({
   const [showNotes, setShowNotes] = useState(false);
   const [showMeasurements, setShowMeasurements] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [showRunning, setShowRunning] = useState(false);
+
+  // Disciplinas (atletas híbridos)
+  const [disciplines, setDisciplines] = useState<string[]>([]);
+  const isRunner = disciplines.includes('running');
+
+  useEffect(() => {
+    if (!student?.id) return;
+    api.running.listDisciplines(student.id)
+      .then(rows => setDisciplines(rows.map(r => r.discipline)))
+      .catch(() => setDisciplines([]));
+  }, [student?.id]);
   const [videoModal, setVideoModal] = useState<{
     isOpen: boolean;
     exerciseName: string;
@@ -1643,6 +1658,33 @@ export default function StudentPortalPTView({
               </div>
             )}
           </div>
+
+          {/* ── Mi Running (solo atletas híbridos) ────────────────────────── */}
+          {isRunner && (
+            <div className={`${cardSecondary} overflow-hidden`}>
+              <button
+                onClick={() => setShowRunning((v) => !v)}
+                className="w-full px-3 py-2.5 flex items-center gap-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+              >
+                <Footprints size={13} className="text-violet-500 shrink-0" />
+                <span className="flex-1 text-left text-[13px] font-semibold text-slate-700 dark:text-slate-300">Mi Running</span>
+                <ChevronRight
+                  size={14}
+                  className={`text-slate-400 dark:text-slate-600 transition-transform ${showRunning ? "rotate-90" : ""}`}
+                />
+              </button>
+
+              {showRunning && (
+                <div className={`border-t ${cardBorder} p-3`}>
+                  <RunningTab
+                    studentId={student.id}
+                    gymId={student.gym_id}
+                    loggedBy="student"
+                  />
+                </div>
+              )}
+            </div>
+          )}
 
           {/* ── Fotos de progreso (upload section, collapsed) ─────────────── */}
           {photosLoaded && (

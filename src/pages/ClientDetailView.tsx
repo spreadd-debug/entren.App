@@ -4,7 +4,7 @@ import {
   Dumbbell, PlayCircle, Bell, HeartPulse,
   Ruler, Target, FileText, Activity, KeyRound, Copy, Check, RefreshCw, Share2,
   TrendingUp, Calendar, Apple, Camera, ClipboardList,
-  Repeat, Layers, Zap, Gift, DollarSign,
+  Repeat, Layers, Zap, Gift, DollarSign, Footprints,
 } from 'lucide-react';
 import { Card, StatusBadge, Button, Input } from '../components/UI';
 import { useNavigate } from 'react-router-dom';
@@ -26,8 +26,9 @@ import { WellnessCheckInPanel } from '../components/pt/WellnessCheckInPanel';
 import { NutritionPlanPanel } from '../components/pt/NutritionPlanPanel';
 import { ProgressPhotosPanel } from '../components/pt/ProgressPhotosPanel';
 import { StudentSummaryCard } from '../components/pt/StudentSummaryCard';
+import { RunningTab } from '../components/pt/RunningTab';
 
-type Tab = 'overview' | 'anthropometry' | 'measurements' | 'goals' | 'notes' | 'nutrition' | 'wellness' | 'photos' | 'workouts';
+type Tab = 'overview' | 'anthropometry' | 'measurements' | 'goals' | 'notes' | 'nutrition' | 'wellness' | 'photos' | 'workouts' | 'running';
 
 const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: 'overview', label: 'General', icon: Activity },
@@ -39,6 +40,7 @@ const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: 'wellness', label: 'Bienestar', icon: HeartPulse },
   { id: 'photos', label: 'Fotos', icon: Camera },
   { id: 'workouts', label: 'Rutinas', icon: Dumbbell },
+  { id: 'running', label: 'Running', icon: Footprints },
 ];
 
 interface ClientDetailViewProps {
@@ -82,6 +84,47 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({
 
   // Pricing: active package (pricing_model='paquete')
   const [activePackage, setActivePackage] = useState<StudentPackage | null>(null);
+
+  // Disciplinas: marca de atleta híbrido (running)
+  const [disciplines, setDisciplines] = useState<string[]>([]);
+  const [disciplinesLoaded, setDisciplinesLoaded] = useState(false);
+  const [togglingRunning, setTogglingRunning] = useState(false);
+  const isRunner = disciplines.includes('running');
+
+  useEffect(() => {
+    setDisciplinesLoaded(false);
+    api.running.listDisciplines(student.id)
+      .then(rows => setDisciplines(rows.map(r => r.discipline)))
+      .catch(() => setDisciplines([]))
+      .finally(() => setDisciplinesLoaded(true));
+  }, [student.id]);
+
+  const handleAddRunning = async () => {
+    setTogglingRunning(true);
+    try {
+      await api.running.addDiscipline(student.id, gymId, 'running');
+      setDisciplines(prev => Array.from(new Set([...prev, 'running'])));
+      toast.success('Marcado como atleta de running');
+    } catch (err: any) {
+      toast.error(err?.message || 'No se pudo marcar como atleta de running');
+    } finally {
+      setTogglingRunning(false);
+    }
+  };
+
+  const handleRemoveRunning = async () => {
+    if (!confirm('Quitar la disciplina running? Las corridas registradas se conservan.')) return;
+    setTogglingRunning(true);
+    try {
+      await api.running.removeDiscipline(student.id, 'running');
+      setDisciplines(prev => prev.filter(d => d !== 'running'));
+      toast.success('Disciplina running removida');
+    } catch (err: any) {
+      toast.error(err?.message || 'No se pudo quitar');
+    } finally {
+      setTogglingRunning(false);
+    }
+  };
 
   useEffect(() => {
     PlanProfileService.get(student.id)
@@ -675,6 +718,40 @@ export const ClientDetailView: React.FC<ClientDetailViewProps> = ({
 
       {activeTab === 'photos' && (
         <ProgressPhotosPanel studentId={student.id} gymId={gymId} />
+      )}
+
+      {activeTab === 'running' && (
+        <div className="space-y-4">
+          {!disciplinesLoaded ? (
+            <Card className="p-6 text-center text-sm text-slate-400">Cargando…</Card>
+          ) : !isRunner ? (
+            <Card className="p-6 text-center space-y-4">
+              <Footprints className="mx-auto text-violet-500" size={32} />
+              <div>
+                <h3 className="font-bold text-slate-900 dark:text-white">Atleta híbrido</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                  Marcá a este cliente como atleta de running para registrar corridas y seguir su volumen semanal.
+                </p>
+              </div>
+              <Button variant="primary" onClick={handleAddRunning} disabled={togglingRunning}>
+                <Footprints size={16} /> Marcar como atleta de running
+              </Button>
+            </Card>
+          ) : (
+            <>
+              <div className="flex justify-end">
+                <button
+                  onClick={handleRemoveRunning}
+                  disabled={togglingRunning}
+                  className="text-xs text-slate-400 hover:text-rose-500 transition-colors"
+                >
+                  Quitar disciplina running
+                </button>
+              </div>
+              <RunningTab studentId={student.id} gymId={gymId} loggedBy="pt" />
+            </>
+          )}
+        </div>
       )}
 
       {activeTab === 'workouts' && (

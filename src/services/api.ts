@@ -13,6 +13,11 @@ import {
   GymActivityEventType,
   OnboardingFunnel,
   RetentionCohort,
+  StudentDiscipline,
+  StudentDisciplineRow,
+  RunningSession,
+  RunningSessionInput,
+  RunningWeeklyTotal,
 } from '../../shared/types';
 
 import { isNative } from '../lib/platform';
@@ -519,6 +524,75 @@ export const api = {
 
     async remove(userId: string): Promise<void> {
       await fetchJson(`${API_BASE}/staff/${userId}`, { method: 'DELETE' });
+    },
+  },
+
+  running: {
+    async listDisciplines(studentId: string): Promise<StudentDisciplineRow[]> {
+      try {
+        const raw = await fetchJson(`${API_BASE}/running/students/${studentId}/disciplines`);
+        return ensureArray(raw);
+      } catch (error) {
+        console.error('running.listDisciplines failed:', error);
+        return [];
+      }
+    },
+
+    async addDiscipline(studentId: string, gymId: string, discipline: StudentDiscipline): Promise<StudentDisciplineRow> {
+      return fetchJson(`${API_BASE}/running/students/${studentId}/disciplines`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gym_id: gymId, discipline }),
+      });
+    },
+
+    async removeDiscipline(studentId: string, discipline: StudentDiscipline): Promise<void> {
+      await fetchJson(`${API_BASE}/running/students/${studentId}/disciplines/${discipline}`, { method: 'DELETE' });
+    },
+
+    async listSessions(studentId: string, opts: { from?: string; to?: string; limit?: number } = {}): Promise<RunningSession[]> {
+      try {
+        const params = new URLSearchParams();
+        if (opts.from) params.set('from', opts.from);
+        if (opts.to) params.set('to', opts.to);
+        if (opts.limit) params.set('limit', String(opts.limit));
+        const qs = params.toString();
+        const raw = await fetchJson(`${API_BASE}/running/students/${studentId}/sessions${qs ? `?${qs}` : ''}`);
+        return ensureArray(raw);
+      } catch (error) {
+        console.error('running.listSessions failed:', error);
+        return [];
+      }
+    },
+
+    async weeklyTotals(studentId: string, weeks = 8): Promise<RunningWeeklyTotal[]> {
+      try {
+        const raw = await fetchJson(`${API_BASE}/running/students/${studentId}/sessions/weekly?weeks=${weeks}`);
+        return ensureArray(raw);
+      } catch (error) {
+        console.error('running.weeklyTotals failed:', error);
+        return [];
+      }
+    },
+
+    async createSession(input: RunningSessionInput): Promise<RunningSession> {
+      return fetchJson(`${API_BASE}/running/sessions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+    },
+
+    async updateSession(id: string, patch: Partial<RunningSessionInput>): Promise<RunningSession> {
+      return fetchJson(`${API_BASE}/running/sessions/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      });
+    },
+
+    async deleteSession(id: string): Promise<void> {
+      await fetchJson(`${API_BASE}/running/sessions/${id}`, { method: 'DELETE' });
     },
   },
 };

@@ -9,6 +9,7 @@ import automationRoutes from './routes/automation';
 import subscriptionRoutes from './routes/subscriptions';
 import outreachRoutes from './routes/outreach';
 import activityRoutes from './routes/activity';
+import runningRoutes from './routes/running';
 import aiRoutes from './routes/ai';
 import { StudentService } from "./services/StudentService";
 import { PlanService } from "./services/PlanService";
@@ -29,6 +30,7 @@ app.use('/api/automation', automationRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api/outreach', outreachRoutes);
 app.use('/api/activity', activityRoutes);
+app.use('/api/running', runningRoutes);
 app.use('/api/ai', aiRoutes);
 
 // Legacy/Combined data endpoint

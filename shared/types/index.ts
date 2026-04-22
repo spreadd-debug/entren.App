@@ -769,3 +769,57 @@ export interface RoutineDayDraft extends Omit<RoutineDay, 'id' | 'routine_id'> {
   id: string;
   blocks: RoutineBlockDraft[];
 }
+
+// ─── Running module (atletas híbridos) ──────────────────────────────────────
+
+export type StudentDiscipline = 'gym' | 'running';
+
+export interface StudentDisciplineRow {
+  id: string;
+  gym_id: string;
+  student_id: string;
+  discipline: StudentDiscipline;
+  started_at: string;
+  created_at: string;
+}
+
+export type RunningSessionType = 'easy' | 'long' | 'tempo' | 'intervals' | 'race' | 'other';
+
+export type RunningLoggedBy = 'pt' | 'student';
+
+export interface RunningSession {
+  id: string;
+  gym_id: string;
+  student_id: string;
+  session_date: string;
+  distance_km: number;
+  duration_seconds: number;
+  pace_seconds_per_km: number;
+  avg_hr_bpm?: number | null;
+  perceived_effort?: number | null;
+  session_type: RunningSessionType;
+  notes?: string | null;
+  logged_by: RunningLoggedBy;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RunningSessionInput {
+  gym_id: string;
+  student_id: string;
+  session_date: string;
+  distance_km: number;
+  duration_seconds: number;
+  avg_hr_bpm?: number | null;
+  perceived_effort?: number | null;
+  session_type: RunningSessionType;
+  notes?: string | null;
+  logged_by?: RunningLoggedBy;
+}
+
+export interface RunningWeeklyTotal {
+  week_start: string;
+  km: number;
+  minutes: number;
+  sessions: number;
+}
