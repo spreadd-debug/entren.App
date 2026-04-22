@@ -44,6 +44,8 @@ export interface Student {
   session_rate?: number;
   // Modality (PT only): true = entrena online y carga sus propios sets desde el portal
   is_online: boolean;
+  // Fecha de nacimiento (universal): la consume nutrition (calc_age) y running (HRmax/Tanaka).
+  birth_date?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -842,4 +844,42 @@ export interface RunningWeeklyTotal {
   km: number;
   minutes: number;
   sessions: number;
+}
+
+// ── Running training load (TRIMP / CTL / ATL / TSB) ──────────────────────────
+export type RunningAlertKind =
+  | 'volume_spike'
+  | 'inactive'
+  | 'monotony'
+  | 'tsb_negative';
+
+export type RunningAlertSeverity = 'info' | 'warn' | 'alert';
+
+export interface RunningAlert {
+  kind: RunningAlertKind;
+  severity: RunningAlertSeverity;
+  message: string;
+  metadata: Record<string, number | string>;
+}
+
+export interface RunningLoadDay {
+  date: string;
+  load: number;
+  ctl: number;
+  atl: number;
+  tsb: number;
+}
+
+export interface RunningLoadSummary {
+  has_birth_date: boolean;
+  age: number | null;
+  hr_max: number | null;
+  current: { ctl: number; atl: number; tsb: number };
+  history: RunningLoadDay[];
+  alerts: RunningAlert[];
+}
+
+export interface RunningGymAlert extends RunningAlert {
+  student_id: string;
+  student_name: string;
 }

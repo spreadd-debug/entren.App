@@ -78,6 +78,7 @@ export const NewStudentView: React.FC<NewStudentViewProps> = ({
     nombre: '',
     apellido: '',
     telefono: '',
+    birth_date: '',
     planId: '',
     price: 0,
     startDate: new Date().toISOString().split('T')[0],
@@ -180,6 +181,7 @@ export const NewStudentView: React.FC<NewStudentViewProps> = ({
       nombre: formData.nombre,
       apellido: formData.apellido,
       telefono: formData.telefono,
+      birth_date: formData.birth_date || null,
       plan_id: model === 'mensual' ? formData.planId : null,
       status: formData.status,
       last_payment_date: registerPayment && model === 'mensual' ? formData.startDate : null,
@@ -295,6 +297,35 @@ export const NewStudentView: React.FC<NewStudentViewProps> = ({
                     setFormData({ ...formData, telefono: e.target.value })
                   }
                 />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 ml-1">
+                Fecha de nacimiento <span className="text-slate-300 normal-case font-normal tracking-normal">(opcional)</span>
+              </label>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="date"
+                  className="h-12 flex-1"
+                  max={new Date().toISOString().slice(0, 10)}
+                  value={formData.birth_date}
+                  onChange={(e) =>
+                    setFormData({ ...formData, birth_date: e.target.value })
+                  }
+                />
+                {formData.birth_date && (
+                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                    {(() => {
+                      const b = new Date(`${formData.birth_date}T00:00:00`);
+                      const t = new Date();
+                      let a = t.getFullYear() - b.getFullYear();
+                      const m = t.getMonth() - b.getMonth();
+                      if (m < 0 || (m === 0 && t.getDate() < b.getDate())) a -= 1;
+                      return a >= 0 && a < 130 ? `${a} años` : '';
+                    })()}
+                  </span>
+                )}
               </div>
             </div>
 

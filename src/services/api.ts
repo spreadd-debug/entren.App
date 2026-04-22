@@ -18,6 +18,8 @@ import {
   RunningSession,
   RunningSessionInput,
   RunningWeeklyTotal,
+  RunningLoadSummary,
+  RunningGymAlert,
   StravaConnection,
 } from '../../shared/types';
 
@@ -594,6 +596,27 @@ export const api = {
 
     async deleteSession(id: string): Promise<void> {
       await fetchJson(`${API_BASE}/running/sessions/${id}`, { method: 'DELETE' });
+    },
+
+    load: {
+      async getSummary(studentId: string): Promise<RunningLoadSummary | null> {
+        try {
+          return await fetchJson(`${API_BASE}/running/load/${studentId}`);
+        } catch (error) {
+          console.error('running.load.getSummary failed:', error);
+          return null;
+        }
+      },
+
+      async getGymAlerts(gymId: string): Promise<RunningGymAlert[]> {
+        try {
+          const raw = await fetchJson(`${API_BASE}/running/load/gym/${gymId}/alerts`);
+          return ensureArray((raw as any)?.alerts);
+        } catch (error) {
+          console.error('running.load.getGymAlerts failed:', error);
+          return [];
+        }
+      },
     },
   },
 

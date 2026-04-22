@@ -3,6 +3,7 @@ import { Activity, Plus, Pencil, Trash2, Loader2, Footprints } from 'lucide-reac
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Card, Button } from '../UI';
 import { LogRunModal } from '../running/LogRunModal';
+import { RunningLoadPanel } from './RunningLoadPanel';
 import { api } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
 import {
@@ -134,6 +135,9 @@ export const RunningTab: React.FC<RunningTabProps> = ({
 
   return (
     <div className="space-y-4">
+      {/* Carga de entrenamiento + alertas (solo vista PT) */}
+      {loggedBy === 'pt' && <RunningLoadPanel studentId={studentId} />}
+
       {/* Header con totales */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         <Card className="p-4">

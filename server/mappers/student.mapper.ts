@@ -21,6 +21,7 @@ type StudentDbRow = {
   emergency_contact_phone?: string | null;
   access_code?: string | null;
   is_online?: boolean | null;
+  birth_date?: string | null;
   created_at?: string;
   updated_at?: string;
 };
@@ -50,6 +51,7 @@ export function mapStudentRowToStudent(row: StudentDbRow): Student {
     emergency_contact_phone: row.emergency_contact_phone ?? undefined,
     access_code: row.access_code ?? undefined,
     is_online: row.is_online ?? false,
+    birth_date: row.birth_date ?? null,
     createdAt: row.created_at ?? '',
     updatedAt: row.updated_at ?? '',
   } as unknown as Student;

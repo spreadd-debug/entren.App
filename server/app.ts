@@ -10,6 +10,7 @@ import subscriptionRoutes from './routes/subscriptions';
 import outreachRoutes from './routes/outreach';
 import activityRoutes from './routes/activity';
 import runningRoutes from './routes/running';
+import runningLoadRoutes from './routes/runningLoad';
 import stravaRoutes from './routes/strava';
 import aiRoutes from './routes/ai';
 import { StudentService } from "./services/StudentService";
@@ -31,6 +32,8 @@ app.use('/api/automation', automationRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api/outreach', outreachRoutes);
 app.use('/api/activity', activityRoutes);
+// El path más específico DEBE ir antes del prefijo genérico (Express matchea por orden).
+app.use('/api/running/load', runningLoadRoutes);
 app.use('/api/running', runningRoutes);
 app.use('/api/strava', stravaRoutes);
 app.use('/api/ai', aiRoutes);

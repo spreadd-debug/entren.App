@@ -173,6 +173,7 @@ export const StudentDetailView: React.FC<StudentDetailViewProps> = ({
     observaciones_cobranza: (student as any).observaciones_cobranza ?? '',
     emergency_contact_name: (student as any).emergency_contact_name ?? '',
     emergency_contact_phone: (student as any).emergency_contact_phone ?? '',
+    birth_date: (student as any).birth_date ?? '',
   });
 
   const loadWorkoutData = async () => {
@@ -292,6 +293,7 @@ export const StudentDetailView: React.FC<StudentDetailViewProps> = ({
       nombre: editData.nombre.trim(),
       apellido: editData.apellido.trim(),
       precio_personalizado: precioNum,
+      birth_date: editData.birth_date || null,
     });
     setIsEditing(false);
   };
@@ -344,6 +346,33 @@ export const StudentDetailView: React.FC<StudentDetailViewProps> = ({
             value={editData.telefono}
             onChange={(e) => setEditData({ ...editData, telefono: e.target.value })}
           />
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 ml-1">
+              Fecha de nacimiento <span className="text-slate-400 font-normal">(opcional)</span>
+            </label>
+            <div className="flex items-center gap-2">
+              <Input
+                type="date"
+                className="flex-1"
+                max={new Date().toISOString().slice(0, 10)}
+                value={editData.birth_date}
+                onChange={(e) => setEditData({ ...editData, birth_date: e.target.value })}
+              />
+              {editData.birth_date && (
+                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                  {(() => {
+                    const b = new Date(`${editData.birth_date}T00:00:00`);
+                    const t = new Date();
+                    let a = t.getFullYear() - b.getFullYear();
+                    const m = t.getMonth() - b.getMonth();
+                    if (m < 0 || (m === 0 && t.getDate() < b.getDate())) a -= 1;
+                    return a >= 0 && a < 130 ? `${a} años` : '';
+                  })()}
+                </span>
+              )}
+            </div>
+          </div>
 
           <select
             className="w-full px-4 h-12 rounded-2xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 dark:text-white"

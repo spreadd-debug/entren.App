@@ -17,11 +17,12 @@ import {
   Plus,
 } from 'lucide-react';
 import { Card, Button } from '../components/UI';
-import { Student } from '../../shared/types';
+import { Student, RunningGymAlert } from '../../shared/types';
 import { WorkoutSessionService } from '../services/WorkoutSessionService';
 import { GoalsService } from '../services/pt/GoalsService';
 import { WellnessCheckInService } from '../services/pt/WellnessCheckInService';
 import { PTPaymentService } from '../services/pt/PTPaymentService';
+import { api } from '../services/api';
 
 interface PTDashboardViewProps {
   onNavigate: (view: string) => void;
@@ -60,6 +61,7 @@ export const PTDashboardView: React.FC<PTDashboardViewProps> = ({
   const [inactiveClients, setInactiveClients] = useState<Array<{ student: any; daysSince: number }>>([]);
   const [upcomingGoals, setUpcomingGoals] = useState<Array<{ studentName: string; studentId: string; goalType: string; targetDate: string; targetValue: string | null }>>([]);
   const [wellnessAlerts, setWellnessAlerts] = useState<Array<{ student: any; metric: string; label: string; value: number; emoji: string }>>([]);
+  const [runningAlerts, setRunningAlerts] = useState<RunningGymAlert[]>([]);
   const [avgAdherence, setAvgAdherence] = useState<number | null>(null);
   const [sessionsThisWeek, setSessionsThisWeek] = useState<number | null>(null);
   const [loadingInsights, setLoadingInsights] = useState(true);
@@ -94,6 +96,16 @@ export const PTDashboardView: React.FC<PTDashboardViewProps> = ({
     if (gymId) {
       PTPaymentService.getStats(gymId).then(setPaymentStats).catch(() => {});
     }
+  }, [gymId]);
+
+  // Alertas de running (carga aguda/crónica, ausencias, monotonía, TSB)
+  useEffect(() => {
+    if (!gymId) return;
+    let cancelled = false;
+    api.running.load.getGymAlerts(gymId)
+      .then(alerts => { if (!cancelled) setRunningAlerts(alerts); })
+      .catch(() => { if (!cancelled) setRunningAlerts([]); });
+    return () => { cancelled = true; };
   }, [gymId]);
 
   // Load insights: inactive clients + upcoming goals
@@ -418,6 +430,44 @@ export const PTDashboardView: React.FC<PTDashboardViewProps> = ({
                 <ChevronRight size={16} className="text-slate-300 dark:text-slate-700 group-hover:text-slate-500 transition-colors shrink-0" />
               </button>
             ))}
+          </div>
+        </section>
+      )}
+
+      {/* ── Alumnos en riesgo (running) ──────────────────────────── */}
+      {runningAlerts.length > 0 && (
+        <section className="space-y-3">
+          <div className="flex items-center gap-2 px-0.5">
+            <Activity size={13} className="text-violet-500" />
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white">Alumnos en riesgo (running)</h3>
+          </div>
+
+          <div className="space-y-2">
+            {runningAlerts.slice(0, 5).map((alert, i) => {
+              const student = normalizedStudents.find((s: any) => s.id === alert.student_id);
+              if (!student) return null;
+              const sevColor = alert.severity === 'alert'
+                ? 'border-rose-300 dark:border-rose-500/40 text-rose-600 dark:text-rose-400'
+                : 'border-amber-200/60 dark:border-amber-500/20 text-amber-600 dark:text-amber-400';
+              return (
+                <button
+                  key={`${alert.student_id}-${alert.kind}-${i}`}
+                  onClick={() => onSelectStudent(student)}
+                  className={`w-full group flex items-center gap-3 px-4 py-3 bg-white dark:bg-slate-900 rounded-2xl border ${sevColor} hover:border-violet-300 dark:hover:border-violet-500/40 transition-all shadow-sm text-left`}
+                >
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-sm shrink-0 ${avatarColor(student.displayName)}`}>
+                    {student.firstLetter}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{student.displayName}</p>
+                    <p className="text-xs font-medium mt-0.5 truncate">
+                      {alert.severity === 'alert' ? '⛔' : '⚠️'} {alert.message}
+                    </p>
+                  </div>
+                  <ChevronRight size={16} className="text-slate-300 dark:text-slate-700 group-hover:text-slate-500 transition-colors shrink-0" />
+                </button>
+              );
+            })}
           </div>
         </section>
       )}

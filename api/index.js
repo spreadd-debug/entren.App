@@ -29,6 +29,7 @@ function mapStudentRowToStudent(row) {
     emergency_contact_phone: row.emergency_contact_phone ?? void 0,
     access_code: row.access_code ?? void 0,
     is_online: row.is_online ?? false,
+    birth_date: row.birth_date ?? null,
     createdAt: row.created_at ?? "",
     updatedAt: row.updated_at ?? ""
   };
@@ -229,6 +230,7 @@ var StudentService = {
         access_code,
         has_custom_code,
         is_online,
+        birth_date,
         created_at,
         updated_at
       `).eq("gym_id", resolvedGymId).order("nombre", { ascending: true });
@@ -259,6 +261,7 @@ var StudentService = {
         access_code,
         has_custom_code,
         is_online,
+        birth_date,
         created_at,
         updated_at
       `).eq("id", id).eq("gym_id", resolvedGymId).single();
@@ -286,7 +289,8 @@ var StudentService = {
       emergency_contact_name: student.emergency_contact_name ?? null,
       emergency_contact_phone: student.emergency_contact_phone ?? null,
       access_code: generateAccessCode(),
-      is_online: student.is_online ?? false
+      is_online: student.is_online ?? false,
+      birth_date: student.birth_date ?? null
     };
     const { data, error } = await supabase.from("students").insert([payload]).select(`
         id,
@@ -310,6 +314,7 @@ var StudentService = {
         access_code,
         has_custom_code,
         is_online,
+        birth_date,
         created_at,
         updated_at
       `).single();
@@ -393,6 +398,10 @@ var StudentService = {
     if (updates.is_online !== void 0) {
       payload.is_online = !!updates.is_online;
     }
+    if (updates.birth_date !== void 0) {
+      const raw = updates.birth_date;
+      payload.birth_date = raw && String(raw).trim() ? raw : null;
+    }
     const gymId = updates.gym_id ?? updates.gymId ?? DEFAULT_GYM_ID;
     delete payload.gym_id;
     if (Object.keys(payload).length === 0) {
@@ -422,6 +431,7 @@ var StudentService = {
         access_code,
         has_custom_code,
         is_online,
+        birth_date,
         created_at,
         updated_at
       `).maybeSingle();
@@ -2544,13 +2554,262 @@ router12.delete("/sessions/:id", async (req, res) => {
 });
 var running_default = router12;
 
-// server/routes/strava.ts
+// server/routes/runningLoad.ts
 import { Router as Router13 } from "express";
+
+// server/services/RunningLoadService.ts
+var HR_REST_DEFAULT = 60;
+var CTL_TAU = 42;
+var ATL_TAU = 7;
+var HISTORY_DAYS = 60;
+var WARMUP_DAYS = 30;
+var VOLUME_SPIKE_RATIO = 1.1;
+var VOLUME_SPIKE_MIN_BASELINE_KM = 5;
+var INACTIVE_WARN_DAYS = 7;
+var INACTIVE_ALERT_DAYS = 14;
+var MONOTONY_MIN_SESSIONS = 4;
+var MONOTONY_THRESHOLD = 2;
+var TSB_NEGATIVE_THRESHOLD = -30;
+function fmtDate2(d) {
+  return d.toISOString().slice(0, 10);
+}
+function clamp(n, lo, hi) {
+  return Math.max(lo, Math.min(hi, n));
+}
+function roundTo(n, decimals) {
+  const f = Math.pow(10, decimals);
+  return Math.round(n * f) / f;
+}
+function computeAgeFromBirthDate(birthDate) {
+  const b = /* @__PURE__ */ new Date(`${birthDate}T00:00:00Z`);
+  if (Number.isNaN(b.getTime())) return 0;
+  const today = /* @__PURE__ */ new Date();
+  let age = today.getUTCFullYear() - b.getUTCFullYear();
+  const beforeBirthday = today.getUTCMonth() < b.getUTCMonth() || today.getUTCMonth() === b.getUTCMonth() && today.getUTCDate() < b.getUTCDate();
+  if (beforeBirthday) age -= 1;
+  return age;
+}
+function estimateHrMax(age) {
+  return Math.round(208 - 0.7 * age);
+}
+function computeSessionLoad(session, hrMax) {
+  const durationMin = (Number(session.duration_seconds) || 0) / 60;
+  if (durationMin <= 0) return 0;
+  const hr = session.avg_hr_bpm != null ? Number(session.avg_hr_bpm) : null;
+  if (hrMax && hr && hr > 0) {
+    const hrR = clamp((hr - HR_REST_DEFAULT) / (hrMax - HR_REST_DEFAULT), 0, 1);
+    return durationMin * hrR * 0.64 * Math.exp(1.92 * hrR);
+  }
+  const km = Number(session.distance_km) || 0;
+  return km * 6;
+}
+function buildDailyLoads(sessions, hrMax, historyDays = HISTORY_DAYS, warmupDays = WARMUP_DAYS) {
+  const byDate = /* @__PURE__ */ new Map();
+  for (const s of sessions) {
+    const date = String(s.session_date).slice(0, 10);
+    byDate.set(date, (byDate.get(date) ?? 0) + computeSessionLoad(s, hrMax));
+  }
+  const today = /* @__PURE__ */ new Date();
+  const totalDays = historyDays + warmupDays;
+  const start = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
+  start.setUTCDate(start.getUTCDate() - (totalDays - 1));
+  let ctl = 0;
+  let atl = 0;
+  const series = [];
+  for (let i = 0; i < totalDays; i++) {
+    const day = new Date(start);
+    day.setUTCDate(day.getUTCDate() + i);
+    const key = fmtDate2(day);
+    const load = byDate.get(key) ?? 0;
+    ctl = ctl + (load - ctl) / CTL_TAU;
+    atl = atl + (load - atl) / ATL_TAU;
+    const tsb = ctl - atl;
+    series.push({
+      date: key,
+      load: roundTo(load, 1),
+      ctl: roundTo(ctl, 1),
+      atl: roundTo(atl, 1),
+      tsb: roundTo(tsb, 1)
+    });
+  }
+  return series.slice(-historyDays);
+}
+function summarizeKmLastNDays(sessions, n, today) {
+  const cutoff = new Date(today);
+  cutoff.setUTCDate(cutoff.getUTCDate() - n);
+  const cutoffStr = fmtDate2(cutoff);
+  let km = 0;
+  for (const s of sessions) {
+    if (String(s.session_date) >= cutoffStr) km += Number(s.distance_km) || 0;
+  }
+  return km;
+}
+function computeAlerts(history, sessions) {
+  const alerts = [];
+  const today = /* @__PURE__ */ new Date();
+  const last7 = summarizeKmLastNDays(sessions, 7, today);
+  const last35 = summarizeKmLastNDays(sessions, 35, today);
+  const baselineKmPerWeek = (last35 - last7) / 4;
+  if (baselineKmPerWeek >= VOLUME_SPIKE_MIN_BASELINE_KM && last7 > baselineKmPerWeek * VOLUME_SPIKE_RATIO) {
+    const deltaPct = Math.round((last7 / baselineKmPerWeek - 1) * 100);
+    alerts.push({
+      kind: "volume_spike",
+      severity: deltaPct >= 25 ? "alert" : "warn",
+      message: `Subida de volumen de ${deltaPct}% (${roundTo(last7, 1)} km vs baseline ${roundTo(baselineKmPerWeek, 1)} km/sem).`,
+      metadata: {
+        delta_pct: deltaPct,
+        last7_km: roundTo(last7, 1),
+        baseline_km: roundTo(baselineKmPerWeek, 1)
+      }
+    });
+  }
+  if (sessions.length === 0) {
+    alerts.push({
+      kind: "inactive",
+      severity: "warn",
+      message: "Todav\xEDa no hay corridas registradas.",
+      metadata: { days_since: -1 }
+    });
+  } else {
+    const lastDate = String(sessions[0].session_date).slice(0, 10);
+    const last = /* @__PURE__ */ new Date(`${lastDate}T00:00:00Z`);
+    const daysSince = Math.floor((today.getTime() - last.getTime()) / (1e3 * 60 * 60 * 24));
+    if (daysSince > INACTIVE_WARN_DAYS) {
+      alerts.push({
+        kind: "inactive",
+        severity: daysSince >= INACTIVE_ALERT_DAYS ? "alert" : "warn",
+        message: `Sin correr hace ${daysSince} d\xEDas.`,
+        metadata: { days_since: daysSince, last_session_date: lastDate }
+      });
+    }
+  }
+  const last7Loads = history.slice(-7).map((d) => d.load).filter((l) => l > 0);
+  if (last7Loads.length >= MONOTONY_MIN_SESSIONS) {
+    const mean = last7Loads.reduce((a, b) => a + b, 0) / last7Loads.length;
+    const variance = last7Loads.reduce((a, b) => a + (b - mean) ** 2, 0) / last7Loads.length;
+    const std = Math.sqrt(variance);
+    if (std > 0) {
+      const monotony = mean / std;
+      if (monotony > MONOTONY_THRESHOLD) {
+        alerts.push({
+          kind: "monotony",
+          severity: "warn",
+          message: `Monoton\xEDa alta (${roundTo(monotony, 2)}) \u2014 poca variabilidad de carga, consider\xE1 alternar intensidades.`,
+          metadata: { monotony: roundTo(monotony, 2), sessions_in_week: last7Loads.length }
+        });
+      }
+    }
+  }
+  const todayDay = history[history.length - 1];
+  if (todayDay && todayDay.tsb < TSB_NEGATIVE_THRESHOLD) {
+    alerts.push({
+      kind: "tsb_negative",
+      severity: todayDay.tsb < -50 ? "alert" : "warn",
+      message: `Fatiga acumulada (TSB ${todayDay.tsb}). Consider\xE1 una semana de descarga.`,
+      metadata: { tsb: todayDay.tsb, ctl: todayDay.ctl, atl: todayDay.atl }
+    });
+  }
+  return alerts;
+}
+async function fetchStudentBirthDate(studentId) {
+  const { data, error } = await supabase.from("students").select("birth_date").eq("id", studentId).maybeSingle();
+  if (error) throw error;
+  return data?.birth_date ?? null;
+}
+async function fetchSessions(studentId) {
+  const cutoff = /* @__PURE__ */ new Date();
+  cutoff.setUTCDate(cutoff.getUTCDate() - (HISTORY_DAYS + WARMUP_DAYS));
+  const cutoffStr = fmtDate2(cutoff);
+  const { data, error } = await supabase.from("running_sessions").select("*").eq("student_id", studentId).gte("session_date", cutoffStr).order("session_date", { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+var RunningLoadService = {
+  computeAgeFromBirthDate,
+  estimateHrMax,
+  computeSessionLoad,
+  buildDailyLoads,
+  computeAlerts,
+  async getSummary(studentId) {
+    const birthDate = await fetchStudentBirthDate(studentId);
+    const age = birthDate ? computeAgeFromBirthDate(birthDate) : null;
+    const hrMax = age && age > 0 ? estimateHrMax(age) : null;
+    const sessions = await fetchSessions(studentId);
+    const history = buildDailyLoads(sessions, hrMax);
+    const alerts = computeAlerts(history, sessions);
+    const lastDay = history[history.length - 1] ?? { ctl: 0, atl: 0, tsb: 0 };
+    return {
+      has_birth_date: !!birthDate,
+      age,
+      hr_max: hrMax,
+      current: { ctl: lastDay.ctl, atl: lastDay.atl, tsb: lastDay.tsb },
+      history,
+      alerts
+    };
+  },
+  async getGymAlerts(gymId) {
+    const { data: discRows, error: discErr } = await supabase.from("student_disciplines").select("student_id").eq("discipline", "running");
+    if (discErr) throw discErr;
+    const runnerIds = Array.from(new Set((discRows || []).map((r) => r.student_id)));
+    if (runnerIds.length === 0) return [];
+    const { data: studentRows, error: studErr } = await supabase.from("students").select("id, nombre, apellido").eq("gym_id", gymId).in("id", runnerIds);
+    if (studErr) throw studErr;
+    const students = studentRows || [];
+    const summaries = await Promise.all(
+      students.map(async (s) => {
+        try {
+          const sum = await this.getSummary(s.id);
+          return { student: s, alerts: sum.alerts };
+        } catch (err) {
+          console.error(`[runningLoad] getSummary failed for ${s.id}`, err);
+          return { student: s, alerts: [] };
+        }
+      })
+    );
+    const out = [];
+    for (const { student, alerts } of summaries) {
+      for (const a of alerts) {
+        if (a.severity === "info") continue;
+        out.push({
+          ...a,
+          student_id: student.id,
+          student_name: `${student.nombre ?? ""} ${student.apellido ?? ""}`.trim() || "Sin nombre"
+        });
+      }
+    }
+    const sevOrder = { alert: 0, warn: 1, info: 2 };
+    out.sort((a, b) => sevOrder[a.severity] - sevOrder[b.severity] || a.kind.localeCompare(b.kind));
+    return out;
+  }
+};
+
+// server/routes/runningLoad.ts
 var router13 = Router13();
+router13.get("/gym/:gymId/alerts", async (req, res) => {
+  try {
+    const alerts = await RunningLoadService.getGymAlerts(req.params.gymId);
+    res.json({ alerts });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+router13.get("/:studentId", async (req, res) => {
+  try {
+    const summary = await RunningLoadService.getSummary(req.params.studentId);
+    res.json(summary);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+var runningLoad_default = router13;
+
+// server/routes/strava.ts
+import { Router as Router14 } from "express";
+var router14 = Router14();
 function portalUrl() {
   return process.env.PORTAL_PUBLIC_URL || "https://entren.app";
 }
-router13.get("/authorize", async (req, res) => {
+router14.get("/authorize", async (req, res) => {
   try {
     const studentId = String(req.query.student_id || "").trim();
     if (!studentId) return res.status(400).json({ error: "student_id is required" });
@@ -2560,7 +2819,7 @@ router13.get("/authorize", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-router13.get("/callback", async (req, res) => {
+router14.get("/callback", async (req, res) => {
   const success = `${portalUrl()}/portal?strava=success`;
   const failure = (reason) => `${portalUrl()}/portal?strava=error&reason=${encodeURIComponent(reason)}`;
   if (req.query.error) {
@@ -2578,7 +2837,7 @@ router13.get("/callback", async (req, res) => {
     return res.redirect(302, failure("server_error"));
   }
 });
-router13.get("/webhook", (req, res) => {
+router14.get("/webhook", (req, res) => {
   const mode = req.query["hub.mode"];
   const token = req.query["hub.verify_token"];
   const challenge = req.query["hub.challenge"];
@@ -2591,7 +2850,7 @@ router13.get("/webhook", (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 });
-router13.post("/webhook", async (req, res) => {
+router14.post("/webhook", async (req, res) => {
   const event = req.body || {};
   res.status(200).end();
   try {
@@ -2608,7 +2867,7 @@ router13.post("/webhook", async (req, res) => {
     console.error("[strava] webhook processing failed", err);
   }
 });
-router13.get("/connection/:studentId", async (req, res) => {
+router14.get("/connection/:studentId", async (req, res) => {
   try {
     const conn = await StravaService.getConnectionStatus(req.params.studentId);
     res.json(conn);
@@ -2616,7 +2875,7 @@ router13.get("/connection/:studentId", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-router13.delete("/connection/:studentId", async (req, res) => {
+router14.delete("/connection/:studentId", async (req, res) => {
   try {
     await StravaService.disconnect(req.params.studentId);
     res.status(204).end();
@@ -2624,10 +2883,10 @@ router13.delete("/connection/:studentId", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-router13.get("/env", (_req, res) => {
+router14.get("/env", (_req, res) => {
   res.json(StravaService.envSummary());
 });
-var strava_default = router13;
+var strava_default = router14;
 
 // api/_handler.ts
 var app = express();
@@ -2644,6 +2903,7 @@ app.use("/api/ai", ai_default);
 app.use("/api/plan-profiles", planProfiles_default);
 app.use("/api/outreach", outreach_default);
 app.use("/api/activity", activity_default);
+app.use("/api/running/load", runningLoad_default);
 app.use("/api/running", running_default);
 app.use("/api/strava", strava_default);
 app.get("/api/health", async (_req, res) => {
