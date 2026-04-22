@@ -1205,9 +1205,11 @@ var StravaService = {
       console.error("[strava] failed to auto-mark running discipline", err);
     }
     const since = Math.floor((Date.now() - 30 * 24 * 60 * 60 * 1e3) / 1e3);
-    backfillSince(connRow, since).catch(
-      (err) => console.error("[strava] backfill failed", err)
-    );
+    try {
+      await backfillSince(connRow, since);
+    } catch (err) {
+      console.error("[strava] backfill failed", err);
+    }
     return { ok: true };
   },
   async importActivity(athleteId, activityId) {

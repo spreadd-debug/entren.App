@@ -358,11 +358,14 @@ export const StravaService = {
       console.error('[strava] failed to auto-mark running discipline', err);
     }
 
-    // Backfill 30 días en background — no bloqueamos el redirect del callback
+    // Backfill 30 días — awaited porque en Vercel serverless la función se mata
+    // ni bien respondemos, y un fire-and-forget no llega a correr.
     const since = Math.floor((Date.now() - 30 * 24 * 60 * 60 * 1000) / 1000);
-    backfillSince(connRow as StoredConnection, since).catch(err =>
-      console.error('[strava] backfill failed', err),
-    );
+    try {
+      await backfillSince(connRow as StoredConnection, since);
+    } catch (err) {
+      console.error('[strava] backfill failed', err);
+    }
 
     return { ok: true };
   },
