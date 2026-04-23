@@ -11,6 +11,8 @@ import type {
   RoutineExerciseDraft,
   RoutineSetDraft,
   BlockType,
+  SetType,
+  WeightType,
 } from "../../shared/types";
 
 // ─── Routines ────────────────────────────────────────────────────────────────
@@ -365,6 +367,117 @@ export const RoutineBuilderService = {
     }
 
     return newRoutine.id;
+  },
+
+  // ─── Create routine from a live session snapshot ─────────────────────────
+
+  async createRoutineFromLiveSession(params: {
+    gymId: string;
+    name: string;
+    exercises: Array<{
+      name: string;
+      library_id: string | null;
+      routine_exercise_id: string | null;
+      order: number;
+    }>;
+    plannedSetsMap: Map<string, RoutineSet[]>;
+    replaceAssignment?: {
+      studentId: string;
+      oldAssignmentId: string;
+      dayMapping: Record<string, string>;
+    };
+  }): Promise<{ routineId: string }> {
+    const routine = await this.createRoutine(params.gymId, params.name);
+
+    // createRoutine inserts a default "Día 1" — fetch its id
+    const { data: days } = await supabase
+      .from("routine_days")
+      .select("id, label, order")
+      .eq("routine_id", routine.id)
+      .order("order");
+    if (!days || days.length === 0) {
+      throw new Error("Rutina creada sin día por defecto");
+    }
+    const defaultDay = days[0];
+
+    const newUuid = () =>
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : Math.random().toString(36).slice(2) + Date.now().toString(36);
+
+    const exerciseDrafts: RoutineExerciseDraft[] = params.exercises.map((ex, idx) => {
+      const plannedSets = ex.routine_exercise_id
+        ? params.plannedSetsMap.get(ex.routine_exercise_id) ?? []
+        : [];
+
+      const setDrafts: RoutineSetDraft[] =
+        plannedSets.length > 0
+          ? plannedSets.map((s) => ({
+              id: newUuid(),
+              set_number: s.set_number,
+              set_type: s.set_type,
+              reps: s.reps,
+              reps_max: s.reps_max,
+              time_sec: s.time_sec,
+              weight_kg: s.weight_kg,
+              weight_type: s.weight_type,
+              rpe_target: s.rpe_target,
+              rir_target: s.rir_target,
+              notes: s.notes,
+            }))
+          : Array.from({ length: 3 }, (_, i) => ({
+              id: newUuid(),
+              set_number: i + 1,
+              set_type: "normal" as SetType,
+              reps: null,
+              reps_max: null,
+              time_sec: null,
+              weight_kg: null,
+              weight_type: "not_specified" as WeightType,
+              rpe_target: null,
+              rir_target: null,
+              notes: null,
+            }));
+
+      return {
+        id: newUuid(),
+        exercise_library_id: ex.library_id,
+        exercise_name: ex.name,
+        order: idx,
+        notes: null,
+        rest_between_sets_sec: null,
+        tempo: null,
+        sets: setDrafts,
+      };
+    });
+
+    const blockDraft: RoutineBlockDraft = {
+      id: newUuid(),
+      block_type: "normal" as BlockType,
+      order: 0,
+      rest_after_block_sec: null,
+      exercises: exerciseDrafts,
+    };
+
+    const dayDraft: RoutineDayDraft = {
+      id: defaultDay.id,
+      label: defaultDay.label,
+      order: defaultDay.order,
+      blocks: [blockDraft],
+    };
+
+    await this.saveDay(routine.id, dayDraft);
+
+    if (params.replaceAssignment) {
+      await this.removeAssignment(params.replaceAssignment.oldAssignmentId);
+      await this.assignRoutine(
+        routine.id,
+        params.replaceAssignment.studentId,
+        params.replaceAssignment.dayMapping,
+      );
+    }
+
+    return { routineId: routine.id };
   },
 
   // ─── Lightweight set updates (for session prep edits) ─────────────────────

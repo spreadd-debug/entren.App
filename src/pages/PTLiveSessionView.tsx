@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   ArrowLeft, Play, CheckCircle2, Dumbbell, Plus, Minus,
   Clock, Trophy, ChevronDown, ChevronUp, MessageSquare,
-  Loader2, Save, X, Weight, BarChart3, Trash2,
+  Loader2, Save, X, Weight, BarChart3, Trash2, MoreVertical, Repeat,
 } from 'lucide-react';
 import { Student, WorkoutOption, SessionSet, RoutineAssignment, RoutineSet } from '../../shared/types';
 import { PTSessionService, PTSessionFull, PTSessionExercise } from '../services/pt/PTSessionService';
@@ -11,6 +11,7 @@ import { RoutineBuilderService } from '../services/RoutineBuilderService';
 import { AIAnalysisService } from '../services/pt/AIAnalysisService';
 import { StudentSummaryService } from '../services/pt/StudentSummaryService';
 import { useToast } from '../context/ToastContext';
+import ExercisePickerModal from '../components/routines/ExercisePickerModal';
 
 // V2 routine option (displayed alongside legacy options)
 interface V2RoutineOption {
@@ -102,6 +103,17 @@ export const PTLiveSessionView: React.FC<PTLiveSessionViewProps> = ({
   const [lastPerformance, setLastPerformance] = useState<Map<string, SessionSet[]>>(new Map());
   const [savingSet, setSavingSet] = useState<string | null>(null);
   const [sessionLabel, setSessionLabel] = useState<string>('Sesión');
+
+  // Live-edit state
+  type PickerMode = { mode: 'add' } | { mode: 'replace'; targetExerciseId: string } | null;
+  const [pickerMode, setPickerMode] = useState<PickerMode>(null);
+  const [showSaveAsRoutineModal, setShowSaveAsRoutineModal] = useState(false);
+  const [currentAssignment, setCurrentAssignment] = useState<{
+    assignmentId: string;
+    routineName: string;
+    dayMapping: Record<string, string>;
+  } | null>(null);
+  const [editingExerciseId, setEditingExerciseId] = useState<string | null>(null);
 
   const studentName = ((student as any).nombre ?? student.name ?? '') + ' ' +
     ((student as any).apellido ?? student.lastName ?? '');
@@ -195,6 +207,17 @@ export const PTLiveSessionView: React.FC<PTLiveSessionViewProps> = ({
                   }
                 }
                 setPlannedSetsMap(map);
+              }
+
+              // Lookup the assignment that matches this routine
+              const assignments = await RoutineBuilderService.getAssignmentsForStudent(student.id);
+              const match = assignments.find((a) => a.routine_id === existing.routine_id);
+              if (match) {
+                setCurrentAssignment({
+                  assignmentId: match.id,
+                  routineName: full.routine.name,
+                  dayMapping: (match.day_mapping || {}) as Record<string, string>,
+                });
               }
             } catch (err) {
               console.error('Error loading routine for resumed session:', err);
@@ -347,6 +370,21 @@ export const PTLiveSessionView: React.FC<PTLiveSessionViewProps> = ({
       if (selectedOption.type === 'v2') {
         setSessionLabel(`${selectedOption.routineName} — ${selectedOption.dayLabel}`);
         await loadPlannedSets(selectedOption.routineId, selectedOption.dayId);
+
+        // Track the assignment so we can reassign on save-as-routine
+        try {
+          const assignments = await RoutineBuilderService.getAssignmentsForStudent(student.id);
+          const match = assignments.find((a) => a.id === selectedOption.assignmentId);
+          if (match) {
+            setCurrentAssignment({
+              assignmentId: match.id,
+              routineName: selectedOption.routineName,
+              dayMapping: (match.day_mapping || {}) as Record<string, string>,
+            });
+          }
+        } catch (err) {
+          console.error('Error loading assignment:', err);
+        }
       } else {
         setSessionLabel(selectedOption.option.plan_name);
       }
@@ -406,6 +444,85 @@ export const PTLiveSessionView: React.FC<PTLiveSessionViewProps> = ({
       setSavingSet(null);
     }
   }, [toast]);
+
+  // ─── Live-edit: add / remove / replace exercises ────────────────────────
+
+  const handlePickerSelect = useCallback(async (
+    exercise: { id: string; name: string; muscle_group: string | null },
+  ) => {
+    if (!session || !pickerMode) return;
+    const mode = pickerMode;
+    setPickerMode(null);
+
+    try {
+      if (mode.mode === 'add') {
+        const nextOrder = session.exercises.length > 0
+          ? Math.max(...session.exercises.map((e) => e.exercise_order)) + 1
+          : 0;
+        const newExercise = await PTSessionService.addExerciseToSession(
+          session.session.id,
+          { id: exercise.id, name: exercise.name },
+          nextOrder,
+        );
+        setSession((prev) => prev ? { ...prev, exercises: [...prev.exercises, newExercise] } : prev);
+        setExpandedExercise(newExercise.id);
+        toast.success('Ejercicio agregado');
+      } else if (mode.mode === 'replace') {
+        await PTSessionService.replaceExerciseInSession(
+          mode.targetExerciseId,
+          { id: exercise.id, name: exercise.name },
+        );
+        setSession((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            exercises: prev.exercises.map((ex) =>
+              ex.id === mode.targetExerciseId
+                ? { ...ex, exercise_name: exercise.name, routine_exercise_id: null }
+                : ex,
+            ),
+          };
+        });
+        toast.success('Ejercicio reemplazado');
+      }
+    } catch (err: any) {
+      toast.error('Error: ' + (err?.message ?? ''));
+    }
+  }, [session, pickerMode, toast]);
+
+  const handleRemoveExercise = useCallback(async (exerciseId: string) => {
+    if (!session) return;
+    const exercise = session.exercises.find((e) => e.id === exerciseId);
+    if (!exercise) return;
+    const hasSets = exercise.sets_data.length > 0;
+    const msg = hasSets
+      ? `Tenés ${exercise.sets_data.length} series registradas en "${exercise.exercise_name}". ¿Quitar el ejercicio y sus series?`
+      : `¿Quitar "${exercise.exercise_name}" de la sesión?`;
+    if (!window.confirm(msg)) return;
+
+    try {
+      await PTSessionService.removeExerciseFromSession(exerciseId);
+      setSession((prev) => prev
+        ? { ...prev, exercises: prev.exercises.filter((e) => e.id !== exerciseId) }
+        : prev);
+      setEditingExerciseId(null);
+      if (expandedExercise === exerciseId) setExpandedExercise(null);
+      toast.success('Ejercicio quitado');
+    } catch (err: any) {
+      toast.error('Error al quitar: ' + (err?.message ?? ''));
+    }
+  }, [session, expandedExercise, toast]);
+
+  const handleReplaceExercise = useCallback((exerciseId: string) => {
+    if (!session) return;
+    const exercise = session.exercises.find((e) => e.id === exerciseId);
+    if (!exercise) return;
+    if (exercise.sets_data.length > 0) {
+      if (!window.confirm(`Ya registraste ${exercise.sets_data.length} series en "${exercise.exercise_name}". Al reemplazar, esas series quedarán asociadas al ejercicio nuevo. ¿Continuar?`)) return;
+    }
+    setEditingExerciseId(null);
+    setPickerMode({ mode: 'replace', targetExerciseId: exerciseId });
+  }, [session]);
 
   // ─── Complete session ───────────────────────────────────────────────────
 
@@ -646,21 +763,37 @@ export const PTLiveSessionView: React.FC<PTLiveSessionViewProps> = ({
             </button>
           </div>
         ) : (
-          session.exercises.map((exercise, idx) => (
-            <ExerciseCard
-              key={exercise.id}
-              exercise={exercise}
-              index={idx}
-              isExpanded={expandedExercise === exercise.id}
-              onToggle={() => setExpandedExercise(
-                expandedExercise === exercise.id ? null : exercise.id,
-              )}
-              onSaveSet={handleSaveSet}
-              savingSet={savingSet}
-              lastPerformance={lastPerformance.get(exercise.workout_exercise_id)}
-              plannedSets={plannedSetsMap.get(exercise.routine_exercise_id ?? '') ?? []}
-            />
-          ))
+          <>
+            {session.exercises.map((exercise, idx) => (
+              <ExerciseCard
+                key={exercise.id}
+                exercise={exercise}
+                index={idx}
+                isExpanded={expandedExercise === exercise.id}
+                onToggle={() => setExpandedExercise(
+                  expandedExercise === exercise.id ? null : exercise.id,
+                )}
+                onSaveSet={handleSaveSet}
+                savingSet={savingSet}
+                lastPerformance={lastPerformance.get(exercise.workout_exercise_id)}
+                plannedSets={plannedSetsMap.get(exercise.routine_exercise_id ?? '') ?? []}
+                isMenuOpen={editingExerciseId === exercise.id}
+                onToggleMenu={() => setEditingExerciseId(
+                  editingExerciseId === exercise.id ? null : exercise.id,
+                )}
+                onReplace={() => handleReplaceExercise(exercise.id)}
+                onRemove={() => handleRemoveExercise(exercise.id)}
+              />
+            ))}
+
+            <button
+              onClick={() => setPickerMode({ mode: 'add' })}
+              className="w-full py-3 flex items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-violet-300 dark:border-violet-800/60 bg-violet-50/50 dark:bg-violet-900/10 text-violet-600 dark:text-violet-400 font-bold text-sm hover:bg-violet-50 dark:hover:bg-violet-900/20 active:scale-[0.99] transition-all"
+            >
+              <Plus size={16} />
+              Agregar ejercicio
+            </button>
+          </>
         )}
       </div>
 
@@ -674,6 +807,14 @@ export const PTLiveSessionView: React.FC<PTLiveSessionViewProps> = ({
             title="Cancelar sesión"
           >
             {cancelling ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+          </button>
+          <button
+            onClick={() => setShowSaveAsRoutineModal(true)}
+            disabled={!session || session.exercises.length === 0}
+            className="py-3 px-3 bg-slate-100 dark:bg-slate-800 hover:bg-violet-50 dark:hover:bg-violet-900/20 text-slate-500 hover:text-violet-500 disabled:opacity-50 rounded-xl font-bold text-sm transition-all flex items-center justify-center"
+            title="Guardar como rutina"
+          >
+            <Save size={16} />
           </button>
           <button
             onClick={() => setShowNotesModal(true)}
@@ -698,6 +839,27 @@ export const PTLiveSessionView: React.FC<PTLiveSessionViewProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Exercise picker (add / replace) */}
+      <ExercisePickerModal
+        isOpen={pickerMode !== null}
+        onClose={() => setPickerMode(null)}
+        onSelect={handlePickerSelect}
+      />
+
+      {/* Save as routine modal */}
+      {showSaveAsRoutineModal && session && (
+        <SaveAsRoutineModal
+          session={session}
+          gymId={gymId}
+          studentName={studentName.trim()}
+          currentAssignment={currentAssignment}
+          plannedSetsMap={plannedSetsMap}
+          onClose={() => setShowSaveAsRoutineModal(false)}
+          onSuccess={(msg) => { toast.success(msg); setShowSaveAsRoutineModal(false); }}
+          onError={(msg) => toast.error(msg)}
+        />
+      )}
 
       {/* Notes modal */}
       {showNotesModal && (
@@ -745,6 +907,10 @@ interface ExerciseCardProps {
   savingSet: string | null;
   lastPerformance?: SessionSet[];
   plannedSets: RoutineSet[];
+  isMenuOpen: boolean;
+  onToggleMenu: () => void;
+  onReplace: () => void;
+  onRemove: () => void;
 }
 
 const ExerciseCard: React.FC<ExerciseCardProps> = ({
@@ -756,6 +922,10 @@ const ExerciseCard: React.FC<ExerciseCardProps> = ({
   savingSet,
   lastPerformance,
   plannedSets,
+  isMenuOpen,
+  onToggleMenu,
+  onReplace,
+  onRemove,
 }) => {
   const hasSets = exercise.sets_data.length > 0;
   const plannedCount = plannedSets.length || exercise.sets || 3;
@@ -769,10 +939,13 @@ const ExerciseCard: React.FC<ExerciseCardProps> = ({
           ? 'bg-white dark:bg-slate-900 border-emerald-200 dark:border-emerald-800/50'
           : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'
     }`}>
-      {/* Exercise header — tappable */}
-      <button
+      {/* Exercise header — tappable (div to allow nested menu button) */}
+      <div
+        role="button"
+        tabIndex={0}
         onClick={onToggle}
-        className="w-full text-left p-4 flex items-center gap-3"
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(); } }}
+        className="w-full text-left p-4 flex items-center gap-3 cursor-pointer select-none"
       >
         <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-sm font-black transition-all duration-300 ${
           isComplete
@@ -810,13 +983,52 @@ const ExerciseCard: React.FC<ExerciseCardProps> = ({
               {exercise.sets_data.length}/{plannedCount}
             </span>
           )}
+
+          {/* Kebab menu */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onToggleMenu(); }}
+              className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+              aria-label="Acciones del ejercicio"
+            >
+              <MoreVertical size={16} />
+            </button>
+            {isMenuOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-30"
+                  onClick={(e) => { e.stopPropagation(); onToggleMenu(); }}
+                />
+                <div className="absolute right-0 top-full mt-1 z-40 w-44 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-lg overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onReplace(); }}
+                    className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-left text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                  >
+                    <Repeat size={14} />
+                    Reemplazar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onRemove(); }}
+                    className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-left text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors"
+                  >
+                    <Trash2 size={14} />
+                    Quitar
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+
           {isExpanded ? (
             <ChevronUp size={18} className="text-slate-400" />
           ) : (
             <ChevronDown size={18} className="text-slate-400" />
           )}
         </div>
-      </button>
+      </div>
 
       {/* Expanded: set-by-set registration */}
       {isExpanded && (
@@ -1097,6 +1309,152 @@ const AddSetRow: React.FC<AddSetRowProps> = ({
               +{inc}rep
             </button>
           ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── Save-as-Routine Modal ──────────────────────────────────────────────────
+
+interface SaveAsRoutineModalProps {
+  session: PTSessionFull;
+  gymId: string;
+  studentName: string;
+  currentAssignment: {
+    assignmentId: string;
+    routineName: string;
+    dayMapping: Record<string, string>;
+  } | null;
+  plannedSetsMap: Map<string, RoutineSet[]>;
+  onClose: () => void;
+  onSuccess: (msg: string) => void;
+  onError: (msg: string) => void;
+}
+
+const SaveAsRoutineModal: React.FC<SaveAsRoutineModalProps> = ({
+  session,
+  gymId,
+  studentName,
+  currentAssignment,
+  plannedSetsMap,
+  onClose,
+  onSuccess,
+  onError,
+}) => {
+  const today = new Date().toLocaleDateString('es-AR', { day: '2-digit', month: 'short' });
+  const defaultName = `${currentAssignment?.routineName ?? 'Custom'} — ${studentName} ${today}`;
+  const [name, setName] = useState(defaultName);
+  const [replaceAssignment, setReplaceAssignment] = useState(!!currentAssignment);
+  const [saving, setSaving] = useState(false);
+
+  const canReplace = !!currentAssignment;
+
+  const handleSave = async () => {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      onError('Poné un nombre a la rutina');
+      return;
+    }
+    setSaving(true);
+    try {
+      const exercisesForRoutine = [...session.exercises]
+        .sort((a, b) => a.exercise_order - b.exercise_order)
+        .map((ex, idx) => ({
+          name: ex.exercise_name,
+          library_id: null,
+          routine_exercise_id: ex.routine_exercise_id,
+          order: idx,
+        }));
+
+      await RoutineBuilderService.createRoutineFromLiveSession({
+        gymId,
+        name: trimmed,
+        exercises: exercisesForRoutine,
+        plannedSetsMap,
+        replaceAssignment: replaceAssignment && currentAssignment
+          ? {
+              studentId: session.session.student_id,
+              oldAssignmentId: currentAssignment.assignmentId,
+              dayMapping: currentAssignment.dayMapping,
+            }
+          : undefined,
+      });
+
+      onSuccess(replaceAssignment && canReplace ? 'Rutina guardada y asignada' : 'Rutina guardada');
+    } catch (err: any) {
+      onError('Error al guardar rutina: ' + (err?.message ?? ''));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-lg shadow-xl">
+        <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-800">
+          <h3 className="font-bold text-slate-900 dark:text-white">Guardar como rutina</h3>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
+            <X size={20} className="text-slate-500" />
+          </button>
+        </div>
+
+        <div className="p-4 space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+              Nombre de la rutina
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              autoFocus
+              className="w-full rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-2.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500/30"
+            />
+          </div>
+
+          <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3">
+            <p className="text-xs text-slate-500 mb-2">
+              {session.exercises.length} ejercicio{session.exercises.length === 1 ? '' : 's'} incluidos — se copian las series planificadas de la rutina original. Los ejercicios agregados o reemplazados quedan con 3 series vacías.
+            </p>
+          </div>
+
+          {canReplace && (
+            <label className="flex items-start gap-3 cursor-pointer p-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+              <input
+                type="checkbox"
+                checked={replaceAssignment}
+                onChange={(e) => setReplaceAssignment(e.target.checked)}
+                className="mt-0.5 w-4 h-4 rounded border-slate-300 text-violet-500 focus:ring-2 focus:ring-violet-500/30"
+              />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-slate-900 dark:text-white">
+                  Reemplazar asignación actual
+                </p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  La rutina vieja ({currentAssignment?.routineName}) queda en tu librería pero se desasigna de este alumno. La nueva rutina hereda el mismo día de la semana.
+                </p>
+              </div>
+            </label>
+          )}
+        </div>
+
+        <div className="p-4 pt-0 flex gap-2">
+          <button
+            onClick={onClose}
+            disabled={saving}
+            className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold text-sm transition-all"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving || !name.trim()}
+            className="flex-[2] py-3 bg-violet-500 hover:bg-violet-600 disabled:opacity-50 text-white rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2"
+          >
+            {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+            {saving ? 'Guardando...' : 'Guardar rutina'}
+          </button>
         </div>
       </div>
     </div>

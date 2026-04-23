@@ -283,6 +283,78 @@ export const PTSessionService = {
     if (error) throw error;
   },
 
+  // ─── Live edits during a session ─────────────────────────────────────────
+
+  async addExerciseToSession(
+    sessionId: string,
+    exercise: { id: string | null; name: string },
+    nextOrder: number,
+  ): Promise<PTSessionExercise> {
+    const { data, error } = await supabase
+      .from('workout_session_exercises')
+      .insert({
+        session_id: sessionId,
+        workout_exercise_id: null,
+        routine_exercise_id: null,
+        exercise_name_cache: exercise.name,
+        sets_planned_cache: 3,
+        reps_planned_cache: null,
+        weight_planned_cache: null,
+        exercise_order_cache: nextOrder,
+        completed: false,
+      })
+      .select()
+      .single();
+    if (error) throw error;
+
+    return {
+      id: data.id,
+      session_id: data.session_id,
+      workout_exercise_id: '',
+      completed: data.completed,
+      created_at: data.created_at,
+      exercise_name: data.exercise_name_cache ?? exercise.name,
+      sets: data.sets_planned_cache ?? 3,
+      reps: data.reps_planned_cache ?? null,
+      weight: data.weight_planned_cache ?? null,
+      rest_seconds: null,
+      notes: null,
+      video_url: null,
+      exercise_order: data.exercise_order_cache ?? nextOrder,
+      routine_exercise_id: null,
+      sets_data: [],
+    };
+  },
+
+  async removeExerciseFromSession(sessionExerciseId: string): Promise<void> {
+    // Delete sets first (no cascade guaranteed)
+    const { error: setsErr } = await supabase
+      .from('session_sets')
+      .delete()
+      .eq('session_exercise_id', sessionExerciseId);
+    if (setsErr) throw setsErr;
+
+    const { error } = await supabase
+      .from('workout_session_exercises')
+      .delete()
+      .eq('id', sessionExerciseId);
+    if (error) throw error;
+  },
+
+  async replaceExerciseInSession(
+    sessionExerciseId: string,
+    newExercise: { id: string | null; name: string },
+  ): Promise<void> {
+    const { error } = await supabase
+      .from('workout_session_exercises')
+      .update({
+        routine_exercise_id: null,
+        exercise_name_cache: newExercise.name,
+      })
+      .eq('id', sessionExerciseId);
+    if (error) throw error;
+  },
+
   // ─── Complete Session ────────────────────────────────────────────────────
 
   async completeSession(
