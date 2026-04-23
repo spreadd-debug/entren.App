@@ -468,10 +468,10 @@ export const PTLiveSessionView: React.FC<PTLiveSessionViewProps> = ({
         setExpandedExercise(newExercise.id);
         toast.success('Ejercicio agregado');
       } else if (mode.mode === 'replace') {
-        await PTSessionService.replaceExerciseInSession(
-          mode.targetExerciseId,
-          { id: exercise.id, name: exercise.name },
-        );
+        // Snapshot for rollback
+        const prev = session.exercises.find((e) => e.id === mode.targetExerciseId);
+
+        // Optimistic: update UI immediately so the user sees the swap on click
         setSession((prev) => {
           if (!prev) return prev;
           return {
@@ -483,7 +483,28 @@ export const PTLiveSessionView: React.FC<PTLiveSessionViewProps> = ({
             ),
           };
         });
-        toast.success('Ejercicio reemplazado');
+
+        try {
+          await PTSessionService.replaceExerciseInSession(
+            mode.targetExerciseId,
+            { id: exercise.id, name: exercise.name },
+          );
+          toast.success('Ejercicio reemplazado');
+        } catch (err: any) {
+          // Rollback
+          if (prev) {
+            setSession((s) => {
+              if (!s) return s;
+              return {
+                ...s,
+                exercises: s.exercises.map((ex) =>
+                  ex.id === mode.targetExerciseId ? prev : ex,
+                ),
+              };
+            });
+          }
+          toast.error('Error al reemplazar: ' + (err?.message ?? ''));
+        }
       }
     } catch (err: any) {
       toast.error('Error: ' + (err?.message ?? ''));
