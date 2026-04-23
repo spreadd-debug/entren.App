@@ -58,6 +58,10 @@ export function viewToPath(view: string, params?: { studentId?: string; pt?: boo
 export function pathToView(pathname: string): string {
   // Check exact match first
   if (PATH_TO_VIEW[pathname]) return PATH_TO_VIEW[pathname];
+  // Smart Planning sub-routes → 'planning' so the SMART nav item stays highlighted
+  if (/^\/clients\/[^/]+\/plan(-intro)?$/.test(pathname)) {
+    return 'planning';
+  }
   // Check /students/:id or /clients/:id pattern (with optional sub-routes)
   if (/^\/students\/[^/]+/.test(pathname) && pathname !== '/students/new') {
     return 'student-detail';
