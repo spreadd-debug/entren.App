@@ -13,3 +13,6 @@ android/
 
 # Large data dumps (downloaded on demand by scripts)
 scripts/.cache/
+
+# Claude Code local state (harness)
+.claude/scheduled_tasks.lock

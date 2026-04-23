@@ -46,7 +46,22 @@
       "Bash(git commit -m ' *)",
       "Bash(npx tsc *)",
       "Read(//tmp/**)",
-      "Bash(echo \"---exit $?---\")"
+      "Bash(echo \"---exit $?---\")",
+      "Bash(echo \"EXIT_CODE=$?\")",
+      "Bash(xargs head *)",
+      "Bash(find /c/Users/Mauro/Desktop/entren.App/scripts -name \"*.sql\" -exec grep -l \"^CREATE TABLE.*students\" {} \\\\;)",
+      "WebFetch(domain:www.strava.com)",
+      "WebFetch(domain:developers.strava.com)",
+      "Bash(openssl rand *)",
+      "Bash(echo \"STRAVA_WEBHOOK_VERIFY_TOKEN=$\\(openssl rand -hex 16\\)\")",
+      "Bash(echo \"STRAVA_OAUTH_STATE_SECRET=$\\(openssl rand -hex 32\\)\")",
+      "Bash(git commit -m 'fix\\(strava\\): await backfill en handleCallback para Vercel serverless *)",
+      "Bash(git commit -m 'fix\\(strava\\): reemplazar índice parcial por UNIQUE constraint para upsert *)",
+      "Bash(git commit -m 'fix\\(strava\\): revoke con Bearer auth y abortar disconnect si Strava falla *)",
+      "WebFetch(domain:entren-app.vercel.app)",
+      "Bash(curl -sI \"https://entren-app.vercel.app/api/strava/callback?test=fresh$\\(date +%s\\)\")",
+      "Bash(find /c/Users/Mauro/Desktop/entren.App/src/components/pt -name \"*.tsx\" -exec grep -l \"analytics\\\\|trends\\\\|performance\\\\|insights\\\\|running\" {} \\\\;)",
+      "Bash(grep -E \"\\\\.\\(ts|tsx\\)$\")"
     ],
     "additionalDirectories": [
       "\\tmp"
