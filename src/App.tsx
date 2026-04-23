@@ -1,6 +1,6 @@
 import { supabase } from './db/supabase';
 import React, { useState, useEffect } from 'react';
-import { Routes, Route, useNavigate, useLocation, useParams, Navigate } from 'react-router-dom';
+import { Routes, Route, useNavigate, useLocation, useParams, Navigate, NavigateFunction } from 'react-router-dom';
 import { AppShell } from './components/AppShell';
 import { PTShell } from './components/PTShell';
 import { ChangePasswordModal } from './components/ChangePasswordModal';
@@ -56,6 +56,122 @@ import {
 } from '../shared/types';
 
 import { api } from './services/api';
+
+// Route wrappers for PT views. Declared at module level so their component
+// types are stable — otherwise every re-render of the parent (e.g. on toast
+// updates) would remount them and reset their internal state.
+
+const PTSessionRouteContent: React.FC<{
+  students: Student[];
+  gymId: string;
+  isLoading: boolean;
+  loadingEl: React.ReactNode;
+  navigate: NavigateFunction;
+}> = ({ students, gymId, isLoading, loadingEl, navigate }) => {
+  const { studentId } = useParams<{ studentId: string }>();
+  const student = students.find((s: any) => s.id === studentId) ?? null;
+  if (isLoading) return <>{loadingEl}</>;
+  if (!student) return <Navigate to="/clients" replace />;
+  return (
+    <PTLiveSessionView
+      student={student}
+      gymId={gymId}
+      onBack={() => navigate(`/clients/${studentId}`)}
+      onComplete={() => navigate(`/clients/${studentId}`)}
+    />
+  );
+};
+
+const PTStudentDetailRouteContent: React.FC<{
+  students: Student[];
+  plans: Plan[];
+  gymId: string;
+  isLoading: boolean;
+  loadingEl: React.ReactNode;
+  navigate: NavigateFunction;
+  onUpdateStudent: (id: string, updates: any) => Promise<void>;
+  onDeleteStudent: (id: string) => Promise<void>;
+}> = ({ students, plans, gymId, isLoading, loadingEl, navigate, onUpdateStudent, onDeleteStudent }) => {
+  const { studentId } = useParams<{ studentId: string }>();
+  const student = students.find((s: any) => s.id === studentId) ?? null;
+  if (isLoading) return <>{loadingEl}</>;
+  if (!student) return <Navigate to="/clients" replace />;
+  return (
+    <ClientDetailView
+      student={student}
+      plans={plans}
+      gymId={gymId}
+      onBack={() => navigate('/clients')}
+      onUpdateStudent={onUpdateStudent}
+      onDeleteStudent={onDeleteStudent}
+    />
+  );
+};
+
+const PTPrepareRouteContent: React.FC<{
+  students: Student[];
+  gymId: string;
+  isLoading: boolean;
+  loadingEl: React.ReactNode;
+  navigate: NavigateFunction;
+}> = ({ students, gymId, isLoading, loadingEl, navigate }) => {
+  const { studentId } = useParams<{ studentId: string }>();
+  const student = students.find((s: any) => s.id === studentId) ?? null;
+  if (isLoading) return <>{loadingEl}</>;
+  if (!student) return <Navigate to="/clients" replace />;
+  return (
+    <PreSessionDashboardView
+      student={student}
+      gymId={gymId}
+      onBack={() => navigate(`/clients/${studentId}`)}
+      onStartSession={() => navigate(`/clients/${studentId}/session`)}
+    />
+  );
+};
+
+const PTPlanIntroRouteContent: React.FC<{
+  students: Student[];
+  isLoading: boolean;
+  loadingEl: React.ReactNode;
+  navigate: NavigateFunction;
+}> = ({ students, isLoading, loadingEl, navigate }) => {
+  const { studentId } = useParams<{ studentId: string }>();
+  const student = students.find((s: any) => s.id === studentId) ?? null;
+  if (isLoading) return <>{loadingEl}</>;
+  if (!student) return <Navigate to="/clients" replace />;
+  return (
+    <PlanProfileIntro
+      student={student}
+      onContinue={() => navigate(`/clients/${studentId}/plan`)}
+      onSkip={() => navigate(`/clients/${studentId}`)}
+    />
+  );
+};
+
+const PTPlanRouteContent: React.FC<{
+  students: Student[];
+  gymId: string;
+  isLoading: boolean;
+  loadingEl: React.ReactNode;
+  navigate: NavigateFunction;
+}> = ({ students, gymId, isLoading, loadingEl, navigate }) => {
+  const toast = useToast();
+  const { studentId } = useParams<{ studentId: string }>();
+  const student = students.find((s: any) => s.id === studentId) ?? null;
+  if (isLoading) return <>{loadingEl}</>;
+  if (!student) return <Navigate to="/clients" replace />;
+  return (
+    <PlanProfileWizard
+      student={student}
+      gymId={gymId}
+      onBack={() => navigate(`/clients/${studentId}`)}
+      onSaved={() => {
+        toast.success('Plan de entrenamiento guardado');
+        navigate(`/clients/${studentId}`);
+      }}
+    />
+  );
+};
 
 export default function App() {
 
@@ -899,25 +1015,6 @@ function PTApp({ gymId, onLogout }: {
     ? <div className="flex items-center justify-center h-64 text-slate-400">Cargando...</div>
     : null;
 
-  const PTStudentDetailRoute = () => {
-    const { studentId } = useParams<{ studentId: string }>();
-    const student = students.find((s: any) => s.id === studentId) ?? null;
-
-    if (isLoading) return loadingEl;
-    if (!student) return <Navigate to="/clients" replace />;
-
-    return (
-      <ClientDetailView
-        student={student}
-        plans={plans}
-        gymId={gymId}
-        onBack={() => navigate('/clients')}
-        onUpdateStudent={handleUpdateStudent}
-        onDeleteStudent={handleDeleteStudent}
-      />
-    );
-  };
-
   return (
     <PTShell
       currentView={currentView === 'student-detail' ? 'students' : currentView}
@@ -965,84 +1062,52 @@ function PTApp({ gymId, onLogout }: {
               />
             )
           } />
-          <Route path="/clients/:studentId" element={<PTStudentDetailRoute />} />
+          <Route path="/clients/:studentId" element={
+            <PTStudentDetailRouteContent
+              students={students}
+              plans={plans}
+              gymId={gymId}
+              isLoading={isLoading}
+              loadingEl={loadingEl}
+              navigate={navigate}
+              onUpdateStudent={handleUpdateStudent}
+              onDeleteStudent={handleDeleteStudent}
+            />
+          } />
           <Route path="/clients/:studentId/prepare" element={
-            (() => {
-              const PTPrepareRoute = () => {
-                const { studentId } = useParams<{ studentId: string }>();
-                const student = students.find((s: any) => s.id === studentId) ?? null;
-                if (isLoading) return loadingEl;
-                if (!student) return <Navigate to="/clients" replace />;
-                return (
-                  <PreSessionDashboardView
-                    student={student}
-                    gymId={gymId}
-                    onBack={() => navigate(`/clients/${studentId}`)}
-                    onStartSession={() => navigate(`/clients/${studentId}/session`)}
-                  />
-                );
-              };
-              return <PTPrepareRoute />;
-            })()
+            <PTPrepareRouteContent
+              students={students}
+              gymId={gymId}
+              isLoading={isLoading}
+              loadingEl={loadingEl}
+              navigate={navigate}
+            />
           } />
           <Route path="/clients/:studentId/plan-intro" element={
-            (() => {
-              const PTPlanIntroRoute = () => {
-                const { studentId } = useParams<{ studentId: string }>();
-                const student = students.find((s: any) => s.id === studentId) ?? null;
-                if (isLoading) return loadingEl;
-                if (!student) return <Navigate to="/clients" replace />;
-                return (
-                  <PlanProfileIntro
-                    student={student}
-                    onContinue={() => navigate(`/clients/${studentId}/plan`)}
-                    onSkip={() => navigate(`/clients/${studentId}`)}
-                  />
-                );
-              };
-              return <PTPlanIntroRoute />;
-            })()
+            <PTPlanIntroRouteContent
+              students={students}
+              isLoading={isLoading}
+              loadingEl={loadingEl}
+              navigate={navigate}
+            />
           } />
           <Route path="/clients/:studentId/plan" element={
-            (() => {
-              const PTPlanRoute = () => {
-                const { studentId } = useParams<{ studentId: string }>();
-                const student = students.find((s: any) => s.id === studentId) ?? null;
-                if (isLoading) return loadingEl;
-                if (!student) return <Navigate to="/clients" replace />;
-                return (
-                  <PlanProfileWizard
-                    student={student}
-                    gymId={gymId}
-                    onBack={() => navigate(`/clients/${studentId}`)}
-                    onSaved={() => {
-                      toast.success('Plan de entrenamiento guardado');
-                      navigate(`/clients/${studentId}`);
-                    }}
-                  />
-                );
-              };
-              return <PTPlanRoute />;
-            })()
+            <PTPlanRouteContent
+              students={students}
+              gymId={gymId}
+              isLoading={isLoading}
+              loadingEl={loadingEl}
+              navigate={navigate}
+            />
           } />
           <Route path="/clients/:studentId/session" element={
-            (() => {
-              const PTSessionRoute = () => {
-                const { studentId } = useParams<{ studentId: string }>();
-                const student = students.find((s: any) => s.id === studentId) ?? null;
-                if (isLoading) return loadingEl;
-                if (!student) return <Navigate to="/clients" replace />;
-                return (
-                  <PTLiveSessionView
-                    student={student}
-                    gymId={gymId}
-                    onBack={() => navigate(`/clients/${studentId}`)}
-                    onComplete={() => navigate(`/clients/${studentId}`)}
-                  />
-                );
-              };
-              return <PTSessionRoute />;
-            })()
+            <PTSessionRouteContent
+              students={students}
+              gymId={gymId}
+              isLoading={isLoading}
+              loadingEl={loadingEl}
+              navigate={navigate}
+            />
           } />
           <Route path="/plans" element={
             loadingEl ?? (
