@@ -152,7 +152,7 @@ export const PersonalCardDetail: React.FC = () => {
 
   return (
     <>
-      <MobileHeader title={card?.name ?? 'Tarjeta'} onBack={() => navigate('/admin/personal/cards')} large />
+      <MobileHeader title={card?.name ?? 'Tarjeta'} onBack={() => navigate(-1)} large />
 
       <div className="px-5 pb-32">
         {loading && <p className="text-center text-sm text-[var(--color-ink-muted)] py-8">Cargando…</p>}
