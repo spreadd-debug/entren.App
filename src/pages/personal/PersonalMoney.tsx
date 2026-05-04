@@ -27,6 +27,7 @@ interface TxForm {
   account_id: string;
   credit_card_id: string;        // si está seteado, la compra va a tarjeta (kind=expense)
   use_credit_card: boolean;      // toggle UI
+  card_currency: string;         // moneda de la compra cuando es con tarjeta (ARS/USD)
   to_account_id: string;
   category_id: string | null;
   amount: string;
@@ -41,6 +42,7 @@ const EMPTY_FORM: TxForm = {
   account_id: '',
   credit_card_id: '',
   use_credit_card: false,
+  card_currency: 'ARS',
   to_account_id: '',
   category_id: null,
   amount: '',
@@ -204,7 +206,7 @@ export const PersonalMoney: React.FC = () => {
           category_id: form.category_id,
           kind: 'expense',
           amount,
-          currency: card.currency,
+          currency: form.card_currency,
           occurred_at: new Date(form.occurred_at).toISOString(),
           description: form.description || null,
         });
@@ -489,13 +491,32 @@ export const PersonalMoney: React.FC = () => {
           )}
 
           {form.kind === 'expense' && form.use_credit_card ? (
-            <Field
-              label="Tarjeta"
-              asSelect
-              value={form.credit_card_id}
-              onChange={v => setForm({ ...form, credit_card_id: v })}
-              options={cards.map(c => ({ value: c.id, label: `${c.name} (${c.currency})` }))}
-            />
+            <>
+              <Field
+                label="Tarjeta"
+                asSelect
+                value={form.credit_card_id}
+                onChange={v => setForm({ ...form, credit_card_id: v })}
+                options={cards.map(c => ({ value: c.id, label: c.name }))}
+              />
+              <div>
+                <label className="text-xs uppercase tracking-wider text-[var(--color-ink-muted)] font-semibold block mb-1.5">Moneda de la compra</label>
+                <div className="flex gap-1.5">
+                  {['ARS', 'USD'].map(c => (
+                    <PillChip
+                      key={c}
+                      variant={form.card_currency === c ? 'selected' : 'outline'}
+                      onClick={() => setForm({ ...form, card_currency: c })}
+                    >
+                      {c}
+                    </PillChip>
+                  ))}
+                </div>
+                <p className="text-[11px] text-[var(--color-ink-muted)] mt-1.5">
+                  Va al resumen {form.card_currency} de esta tarjeta.
+                </p>
+              </div>
+            </>
           ) : (
             <Field
               label={form.kind === 'transfer' ? 'Cuenta origen' : 'Cuenta'}

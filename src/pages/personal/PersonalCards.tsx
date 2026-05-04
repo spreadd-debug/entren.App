@@ -18,7 +18,6 @@ interface CardForm {
   closing_day: string;
   due_day: string;
   credit_limit: string;
-  currency: string;
   pay_from_account_id: string;
   color_a: string;
   color_b: string;
@@ -31,7 +30,6 @@ const EMPTY: CardForm = {
   closing_day: '25',
   due_day: '5',
   credit_limit: '',
-  currency: 'ARS',
   pay_from_account_id: '',
   color_a: '#6366F1',
   color_b: '#A855F7',
@@ -91,7 +89,6 @@ export const PersonalCards: React.FC = () => {
       closing_day: String(c.closing_day),
       due_day: String(c.due_day),
       credit_limit: c.credit_limit != null ? String(c.credit_limit) : '',
-      currency: c.currency,
       pay_from_account_id: c.pay_from_account_id ?? '',
       color_a: c.color_a ?? '#6366F1',
       color_b: c.color_b ?? '#A855F7',
@@ -115,7 +112,6 @@ export const PersonalCards: React.FC = () => {
         closing_day: closingDay,
         due_day: dueDay,
         credit_limit: form.credit_limit ? Number(form.credit_limit) : null,
-        currency: form.currency,
         pay_from_account_id: form.pay_from_account_id || null,
         color_a: form.color_a,
         color_b: form.color_b,
@@ -229,17 +225,10 @@ export const PersonalCards: React.FC = () => {
             <Field label="Cierre (día)" type="number" value={form.closing_day} onChange={v => setForm({ ...form, closing_day: v })} placeholder="25" />
             <Field label="Vencimiento (día)" type="number" value={form.due_day} onChange={v => setForm({ ...form, due_day: v })} placeholder="5" />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label={`Límite (${form.currency})`} type="number" value={form.credit_limit} onChange={v => setForm({ ...form, credit_limit: v })} placeholder="opcional" />
-            <div>
-              <label className="text-xs uppercase tracking-wider text-[var(--color-ink-muted)] font-semibold block mb-1.5">Moneda</label>
-              <div className="flex gap-1.5">
-                {['ARS', 'USD'].map(c => (
-                  <PillChip key={c} variant={form.currency === c ? 'selected' : 'outline'} onClick={() => setForm({ ...form, currency: c })}>{c}</PillChip>
-                ))}
-              </div>
-            </div>
-          </div>
+          <Field label="Límite de crédito (opcional)" type="number" value={form.credit_limit} onChange={v => setForm({ ...form, credit_limit: v })} placeholder="por ej. 500000" />
+          <p className="text-[11px] text-[var(--color-ink-muted)] -mt-2">
+            La tarjeta acepta compras en pesos y dólares — al cargar cada gasto elegís la moneda.
+          </p>
 
           <Field
             label="Cuenta para pagar el resumen"

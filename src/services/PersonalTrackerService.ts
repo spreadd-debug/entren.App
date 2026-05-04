@@ -361,6 +361,7 @@ export const PersonalTransactionsService = {
         input.credit_card_id,
         input.profile_id,
         occurred,
+        input.currency,
       );
       const { data, error } = await supabase
         .from('personal_transactions')
@@ -543,7 +544,6 @@ export const PersonalCreditCardsService = {
   async create(input: PersonalCreditCardInput): Promise<PersonalCreditCard> {
     const payload = {
       ...input,
-      currency: input.currency ?? 'ARS',
       color_a: input.color_a ?? DEFAULT_CARD_GRADIENT[0],
       color_b: input.color_b ?? DEFAULT_CARD_GRADIENT[1],
     };
@@ -605,9 +605,16 @@ export const PersonalCardStatementsService = {
     return (data ?? null) as PersonalCardStatement | null;
   },
 
-  // Lazy-create del statement: si ya existe para (card, period_end) lo devuelve,
-  // si no lo crea con total_amount=0 y status=open.
-  async ensureForCardAndDate(cardId: string, profileId: string, occurredAt: string): Promise<PersonalCardStatement> {
+  // Lazy-create del statement: si ya existe para (card, period_end, currency)
+  // lo devuelve, si no lo crea con total_amount=0 y status=open.
+  // Una tarjeta puede tener varios statements del mismo período si hubo
+  // compras en monedas distintas (ej. uno ARS y uno USD).
+  async ensureForCardAndDate(
+    cardId: string,
+    profileId: string,
+    occurredAt: string,
+    currency: string,
+  ): Promise<PersonalCardStatement> {
     const card = await PersonalCreditCardsService.getById(cardId);
     if (!card) throw new Error(`Tarjeta ${cardId} inexistente`);
     const win = resolveStatementWindow(card, occurredAt);
@@ -617,6 +624,7 @@ export const PersonalCardStatementsService = {
       .select('*')
       .eq('card_id', cardId)
       .eq('period_end', win.period_end)
+      .eq('currency', currency)
       .maybeSingle();
     if (existing.error) throw existing.error;
     if (existing.data) return existing.data as PersonalCardStatement;
@@ -631,6 +639,7 @@ export const PersonalCardStatementsService = {
       .insert({
         card_id: cardId,
         profile_id: profileId,
+        currency,
         period_start: win.period_start,
         period_end: win.period_end,
         due_date: win.due_date,

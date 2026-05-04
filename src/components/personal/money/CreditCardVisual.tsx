@@ -18,6 +18,9 @@ interface Props {
   onClick?: () => void;
   variant?: 'hero' | 'compact';
   className?: string;
+  // Etiqueta opcional arriba a la derecha (ej. "ARS" o "USD") — solo cuando
+  // queremos identificar la moneda de un statement particular.
+  badge?: string | null;
 }
 
 const FALLBACK_GRADIENT: [string, string] = ['#6366F1', '#A855F7'];
@@ -28,6 +31,7 @@ export const CreditCardVisual: React.FC<Props> = ({
   onClick,
   variant = 'hero',
   className = '',
+  badge,
 }) => {
   const grad: [string, string] = [
     card.color_a || FALLBACK_GRADIENT[0],
@@ -71,15 +75,22 @@ export const CreditCardVisual: React.FC<Props> = ({
       <div className="absolute -bottom-20 -left-10 w-40 h-40 rounded-full opacity-20 blur-3xl" style={{ background: grad[0] }} />
 
       <div className="relative h-full flex flex-col justify-between">
-        <div className="flex items-start justify-between">
-          <div className="w-9 h-9 rounded-xl bg-white/15 backdrop-blur flex items-center justify-center">
+        <div className="flex items-start justify-between gap-2">
+          <div className="w-9 h-9 rounded-xl bg-white/15 backdrop-blur flex items-center justify-center shrink-0">
             <CreditCard size={17} strokeWidth={1.75} />
           </div>
-          {card.bank && (
-            <span className="text-[10px] uppercase tracking-[0.2em] opacity-90 font-semibold bg-white/15 backdrop-blur rounded-full px-2.5 py-1">
-              {card.bank}
-            </span>
-          )}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {badge && (
+              <span className="text-[10px] uppercase tracking-[0.2em] opacity-90 font-semibold bg-white/15 backdrop-blur rounded-full px-2.5 py-1">
+                {badge}
+              </span>
+            )}
+            {card.bank && (
+              <span className="text-[10px] uppercase tracking-[0.2em] opacity-90 font-semibold bg-white/15 backdrop-blur rounded-full px-2.5 py-1">
+                {card.bank}
+              </span>
+            )}
+          </div>
         </div>
 
         <div className="font-mono tracking-[0.22em] text-xl">{last4}</div>

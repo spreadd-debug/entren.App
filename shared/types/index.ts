@@ -1079,7 +1079,8 @@ export interface PersonalCreditCard {
   name: string;
   bank: string | null;
   last_4: string | null;
-  currency: string;
+  // La tarjeta NO tiene currency — opera multi-moneda. Las compras y los
+  // statements son los que llevan currency cada uno.
   credit_limit: number | null;
   closing_day: number;
   due_day: number;
@@ -1097,7 +1098,6 @@ export interface PersonalCreditCardInput {
   name: string;
   bank?: string | null;
   last_4?: string | null;
-  currency?: string;
   credit_limit?: number | null;
   closing_day: number;
   due_day: number;
@@ -1112,7 +1112,8 @@ export interface PersonalCardStatement {
   id: string;
   card_id: string;
   profile_id: string;
-  period_start: string;     // YYYY-MM-DD
+  currency: string;          // 'ARS' o 'USD' — un statement por moneda y período
+  period_start: string;      // YYYY-MM-DD
   period_end: string;
   due_date: string;
   total_amount: number;

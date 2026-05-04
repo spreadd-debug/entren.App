@@ -29,6 +29,12 @@ function fmt(n: number): string {
   return Math.abs(n).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
 
+function currencySymbol(currency: string): string {
+  if (currency === 'USD') return 'US$';
+  if (currency === 'EUR') return '€';
+  return '$';
+}
+
 const STATUS_LABELS: Record<string, string> = {
   open:    'Abierto',
   closed:  'Cerrado · pendiente de pago',
@@ -46,6 +52,7 @@ export const PersonalCardDetail: React.FC = () => {
   const [txs, setTxs] = useState<PersonalTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>('current');
+  const [activeCurrency, setActiveCurrency] = useState<string>('ARS');
   const [payOpen, setPayOpen] = useState(false);
   const [payForm, setPayForm] = useState<PayForm>({ account_id: '', amount: '' });
   const [selectedStatement, setSelectedStatement] = useState<PersonalCardStatement | null>(null);
@@ -56,13 +63,13 @@ export const PersonalCardDetail: React.FC = () => {
     try {
       const [c, sts, accs] = await Promise.all([
         PersonalCreditCardsService.getById(cardId),
-        PersonalCardStatementsService.listByCard(cardId, 24),
+        PersonalCardStatementsService.listByCard(cardId, 48),
         PersonalAccountsService.list(profile.id),
       ]);
       setCard(c);
       setStatements(sts);
       setAccounts(accs);
-      const allTxs = await PersonalTransactionsService.list(profile.id, {}, 500);
+      const allTxs = await PersonalTransactionsService.list(profile.id, {}, 1000);
       setTxs(allTxs.filter(t => t.credit_card_id === cardId));
     } catch (err) {
       console.error('[card detail] load failed', err);
@@ -73,29 +80,49 @@ export const PersonalCardDetail: React.FC = () => {
 
   useEffect(() => { refresh(); /* eslint-disable-next-line */ }, [profile?.id, cardId]);
 
-  // Statement actual = el que abarca hoy (resolveStatementWindow con date = hoy)
-  // y el próximo = el que sigue (closing_day del próximo mes).
+  // Currencies activas: las que tienen al menos un statement.
+  const availableCurrencies = useMemo(() => {
+    const set = new Set<string>(['ARS']); // ARS siempre visible aunque esté vacío
+    statements.forEach(s => set.add(s.currency));
+    return Array.from(set);
+  }, [statements]);
+
+  // Cuando cambian las currencies disponibles, ajustar la activa.
+  useEffect(() => {
+    if (!availableCurrencies.includes(activeCurrency)) {
+      setActiveCurrency(availableCurrencies[0] ?? 'ARS');
+    }
+  }, [availableCurrencies, activeCurrency]);
+
+  // Statement actual = el que abarca hoy en la moneda activa.
   const currentStatement = useMemo<PersonalCardStatement | null>(() => {
     if (!card) return null;
     const today = new Date();
     const win = resolveStatementWindow(card, today);
-    return statements.find(s => s.period_end === win.period_end) ?? null;
-  }, [card, statements]);
+    return statements.find(s => s.period_end === win.period_end && s.currency === activeCurrency) ?? null;
+  }, [card, statements, activeCurrency]);
 
+  // Próximo statement = el período siguiente al actual, en la moneda activa.
   const nextStatement = useMemo<PersonalCardStatement | null>(() => {
     if (!card) return null;
-    // Avanzar 1 mes después del cierre actual
     const today = new Date();
     const winNow = resolveStatementWindow(card, today);
     const nextRefDate = new Date(winNow.period_end);
     nextRefDate.setDate(nextRefDate.getDate() + 1);
     const winNext = resolveStatementWindow(card, nextRefDate);
-    return statements.find(s => s.period_end === winNext.period_end) ?? null;
-  }, [card, statements]);
+    return statements.find(s => s.period_end === winNext.period_end && s.currency === activeCurrency) ?? null;
+  }, [card, statements, activeCurrency]);
 
+  // Statements pendientes de pago (cualquier moneda — se muestran arriba).
   const closedPending = useMemo(
     () => statements.filter(s => s.status === 'closed' || s.status === 'partial'),
     [statements],
+  );
+
+  // Hist hist por moneda activa
+  const historyForCurrency = useMemo(
+    () => statements.filter(s => s.currency === activeCurrency),
+    [statements, activeCurrency],
   );
 
   const txsForStatement = (s: PersonalCardStatement | null) => {
@@ -106,8 +133,11 @@ export const PersonalCardDetail: React.FC = () => {
   const openPay = (s: PersonalCardStatement) => {
     if (!card) return;
     const remaining = Number(s.total_amount) - Number(s.paid_amount);
+    // Pre-elegir cuenta: si la default coincide en moneda con el statement, usarla.
+    const defaultAcc = accounts.find(a => a.id === card.pay_from_account_id);
+    const matchingAcc = accounts.find(a => a.currency === s.currency);
     setPayForm({
-      account_id: card.pay_from_account_id ?? accounts[0]?.id ?? '',
+      account_id: (defaultAcc?.currency === s.currency ? defaultAcc.id : matchingAcc?.id) ?? accounts[0]?.id ?? '',
       amount: String(remaining > 0 ? remaining.toFixed(2) : ''),
     });
     setSelectedStatement(s);
@@ -149,6 +179,7 @@ export const PersonalCardDetail: React.FC = () => {
 
   const stmtForTab = tab === 'current' ? currentStatement : tab === 'next' ? nextStatement : null;
   const stmtTxs = txsForStatement(stmtForTab);
+  const sym = currencySymbol(activeCurrency);
 
   return (
     <>
@@ -159,13 +190,30 @@ export const PersonalCardDetail: React.FC = () => {
 
         {!loading && card && (
           <>
-            <CreditCardVisual card={card} holderName={holderName} variant="hero" />
+            <CreditCardVisual card={card} holderName={holderName} variant="hero" badge={availableCurrencies.length > 1 ? activeCurrency : null} />
 
-            {/* Resumen current */}
-            <Card className="mt-4" tone="ink">
-              <p className="text-xs uppercase tracking-wider opacity-60">Resumen actual</p>
+            {/* Switcher de moneda — solo si hay más de 1 currency con statements */}
+            {availableCurrencies.length > 1 && (
+              <div className="flex items-center gap-1.5 mt-4">
+                {availableCurrencies.map(c => (
+                  <PillChip
+                    key={c}
+                    variant={activeCurrency === c ? 'selected' : 'outline'}
+                    onClick={() => setActiveCurrency(c)}
+                  >
+                    Resumen {c}
+                  </PillChip>
+                ))}
+              </div>
+            )}
+
+            {/* Resumen current de la moneda activa */}
+            <Card className="mt-3" tone="ink">
+              <p className="text-xs uppercase tracking-wider opacity-60">
+                Resumen actual {availableCurrencies.length > 1 ? `(${activeCurrency})` : ''}
+              </p>
               <p className="font-serif text-4xl mt-1">
-                <span className="opacity-70 text-base mr-1">$</span>
+                <span className="opacity-70 text-base mr-1">{sym}</span>
                 {fmt(Number(currentStatement?.total_amount ?? 0))}
               </p>
               {currentStatement && (
@@ -174,26 +222,28 @@ export const PersonalCardDetail: React.FC = () => {
                 </p>
               )}
               {!currentStatement && (
-                <p className="text-xs opacity-70 mt-2 italic">Sin compras este período.</p>
+                <p className="text-xs opacity-70 mt-2 italic">Sin compras este período en {activeCurrency}.</p>
               )}
             </Card>
 
-            {/* Statements pendientes de pago */}
+            {/* Statements pendientes de pago — TODAS las monedas */}
             {closedPending.length > 0 && (
               <div className="mt-3 space-y-2">
                 {closedPending.map(s => {
                   const remaining = Number(s.total_amount) - Number(s.paid_amount);
+                  const stmtSym = currencySymbol(s.currency);
                   return (
                     <Card key={s.id} tone="tinted">
                       <div className="flex items-center gap-3">
                         <Clock size={18} className="text-amber-600 shrink-0" />
                         <div className="flex-1 min-w-0">
                           <p className="font-serif text-base text-[var(--color-ink)] leading-tight">
-                            ${fmt(remaining)} a pagar
+                            {stmtSym} {fmt(remaining)} a pagar
+                            <span className="text-[10px] uppercase tracking-wider text-[var(--color-ink-muted)] font-semibold ml-2">{s.currency}</span>
                           </p>
                           <p className="text-xs text-[var(--color-ink-muted)] mt-0.5">
                             Vence el {formatDueDate(s.due_date)}
-                            {s.status === 'partial' && ` · pagado parcial $${fmt(Number(s.paid_amount))}`}
+                            {s.status === 'partial' && ` · pagado parcial ${stmtSym} ${fmt(Number(s.paid_amount))}`}
                           </p>
                         </div>
                         <button
@@ -221,7 +271,7 @@ export const PersonalCardDetail: React.FC = () => {
               <>
                 {!stmtForTab && (
                   <p className="text-center text-sm text-[var(--color-ink-muted)] py-6 italic">
-                    Sin statement {tab === 'current' ? 'actual' : 'próximo'} todavía
+                    Sin resumen {tab === 'current' ? 'actual' : 'próximo'} en {activeCurrency}
                   </p>
                 )}
                 {stmtForTab && stmtTxs.length === 0 && (
@@ -245,7 +295,7 @@ export const PersonalCardDetail: React.FC = () => {
                           </p>
                         </div>
                         <p className="font-serif text-lg text-rose-600 shrink-0">
-                          − {fmt(Number(t.amount))}
+                          − {currencySymbol(t.currency)} {fmt(Number(t.amount))}
                         </p>
                         <button
                           type="button"
@@ -264,10 +314,10 @@ export const PersonalCardDetail: React.FC = () => {
 
             {tab === 'history' && (
               <div className="space-y-2">
-                {statements.length === 0 && (
-                  <p className="text-center text-sm text-[var(--color-ink-muted)] py-6 italic">Sin resúmenes históricos</p>
+                {historyForCurrency.length === 0 && (
+                  <p className="text-center text-sm text-[var(--color-ink-muted)] py-6 italic">Sin resúmenes históricos en {activeCurrency}</p>
                 )}
-                {statements.map(s => (
+                {historyForCurrency.map(s => (
                   <Card key={s.id} padding="sm">
                     <div className="flex items-center gap-3">
                       {s.status === 'paid' ? (
@@ -284,10 +334,10 @@ export const PersonalCardDetail: React.FC = () => {
                         </p>
                       </div>
                       <div className="text-right shrink-0">
-                        <p className="font-serif text-base text-[var(--color-ink)]">${fmt(Number(s.total_amount))}</p>
+                        <p className="font-serif text-base text-[var(--color-ink)]">{sym} {fmt(Number(s.total_amount))}</p>
                         {s.paid_amount > 0 && s.status !== 'paid' && (
                           <p className="text-[10px] text-[var(--color-ink-muted)] mt-0.5">
-                            pagado ${fmt(Number(s.paid_amount))}
+                            pagado {sym} {fmt(Number(s.paid_amount))}
                           </p>
                         )}
                       </div>
@@ -308,9 +358,9 @@ export const PersonalCardDetail: React.FC = () => {
         {selectedStatement && (
           <div className="space-y-4 mt-2">
             <div className="text-sm text-[var(--color-ink-muted)]">
-              Total del resumen: <span className="font-semibold text-[var(--color-ink)]">${fmt(Number(selectedStatement.total_amount))}</span>
+              Total ({selectedStatement.currency}): <span className="font-semibold text-[var(--color-ink)]">{currencySymbol(selectedStatement.currency)} {fmt(Number(selectedStatement.total_amount))}</span>
               {selectedStatement.paid_amount > 0 && (
-                <> · ya pagado <span className="font-semibold text-[var(--color-ink)]">${fmt(Number(selectedStatement.paid_amount))}</span></>
+                <> · ya pagado <span className="font-semibold text-[var(--color-ink)]">{currencySymbol(selectedStatement.currency)} {fmt(Number(selectedStatement.paid_amount))}</span></>
               )}
             </div>
             <label className="block">
@@ -323,6 +373,18 @@ export const PersonalCardDetail: React.FC = () => {
                 <option value="">— elegir —</option>
                 {accounts.map(a => <option key={a.id} value={a.id}>{a.name} ({a.currency} {fmt(Number(a.current_balance))})</option>)}
               </select>
+              {payForm.account_id && (() => {
+                const acc = accounts.find(a => a.id === payForm.account_id);
+                if (!acc) return null;
+                if (acc.currency !== selectedStatement.currency) {
+                  return (
+                    <p className="text-[11px] text-amber-700 mt-1.5">
+                      ⚠ La cuenta es {acc.currency} y el resumen es {selectedStatement.currency}. Ingresá el monto que sale de la cuenta — el resumen se reduce por el mismo número.
+                    </p>
+                  );
+                }
+                return null;
+              })()}
             </label>
             <label className="block">
               <span className="text-xs uppercase tracking-wider text-[var(--color-ink-muted)] font-semibold block mb-1.5">Monto a pagar</span>
