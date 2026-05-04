@@ -1,3 +1,9 @@
+import { createRequire as __nodeCreateRequire } from 'module';
+import { fileURLToPath as __nodeFileURLToPath } from 'url';
+import { dirname as __nodeDirname } from 'path';
+const require = __nodeCreateRequire(import.meta.url);
+const __filename = __nodeFileURLToPath(import.meta.url);
+const __dirname = __nodeDirname(__filename);
 var __create = Object.create;
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
