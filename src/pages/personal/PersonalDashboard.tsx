@@ -6,14 +6,16 @@ import { usePersonalProfile } from '../../hooks/usePersonalProfile';
 import {
   PersonalActivitiesService,
   PersonalMealsService,
-  PersonalExpensesService,
+  PersonalAccountsService,
+  PersonalTransactionsService,
   PersonalBodyService,
   PersonalSleepService,
   PersonalDailyMetricsService,
 } from '../../services/PersonalTrackerService';
+import { api } from '../../services/api';
 import {
-  PersonalActivity, PersonalMealWithFoods, PersonalExpense, PersonalBodyMetric,
-  PersonalSleep, PersonalDailyMetrics,
+  PersonalActivity, PersonalMealWithFoods, PersonalAccount, PersonalTransaction,
+  PersonalBodyMetric, PersonalSleep, PersonalDailyMetrics,
 } from '../../../shared/types';
 
 interface Props {
@@ -35,12 +37,12 @@ function startOfWeek(): string {
 
 function startOfMonthIso(): string {
   const d = new Date();
-  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
+  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString();
 }
 
-function endOfMonthIso(): string {
+function startOfPrevMonthIso(): string {
   const d = new Date();
-  return new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().slice(0, 10);
+  return new Date(d.getFullYear(), d.getMonth() - 1, 1).toISOString();
 }
 
 export const PersonalDashboard: React.FC<Props> = ({ onLogout }) => {
@@ -48,7 +50,10 @@ export const PersonalDashboard: React.FC<Props> = ({ onLogout }) => {
   const { profile, loading } = usePersonalProfile();
   const [activitiesWeek, setActivitiesWeek] = useState<PersonalActivity[]>([]);
   const [todayMeals, setTodayMeals] = useState<PersonalMealWithFoods[]>([]);
-  const [expensesMonth, setExpensesMonth] = useState<PersonalExpense[]>([]);
+  const [accounts, setAccounts] = useState<PersonalAccount[]>([]);
+  const [txsThisMonth, setTxsThisMonth] = useState<PersonalTransaction[]>([]);
+  const [txsPrevMonth, setTxsPrevMonth] = useState<PersonalTransaction[]>([]);
+  const [fxRate, setFxRate] = useState<number | null>(null);
   const [latestBody, setLatestBody] = useState<PersonalBodyMetric | null>(null);
   const [latestSleep, setLatestSleep] = useState<PersonalSleep | null>(null);
   const [latestDaily, setLatestDaily] = useState<PersonalDailyMetrics | null>(null);
@@ -56,20 +61,28 @@ export const PersonalDashboard: React.FC<Props> = ({ onLogout }) => {
 
   useEffect(() => {
     if (!profile) return;
+    const monthStart = startOfMonthIso();
     Promise.all([
       PersonalActivitiesService.list(profile.id, { from: startOfWeek() }),
       PersonalMealsService.listByDate(profile.id, todayIso()),
-      PersonalExpensesService.listInRange(profile.id, { from: startOfMonthIso(), to: endOfMonthIso() }),
+      PersonalAccountsService.list(profile.id),
+      PersonalTransactionsService.list(profile.id, { from: monthStart }, 500),
+      PersonalTransactionsService.list(profile.id, { from: startOfPrevMonthIso(), to: monthStart }, 500),
       PersonalBodyService.latest(profile.id),
       PersonalSleepService.latest(profile.id),
       PersonalDailyMetricsService.latest(profile.id),
-    ]).then(([acts, meals, exps, body, sleep, daily]) => {
+      api.fx.getLatest(),
+    ]).then(([acts, meals, acc, txCurr, txPrev, body, sleep, daily, fx]) => {
       setActivitiesWeek(acts);
       setTodayMeals(meals);
-      setExpensesMonth(exps);
+      setAccounts(acc);
+      setTxsThisMonth(txCurr);
+      setTxsPrevMonth(txPrev);
       setLatestBody(body);
       setLatestSleep(sleep);
       setLatestDaily(daily);
+      const preferred = profile.preferred_fx_name ?? 'blue';
+      setFxRate(fx.find(r => r.name === preferred)?.sell ?? null);
     }).catch(err => console.error('[dashboard] load failed', err));
   }, [profile?.id]);
 
@@ -81,10 +94,27 @@ export const PersonalDashboard: React.FC<Props> = ({ onLogout }) => {
     () => Math.round(todayMeals.reduce((sum, m) => sum + (m.protein_g ?? 0), 0)),
     [todayMeals],
   );
-  const monthTotal = useMemo(
-    () => expensesMonth.reduce((sum, e) => sum + Number(e.amount ?? 0), 0),
-    [expensesMonth],
-  );
+
+  const totalArs = useMemo(() => {
+    return accounts.reduce((sum, a) => {
+      const bal = Number(a.current_balance) || 0;
+      if (a.currency === 'ARS') return sum + bal;
+      if (fxRate && a.currency === 'USD') return sum + bal * fxRate;
+      return sum;
+    }, 0);
+  }, [accounts, fxRate]);
+
+  const sumExpensesArs = (txs: PersonalTransaction[]) => txs
+    .filter(t => t.kind === 'expense')
+    .reduce((s, t) => {
+      const amt = Number(t.amount);
+      return s + (t.currency === 'ARS' ? amt : (fxRate ? amt * fxRate : amt));
+    }, 0);
+
+  const monthSpending = useMemo(() => sumExpensesArs(txsThisMonth), [txsThisMonth, fxRate]);
+  const prevMonthSpending = useMemo(() => sumExpensesArs(txsPrevMonth), [txsPrevMonth, fxRate]);
+  const spendingDelta = monthSpending - prevMonthSpending;
+
   const weekKcalBurned = useMemo(
     () => activitiesWeek.reduce((sum, a) => sum + (a.calories_kcal ?? 0), 0),
     [activitiesWeek],
@@ -189,21 +219,39 @@ export const PersonalDashboard: React.FC<Props> = ({ onLogout }) => {
             </div>
           </Card>
 
-          <Card onClick={() => navigate('expenses')}>
+          <Card onClick={() => navigate('money')}>
             <div className="flex items-start gap-3">
               <div className="w-11 h-11 rounded-2xl bg-violet-100 flex items-center justify-center text-violet-600 shrink-0">
                 <Wallet size={20} strokeWidth={1.75} />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-baseline gap-2">
-                  <span className="text-[11px] uppercase tracking-wider text-[var(--color-ink-muted)] font-semibold">Este mes</span>
-                  <span className="text-[11px] text-[var(--color-ink-muted)]">{expensesMonth.length} gastos</span>
+                  <span className="text-[11px] uppercase tracking-wider text-[var(--color-ink-muted)] font-semibold">Total</span>
+                  {accounts.length > 0 && (
+                    <span className="text-[11px] text-[var(--color-ink-muted)]">{accounts.length} cuenta{accounts.length === 1 ? '' : 's'}</span>
+                  )}
                 </div>
-                <h3 className="font-serif text-2xl text-[var(--color-ink)] leading-tight mt-0.5">Expensas</h3>
+                <h3 className="font-serif text-2xl text-[var(--color-ink)] leading-tight mt-0.5">Finanzas</h3>
                 <div className="mt-2 flex items-baseline gap-1">
-                  <span className="text-xs text-[var(--color-ink-muted)]">{profile?.currency ?? 'ARS'}</span>
-                  <span className="font-serif text-3xl text-[var(--color-ink)]">{monthTotal.toLocaleString('es-AR')}</span>
+                  {accounts.length > 0 ? (
+                    <>
+                      <span className="text-xs text-[var(--color-ink-muted)]">$</span>
+                      <span className="font-serif text-3xl text-[var(--color-ink)]">{Math.round(totalArs).toLocaleString('es-AR')}</span>
+                    </>
+                  ) : (
+                    <span className="text-sm text-[var(--color-ink-muted)] italic">Creá tu primera cuenta</span>
+                  )}
                 </div>
+                {accounts.length > 0 && monthSpending > 0 && (
+                  <p className="text-[11px] text-[var(--color-ink-muted)] mt-1.5">
+                    Gastaste <span className="font-semibold text-[var(--color-ink)]">${Math.round(monthSpending).toLocaleString('es-AR')}</span> este mes
+                    {prevMonthSpending > 0 && (
+                      <span className={spendingDelta >= 0 ? 'text-rose-600 ml-1' : 'text-emerald-600 ml-1'}>
+                        ({spendingDelta >= 0 ? '+' : ''}{Math.round((spendingDelta / prevMonthSpending) * 100)}% vs mes anterior)
+                      </span>
+                    )}
+                  </p>
+                )}
               </div>
               <ChevronRight size={18} className="text-[var(--color-ink-muted)] mt-1" />
             </div>
@@ -336,7 +384,7 @@ export const PersonalDashboard: React.FC<Props> = ({ onLogout }) => {
           </button>
           <button
             type="button"
-            onClick={() => { setQuickAddOpen(false); navigate('expenses?new=1'); }}
+            onClick={() => { setQuickAddOpen(false); navigate('money?new=1'); }}
             className="aspect-square rounded-3xl bg-violet-50 text-violet-600 flex flex-col items-center justify-center gap-2 active:scale-95 transition-transform"
           >
             <Wallet size={24} strokeWidth={1.75} />

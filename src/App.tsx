@@ -38,7 +38,8 @@ import { PersonalLayout } from './components/personal/PersonalLayout';
 import { PersonalDashboard } from './pages/personal/PersonalDashboard';
 import { PersonalWorkouts } from './pages/personal/PersonalWorkouts';
 import { PersonalNutrition } from './pages/personal/PersonalNutrition';
-import { PersonalExpenses } from './pages/personal/PersonalExpenses';
+import { PersonalMoney } from './pages/personal/PersonalMoney';
+import { PersonalAccounts } from './pages/personal/PersonalAccounts';
 import { PersonalBody } from './pages/personal/PersonalBody';
 import { PersonalSleep } from './pages/personal/PersonalSleep';
 import { PersonalVitals } from './pages/personal/PersonalVitals';
@@ -331,7 +332,8 @@ export default function App() {
             <Route index element={<PersonalDashboard onLogout={handleLogout} />} />
             <Route path="workouts"  element={<PersonalWorkouts />} />
             <Route path="nutrition" element={<PersonalNutrition />} />
-            <Route path="expenses"  element={<PersonalExpenses />} />
+            <Route path="money"     element={<PersonalMoney />} />
+            <Route path="accounts"  element={<PersonalAccounts />} />
             <Route path="body"      element={<PersonalBody />} />
             <Route path="sleep"     element={<PersonalSleep />} />
             <Route path="vitals"    element={<PersonalVitals />} />

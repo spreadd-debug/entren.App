@@ -13,6 +13,7 @@ import runningRoutes from './routes/running';
 import runningLoadRoutes from './routes/runningLoad';
 import stravaRoutes from './routes/strava';
 import garminRoutes from './routes/garmin';
+import personalFxRoutes from './routes/personalFx';
 import aiRoutes from './routes/ai';
 import { StudentService } from "./services/StudentService";
 import { PlanService } from "./services/PlanService";
@@ -38,6 +39,7 @@ app.use('/api/running/load', runningLoadRoutes);
 app.use('/api/running', runningRoutes);
 app.use('/api/strava', stravaRoutes);
 app.use('/api/garmin', garminRoutes);
+app.use('/api/personal/fx', personalFxRoutes);
 app.use('/api/ai', aiRoutes);
 
 // Legacy/Combined data endpoint

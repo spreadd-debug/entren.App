@@ -639,6 +639,28 @@ export const api = {
     },
   },
 
+  fx: {
+    async getLatest(): Promise<{ name: string; buy: number | null; sell: number | null; captured_at: string }[]> {
+      try {
+        const raw = await fetchJson(`${API_BASE}/personal/fx/latest`);
+        return ensureArray(raw);
+      } catch (err) {
+        console.error('fx.getLatest failed:', err);
+        return [];
+      }
+    },
+
+    async getHistory(name = 'blue', days = 30): Promise<{ name: string; buy: number | null; sell: number | null; captured_at: string }[]> {
+      try {
+        const raw = await fetchJson(`${API_BASE}/personal/fx/history?name=${encodeURIComponent(name)}&days=${days}`);
+        return ensureArray(raw);
+      } catch (err) {
+        console.error('fx.getHistory failed:', err);
+        return [];
+      }
+    },
+  },
+
   garmin: {
     async getStatus(profileId: string): Promise<{
       display_name: string | null;

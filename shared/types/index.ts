@@ -895,6 +895,7 @@ export interface PersonalProfile {
   birth_date: string | null;
   timezone: string;
   currency: string;
+  preferred_fx_name: string;
   created_at: string;
   updated_at: string;
 }
@@ -984,34 +985,113 @@ export interface PersonalMealInput {
   foods?: Array<Omit<PersonalMealFood, 'id' | 'meal_id' | 'created_at'>>;
 }
 
-export interface PersonalExpenseCategory {
+// ── Personal Finance v2 (accounts + transactions + multi-currency) ──────────
+
+export type AccountKind = 'cash' | 'bank' | 'wallet' | 'investment' | 'other';
+export type CategoryKind = 'expense' | 'income';
+export type TransactionKind = 'expense' | 'income' | 'transfer_out' | 'transfer_in';
+
+export interface PersonalAccount {
   id: string;
   profile_id: string;
   name: string;
+  kind: AccountKind;
+  currency: string;
+  current_balance: number;
+  color_a: string | null;
+  color_b: string | null;
+  icon: string | null;
+  archived: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PersonalAccountInput {
+  profile_id: string;
+  name: string;
+  kind?: AccountKind;
+  currency?: string;
+  current_balance?: number;
+  color_a?: string | null;
+  color_b?: string | null;
+  icon?: string | null;
+  sort_order?: number;
+}
+
+export interface PersonalCategory {
+  id: string;
+  profile_id: string;
+  name: string;
+  kind: CategoryKind;
   icon: string | null;
   color: string | null;
   archived: boolean;
+  sort_order: number;
   created_at: string;
 }
 
-export interface PersonalExpense {
+export interface PersonalCategoryInput {
+  profile_id: string;
+  name: string;
+  kind: CategoryKind;
+  icon?: string | null;
+  color?: string | null;
+}
+
+export interface PersonalTransaction {
   id: string;
   profile_id: string;
+  account_id: string;
   category_id: string | null;
-  spent_at: string;
+  kind: TransactionKind;
   amount: number;
   currency: string;
+  occurred_at: string;
   description: string | null;
+  transfer_group_id: string | null;
+  fx_rate: number | null;
+  raw?: any;
   created_at: string;
 }
 
-export interface PersonalExpenseInput {
+export interface PersonalTransactionInput {
   profile_id: string;
+  account_id: string;
   category_id?: string | null;
-  spent_at: string;
+  kind: 'expense' | 'income';
   amount: number;
-  currency?: string;
+  currency: string;
+  occurred_at?: string;
   description?: string | null;
+}
+
+export interface PersonalTransferInput {
+  profile_id: string;
+  from_account_id: string;
+  to_account_id: string;
+  amount: number;            // monto en la moneda de la cuenta origen
+  to_amount?: number | null; // monto que llega a destino (si difieren monedas)
+  fx_rate?: number | null;
+  occurred_at?: string;
+  description?: string | null;
+}
+
+// ── FX rates (dolarapi.com) ─────────────────────────────────────────────────
+
+export interface FxRate {
+  name: string;        // 'oficial' | 'blue' | 'mep' | 'ccl' | 'tarjeta' | ...
+  buy: number | null;
+  sell: number | null;
+  captured_at: string;
+}
+
+export interface FxRateSnapshot extends FxRate {
+  id: string;
+  source: string;
+  pair: string;
+  raw?: any;
+  created_at: string;
 }
 
 export interface PersonalBodyMetric {

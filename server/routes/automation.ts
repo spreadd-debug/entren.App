@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { BillingReminderService } from '../services/BillingReminderService';
 import { StravaService } from '../services/StravaService';
 import { GarminService } from '../services/GarminService';
+import { FxRateService } from '../services/FxRateService';
 import { supabase } from '../db/supabase';
 
 const router = Router();
@@ -94,7 +95,15 @@ router.post('/cron', async (req, res) => {
       garminSync = { error: err?.message || String(err) };
     }
 
-    res.json({ ok: true, ran: gymIds.length, summary, stravaSync, garminSync });
+    // Snapshot diario de cotizaciones FX (dolarapi) para tener histórico.
+    let fxSnapshot: { saved: number } | { error: string };
+    try {
+      fxSnapshot = await FxRateService.snapshotDaily();
+    } catch (err: any) {
+      fxSnapshot = { error: err?.message || String(err) };
+    }
+
+    res.json({ ok: true, ran: gymIds.length, summary, stravaSync, garminSync, fxSnapshot });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
