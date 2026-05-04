@@ -1,7 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Activity, RefreshCw, Trash2 } from 'lucide-react';
 import { MobileHeader, Card } from '../../components/personal/ui';
 import { usePersonalProfile } from '../../hooks/usePersonalProfile';
+import { api } from '../../services/api';
+
+interface GarminStatus {
+  display_name: string | null;
+  last_sync_at: string | null;
+  last_sync_error: string | null;
+  connected_at: string;
+}
 
 export const PersonalSettings: React.FC = () => {
   const navigate = useNavigate();
@@ -14,6 +23,13 @@ export const PersonalSettings: React.FC = () => {
   });
   const [saving, setSaving] = useState(false);
 
+  // Garmin connection state
+  const [garminStatus, setGarminStatus] = useState<GarminStatus | null>(null);
+  const [garminLoading, setGarminLoading] = useState(false);
+  const [garminForm, setGarminForm] = useState({ email: '', password: '' });
+  const [garminBusy, setGarminBusy] = useState<'connect' | 'sync' | 'disconnect' | null>(null);
+  const [garminError, setGarminError] = useState<string | null>(null);
+
   useEffect(() => {
     if (!profile) return;
     setForm({
@@ -23,6 +39,21 @@ export const PersonalSettings: React.FC = () => {
       currency: profile.currency ?? 'ARS',
     });
   }, [profile?.id]);
+
+  const refreshGarminStatus = async () => {
+    if (!profile) return;
+    setGarminLoading(true);
+    try {
+      const status = await api.garmin.getStatus(profile.id);
+      setGarminStatus(status);
+    } catch (err) {
+      console.error('[settings] garmin status failed', err);
+    } finally {
+      setGarminLoading(false);
+    }
+  };
+
+  useEffect(() => { refreshGarminStatus(); /* eslint-disable-next-line */ }, [profile?.id]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -39,6 +70,53 @@ export const PersonalSettings: React.FC = () => {
       alert('No se pudo guardar');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleGarminConnect = async () => {
+    if (!profile) return;
+    if (!garminForm.email || !garminForm.password) {
+      setGarminError('Email y password requeridos');
+      return;
+    }
+    setGarminBusy('connect');
+    setGarminError(null);
+    try {
+      await api.garmin.connect(profile.id, garminForm.email, garminForm.password);
+      setGarminForm({ email: '', password: '' });
+      await refreshGarminStatus();
+    } catch (err: any) {
+      setGarminError(err?.message ?? 'No se pudo conectar');
+    } finally {
+      setGarminBusy(null);
+    }
+  };
+
+  const handleGarminSync = async () => {
+    if (!profile) return;
+    setGarminBusy('sync');
+    setGarminError(null);
+    try {
+      await api.garmin.sync(profile.id, 7);
+      await refreshGarminStatus();
+    } catch (err: any) {
+      setGarminError(err?.message ?? 'Sync falló');
+    } finally {
+      setGarminBusy(null);
+    }
+  };
+
+  const handleGarminDisconnect = async () => {
+    if (!profile) return;
+    if (!confirm('¿Desconectar Garmin? Tus datos guardados quedan, pero se detiene la sincronización.')) return;
+    setGarminBusy('disconnect');
+    try {
+      await api.garmin.disconnect(profile.id);
+      setGarminStatus(null);
+    } catch (err: any) {
+      setGarminError(err?.message ?? 'No se pudo desconectar');
+    } finally {
+      setGarminBusy(null);
     }
   };
 
@@ -71,8 +149,82 @@ export const PersonalSettings: React.FC = () => {
           onClick={handleSave}
           className="w-full py-3 mt-4 rounded-full bg-[var(--color-ink)] text-white font-medium disabled:opacity-50"
         >
-          {saving ? 'Guardando…' : 'Guardar'}
+          {saving ? 'Guardando…' : 'Guardar perfil'}
         </button>
+
+        {/* ── Garmin Connect ───────────────────────────────────────── */}
+        <Card className="mt-6" tone="tinted">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-8 h-8 rounded-full bg-[var(--color-ink)] flex items-center justify-center text-white">
+              <Activity size={16} strokeWidth={1.75} />
+            </div>
+            <h3 className="font-serif text-xl text-[var(--color-ink)]">Garmin Connect</h3>
+          </div>
+
+          {garminLoading && <p className="text-xs text-[var(--color-ink-muted)]">Cargando…</p>}
+
+          {!garminLoading && garminStatus && (
+            <div className="space-y-3">
+              <div>
+                <p className="text-xs uppercase tracking-wider text-[var(--color-ink-muted)] font-semibold">Conectado como</p>
+                <p className="font-serif text-lg text-[var(--color-ink)]">
+                  {garminStatus.display_name ?? '—'}
+                </p>
+                <p className="text-[11px] text-[var(--color-ink-muted)] mt-1">
+                  Último sync: {garminStatus.last_sync_at
+                    ? new Date(garminStatus.last_sync_at).toLocaleString('es-AR')
+                    : 'nunca'}
+                </p>
+                {garminStatus.last_sync_error && (
+                  <p className="text-[11px] text-rose-600 mt-1">⚠ {garminStatus.last_sync_error}</p>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleGarminSync}
+                  disabled={garminBusy !== null}
+                  className="flex-1 px-4 py-2 rounded-full bg-[var(--color-ink)] text-white text-sm font-medium flex items-center justify-center gap-1.5 disabled:opacity-50"
+                >
+                  <RefreshCw size={13} className={garminBusy === 'sync' ? 'animate-spin' : ''} />
+                  {garminBusy === 'sync' ? 'Sincronizando…' : 'Sincronizar'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleGarminDisconnect}
+                  disabled={garminBusy !== null}
+                  className="px-4 py-2 rounded-full border border-rose-200 text-rose-600 text-sm font-medium flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  <Trash2 size={13} />
+                  Desconectar
+                </button>
+              </div>
+            </div>
+          )}
+
+          {!garminLoading && !garminStatus && (
+            <div className="space-y-3">
+              <p className="text-xs text-[var(--color-ink-muted)]">
+                Importamos automáticamente todas tus actividades, sleep, body battery, steps y calorías desde Garmin Connect.
+                Tus credenciales se guardan encriptadas.
+              </p>
+              <Field label="Email Garmin" type="email" value={garminForm.email} onChange={v => setGarminForm({ ...garminForm, email: v })} placeholder="tu@email.com" />
+              <Field label="Password" type="password" value={garminForm.password} onChange={v => setGarminForm({ ...garminForm, password: v })} placeholder="••••••••" />
+              <button
+                type="button"
+                onClick={handleGarminConnect}
+                disabled={garminBusy !== null}
+                className="w-full py-3 rounded-full bg-[var(--color-ink)] text-white text-sm font-medium disabled:opacity-50"
+              >
+                {garminBusy === 'connect' ? 'Conectando + sincronizando…' : 'Conectar Garmin'}
+              </button>
+            </div>
+          )}
+
+          {garminError && (
+            <p className="text-xs text-rose-600 mt-3">⚠ {garminError}</p>
+          )}
+        </Card>
       </div>
     </>
   );

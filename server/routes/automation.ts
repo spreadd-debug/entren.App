@@ -2,6 +2,7 @@
 import { Router } from 'express';
 import { BillingReminderService } from '../services/BillingReminderService';
 import { StravaService } from '../services/StravaService';
+import { GarminService } from '../services/GarminService';
 import { supabase } from '../db/supabase';
 
 const router = Router();
@@ -84,7 +85,16 @@ router.post('/cron', async (req, res) => {
       stravaSync = { error: err?.message || String(err) };
     }
 
-    res.json({ ok: true, ran: gymIds.length, summary, stravaSync });
+    // Garmin no tiene webhooks (usamos lib unofficial) — el cron es la única
+    // forma de mantener sleep/daily metrics actualizados.
+    let garminSync: { checked: number; errors: number } | { error: string };
+    try {
+      garminSync = await GarminService.backfillRecentForAllConnections();
+    } catch (err: any) {
+      garminSync = { error: err?.message || String(err) };
+    }
+
+    res.json({ ok: true, ran: gymIds.length, summary, stravaSync, garminSync });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

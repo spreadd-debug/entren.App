@@ -638,4 +638,48 @@ export const api = {
       await fetchJson(`${API_BASE}/strava/connection/${studentId}`, { method: 'DELETE' });
     },
   },
+
+  garmin: {
+    async getStatus(profileId: string): Promise<{
+      display_name: string | null;
+      last_sync_at: string | null;
+      last_sync_error: string | null;
+      connected_at: string;
+    } | null> {
+      try {
+        const data = await fetchJson(`${API_BASE}/garmin/connection/${profileId}`);
+        return data || null;
+      } catch {
+        return null;
+      }
+    },
+
+    async connect(profileId: string, email: string, password: string): Promise<{
+      ok: true;
+      display_name: string | null;
+      synced: { activities: number; days_synced: number } | null;
+    }> {
+      return fetchJson(`${API_BASE}/garmin/connect`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profile_id: profileId, email, password }),
+      });
+    },
+
+    async disconnect(profileId: string): Promise<void> {
+      await fetchJson(`${API_BASE}/garmin/connection/${profileId}`, { method: 'DELETE' });
+    },
+
+    async sync(profileId: string, days = 2): Promise<{
+      ok: true;
+      activities: number;
+      days_synced: number;
+    }> {
+      return fetchJson(`${API_BASE}/garmin/sync/${profileId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ days }),
+      });
+    },
+  },
 };

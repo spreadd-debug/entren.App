@@ -12,6 +12,8 @@ import {
   PersonalExpenseCategory,
   PersonalBodyMetric,
   PersonalBodyMetricInput,
+  PersonalSleep,
+  PersonalDailyMetrics,
 } from '../../shared/types';
 
 // ── Profiles ─────────────────────────────────────────────────────────────────
@@ -271,5 +273,67 @@ export const PersonalBodyService = {
   async delete(id: string): Promise<void> {
     const { error } = await supabase.from('personal_body_metrics').delete().eq('id', id);
     if (error) throw error;
+  },
+};
+
+// ── Sleep (Garmin) ───────────────────────────────────────────────────────────
+
+export const PersonalSleepService = {
+  async list(profileId: string, limit = 30): Promise<PersonalSleep[]> {
+    const { data, error } = await supabase
+      .from('personal_sleep')
+      .select('*')
+      .eq('profile_id', profileId)
+      .order('sleep_date', { ascending: false })
+      .limit(limit);
+    if (error) throw error;
+    return (data ?? []) as PersonalSleep[];
+  },
+
+  async latest(profileId: string): Promise<PersonalSleep | null> {
+    const rows = await this.list(profileId, 1);
+    return rows[0] ?? null;
+  },
+
+  async byDate(profileId: string, date: string): Promise<PersonalSleep | null> {
+    const { data, error } = await supabase
+      .from('personal_sleep')
+      .select('*')
+      .eq('profile_id', profileId)
+      .eq('sleep_date', date)
+      .maybeSingle();
+    if (error) throw error;
+    return (data ?? null) as PersonalSleep | null;
+  },
+};
+
+// ── Daily metrics (Garmin) ───────────────────────────────────────────────────
+
+export const PersonalDailyMetricsService = {
+  async list(profileId: string, limit = 30): Promise<PersonalDailyMetrics[]> {
+    const { data, error } = await supabase
+      .from('personal_daily_metrics')
+      .select('*')
+      .eq('profile_id', profileId)
+      .order('metric_date', { ascending: false })
+      .limit(limit);
+    if (error) throw error;
+    return (data ?? []) as PersonalDailyMetrics[];
+  },
+
+  async latest(profileId: string): Promise<PersonalDailyMetrics | null> {
+    const rows = await this.list(profileId, 1);
+    return rows[0] ?? null;
+  },
+
+  async byDate(profileId: string, date: string): Promise<PersonalDailyMetrics | null> {
+    const { data, error } = await supabase
+      .from('personal_daily_metrics')
+      .select('*')
+      .eq('profile_id', profileId)
+      .eq('metric_date', date)
+      .maybeSingle();
+    if (error) throw error;
+    return (data ?? null) as PersonalDailyMetrics | null;
   },
 };

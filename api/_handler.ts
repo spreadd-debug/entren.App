@@ -15,6 +15,7 @@ import activityRoutes from '../server/routes/activity';
 import runningRoutes from '../server/routes/running';
 import runningLoadRoutes from '../server/routes/runningLoad';
 import stravaRoutes from '../server/routes/strava';
+import garminRoutes from '../server/routes/garmin';
 import { StudentService } from "../server/services/StudentService";
 import { PlanService } from "../server/services/PlanService";
 import { PaymentService } from "../server/services/PaymentService";
@@ -40,6 +41,7 @@ app.use('/api/activity', activityRoutes);
 app.use('/api/running/load', runningLoadRoutes);
 app.use('/api/running', runningRoutes);
 app.use('/api/strava', stravaRoutes);
+app.use('/api/garmin', garminRoutes);
 
 app.get("/api/health", async (_req, res) => {
   const supabaseUrl = process.env.SUPABASE_URL;

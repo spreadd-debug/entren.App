@@ -1033,3 +1033,54 @@ export interface PersonalBodyMetricInput {
   waist_cm?: number | null;
   notes?: string | null;
 }
+
+// ── Garmin Connect integration ──────────────────────────────────────────────
+
+export interface GarminConnectionStatus {
+  display_name: string | null;
+  last_sync_at: string | null;
+  last_sync_error: string | null;
+  connected_at: string;
+}
+
+export type PersonalSportTypeExt =
+  | PersonalSportType | 'cycling' | 'swimming' | 'strength' | 'walking' | 'hiking' | 'yoga';
+
+export interface PersonalSleep {
+  id: string;
+  profile_id: string;
+  sleep_date: string;        // YYYY-MM-DD
+  start_at: string | null;
+  end_at: string | null;
+  total_seconds: number | null;
+  deep_seconds: number | null;
+  light_seconds: number | null;
+  rem_seconds: number | null;
+  awake_seconds: number | null;
+  sleep_score: number | null;
+  avg_hr_bpm: number | null;
+  avg_hrv_ms: number | null;
+  body_battery_change: number | null;
+  raw?: any;
+  updated_at: string;
+}
+
+export interface PersonalDailyMetrics {
+  id: string;
+  profile_id: string;
+  metric_date: string;       // YYYY-MM-DD
+  steps: number | null;
+  steps_goal: number | null;
+  total_kcal: number | null;
+  active_kcal: number | null;
+  bmr_kcal: number | null;
+  resting_hr_bpm: number | null;
+  max_hr_bpm: number | null;
+  avg_stress: number | null;
+  body_battery_high: number | null;
+  body_battery_low: number | null;
+  body_battery_current: number | null;
+  intensity_minutes: number | null;
+  raw?: any;
+  updated_at: string;
+}

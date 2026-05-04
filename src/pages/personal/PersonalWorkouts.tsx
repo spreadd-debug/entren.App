@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Activity, Bike, MoreHorizontal, Trash2 } from 'lucide-react';
+import { Activity, Bike, Footprints, Mountain, Dumbbell, Waves, Trash2 } from 'lucide-react';
 import { MobileHeader, Card, Fab, BottomSheet, PillChip } from '../../components/personal/ui';
 import { usePersonalProfile } from '../../hooks/usePersonalProfile';
 import { PersonalActivitiesService } from '../../services/PersonalTrackerService';
@@ -11,15 +11,33 @@ const SPORT_LABELS: Record<string, string> = {
   trail_run: 'Trail Run',
   virtual_run: 'Virtual Run',
   tennis: 'Tenis',
+  cycling: 'Ciclismo',
+  swimming: 'Natación',
+  strength: 'Fuerza',
+  walking: 'Caminata',
+  hiking: 'Trekking',
+  yoga: 'Yoga',
   other: 'Otro',
 };
 
 const SPORT_ICONS: Record<string, React.FC<any>> = {
-  run: Activity,
-  trail_run: Activity,
-  virtual_run: Activity,
-  tennis: Bike, // placeholder — lucide no tiene tennis
+  run: Footprints,
+  trail_run: Mountain,
+  virtual_run: Footprints,
+  tennis: Activity,
+  cycling: Bike,
+  swimming: Waves,
+  strength: Dumbbell,
+  walking: Footprints,
+  hiking: Mountain,
+  yoga: Activity,
   other: Activity,
+};
+
+const SOURCE_LABELS: Record<string, string> = {
+  garmin: 'Garmin',
+  strava: 'Strava',
+  manual: 'Manual',
 };
 
 type Range = 'week' | 'month' | 'all';
@@ -80,8 +98,6 @@ export const PersonalWorkouts: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [form, setForm] = useState<ManualForm>(EMPTY_FORM);
-  const [stravaUrl, setStravaUrl] = useState<string | null>(null);
-  const [stravaConnected, setStravaConnected] = useState<boolean | null>(null);
 
   const refresh = async () => {
     if (!profile) return;
@@ -97,15 +113,6 @@ export const PersonalWorkouts: React.FC = () => {
   };
 
   useEffect(() => { refresh(); /* eslint-disable-next-line */ }, [profile?.id, range]);
-
-  // Strava connection status
-  useEffect(() => {
-    if (!profile) return;
-    fetch(`/api/strava/personal/${profile.id}`)
-      .then(r => r.ok ? r.json() : null)
-      .then(c => setStravaConnected(!!c))
-      .catch(() => setStravaConnected(false));
-  }, [profile?.id]);
 
   // Open form si vino con ?new=1 desde el dashboard
   useEffect(() => {
@@ -151,20 +158,6 @@ export const PersonalWorkouts: React.FC = () => {
     refresh();
   };
 
-  const handleConnectStrava = async () => {
-    if (!profile) return;
-    try {
-      const res = await fetch(`/api/strava/authorize?personal_profile_id=${profile.id}`);
-      const json = await res.json();
-      if (json?.url) {
-        setStravaUrl(json.url);
-        window.location.href = json.url;
-      }
-    } catch (err) {
-      console.error('[workouts] strava authorize failed', err);
-    }
-  };
-
   return (
     <>
       <MobileHeader title="Workouts" onBack={() => navigate(-1)} large />
@@ -189,25 +182,6 @@ export const PersonalWorkouts: React.FC = () => {
           </div>
         </Card>
 
-        {stravaConnected === false && (
-          <Card className="mt-3" tone="tinted">
-            <p className="font-serif text-lg leading-tight">Conectá Strava</p>
-            <p className="text-xs text-[var(--color-ink-muted)] mt-1">
-              Importamos automáticamente tus running y partidos de tenis. Las kcal las calculamos por MET con tu peso.
-            </p>
-            <button
-              type="button"
-              onClick={handleConnectStrava}
-              className="mt-3 px-4 py-2 rounded-full bg-[var(--color-ink)] text-white text-sm font-medium"
-            >
-              Conectar Strava
-            </button>
-            {stravaUrl && (
-              <p className="text-[10px] text-[var(--color-ink-muted)] mt-2 break-all">{stravaUrl}</p>
-            )}
-          </Card>
-        )}
-
         <div className="mt-4 space-y-2">
           {loading && <p className="text-center text-sm text-[var(--color-ink-muted)] py-8">Cargando…</p>}
           {!loading && items.length === 0 && (
@@ -227,7 +201,7 @@ export const PersonalWorkouts: React.FC = () => {
                         {SPORT_LABELS[a.sport_type] ?? a.sport_type}
                       </h4>
                       <span className="text-[10px] uppercase tracking-wider text-[var(--color-ink-muted)] font-semibold">
-                        {a.source}
+                        {SOURCE_LABELS[a.source] ?? a.source}
                       </span>
                     </div>
                     <p className="text-xs text-[var(--color-ink-muted)] mt-0.5">
@@ -258,7 +232,9 @@ export const PersonalWorkouts: React.FC = () => {
           <div>
             <label className="text-xs uppercase tracking-wider text-[var(--color-ink-muted)] font-semibold">Deporte</label>
             <div className="flex flex-wrap gap-2 mt-2">
-              {(['tennis','run','trail_run','virtual_run','other'] as PersonalSportType[]).map(s => (
+              {(['tennis','run','trail_run','virtual_run','other'] as PersonalSportType[]).concat(
+                ['cycling','swimming','strength','walking','hiking','yoga'] as any
+              ).map((s: any) => (
                 <PillChip
                   key={s}
                   variant={form.sport_type === s ? 'selected' : 'outline'}

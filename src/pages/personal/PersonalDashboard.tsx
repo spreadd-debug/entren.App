@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronRight, Activity, Apple, Wallet, HeartPulse, Settings, LogOut, Sparkles } from 'lucide-react';
+import { ChevronRight, Activity, Apple, Wallet, HeartPulse, Moon, Battery, Settings, LogOut, Sparkles } from 'lucide-react';
 import { MobileHeader, GradientBlob, Card, Fab, BottomSheet } from '../../components/personal/ui';
 import { usePersonalProfile } from '../../hooks/usePersonalProfile';
 import {
@@ -8,8 +8,13 @@ import {
   PersonalMealsService,
   PersonalExpensesService,
   PersonalBodyService,
+  PersonalSleepService,
+  PersonalDailyMetricsService,
 } from '../../services/PersonalTrackerService';
-import { PersonalActivity, PersonalMealWithFoods, PersonalExpense, PersonalBodyMetric } from '../../../shared/types';
+import {
+  PersonalActivity, PersonalMealWithFoods, PersonalExpense, PersonalBodyMetric,
+  PersonalSleep, PersonalDailyMetrics,
+} from '../../../shared/types';
 
 interface Props {
   onLogout: () => void;
@@ -45,6 +50,8 @@ export const PersonalDashboard: React.FC<Props> = ({ onLogout }) => {
   const [todayMeals, setTodayMeals] = useState<PersonalMealWithFoods[]>([]);
   const [expensesMonth, setExpensesMonth] = useState<PersonalExpense[]>([]);
   const [latestBody, setLatestBody] = useState<PersonalBodyMetric | null>(null);
+  const [latestSleep, setLatestSleep] = useState<PersonalSleep | null>(null);
+  const [latestDaily, setLatestDaily] = useState<PersonalDailyMetrics | null>(null);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
 
   useEffect(() => {
@@ -54,11 +61,15 @@ export const PersonalDashboard: React.FC<Props> = ({ onLogout }) => {
       PersonalMealsService.listByDate(profile.id, todayIso()),
       PersonalExpensesService.listInRange(profile.id, { from: startOfMonthIso(), to: endOfMonthIso() }),
       PersonalBodyService.latest(profile.id),
-    ]).then(([acts, meals, exps, body]) => {
+      PersonalSleepService.latest(profile.id),
+      PersonalDailyMetricsService.latest(profile.id),
+    ]).then(([acts, meals, exps, body, sleep, daily]) => {
       setActivitiesWeek(acts);
       setTodayMeals(meals);
       setExpensesMonth(exps);
       setLatestBody(body);
+      setLatestSleep(sleep);
+      setLatestDaily(daily);
     }).catch(err => console.error('[dashboard] load failed', err));
   }, [profile?.id]);
 
@@ -192,6 +203,73 @@ export const PersonalDashboard: React.FC<Props> = ({ onLogout }) => {
                 <div className="mt-2 flex items-baseline gap-1">
                   <span className="text-xs text-[var(--color-ink-muted)]">{profile?.currency ?? 'ARS'}</span>
                   <span className="font-serif text-3xl text-[var(--color-ink)]">{monthTotal.toLocaleString('es-AR')}</span>
+                </div>
+              </div>
+              <ChevronRight size={18} className="text-[var(--color-ink-muted)] mt-1" />
+            </div>
+          </Card>
+
+          <Card onClick={() => navigate('sleep')}>
+            <div className="flex items-start gap-3">
+              <div className="w-11 h-11 rounded-2xl bg-indigo-100 flex items-center justify-center text-indigo-600 shrink-0">
+                <Moon size={20} strokeWidth={1.75} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-[11px] uppercase tracking-wider text-[var(--color-ink-muted)] font-semibold">Anoche</span>
+                  {latestSleep?.sleep_score != null && (
+                    <span className="text-[11px] text-[var(--color-ink-muted)]">score {latestSleep.sleep_score}</span>
+                  )}
+                </div>
+                <h3 className="font-serif text-2xl text-[var(--color-ink)] leading-tight mt-0.5">Sleep</h3>
+                <div className="mt-2 flex items-baseline gap-1">
+                  {latestSleep?.total_seconds ? (
+                    <>
+                      <span className="font-serif text-3xl text-[var(--color-ink)]">
+                        {Math.floor(latestSleep.total_seconds / 3600)}h{' '}
+                        {Math.floor((latestSleep.total_seconds % 3600) / 60)}m
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-sm text-[var(--color-ink-muted)] italic">Conectá Garmin</span>
+                  )}
+                </div>
+              </div>
+              <ChevronRight size={18} className="text-[var(--color-ink-muted)] mt-1" />
+            </div>
+          </Card>
+
+          <Card onClick={() => navigate('vitals')}>
+            <div className="flex items-start gap-3">
+              <div className="w-11 h-11 rounded-2xl bg-teal-100 flex items-center justify-center text-teal-600 shrink-0">
+                <Battery size={20} strokeWidth={1.75} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-[11px] uppercase tracking-wider text-[var(--color-ink-muted)] font-semibold">Hoy</span>
+                  {latestDaily?.steps != null && (
+                    <span className="text-[11px] text-[var(--color-ink-muted)]">
+                      {latestDaily.steps.toLocaleString('es-AR')} pasos
+                    </span>
+                  )}
+                </div>
+                <h3 className="font-serif text-2xl text-[var(--color-ink)] leading-tight mt-0.5">Vitals</h3>
+                <div className="mt-2 flex items-baseline gap-3">
+                  {latestDaily?.body_battery_current != null ? (
+                    <>
+                      <div>
+                        <span className="font-serif text-3xl text-[var(--color-ink)]">{latestDaily.body_battery_current}</span>
+                        <span className="text-xs text-[var(--color-ink-muted)] ml-1">battery</span>
+                      </div>
+                      {latestDaily.resting_hr_bpm != null && (
+                        <div className="text-xs text-[var(--color-ink-muted)]">
+                          <span className="font-semibold text-[var(--color-ink)]">{latestDaily.resting_hr_bpm}</span> bpm rest
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <span className="text-sm text-[var(--color-ink-muted)] italic">Conectá Garmin</span>
+                  )}
                 </div>
               </div>
               <ChevronRight size={18} className="text-[var(--color-ink-muted)] mt-1" />

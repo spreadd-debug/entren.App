@@ -40,6 +40,8 @@ import { PersonalWorkouts } from './pages/personal/PersonalWorkouts';
 import { PersonalNutrition } from './pages/personal/PersonalNutrition';
 import { PersonalExpenses } from './pages/personal/PersonalExpenses';
 import { PersonalBody } from './pages/personal/PersonalBody';
+import { PersonalSleep } from './pages/personal/PersonalSleep';
+import { PersonalVitals } from './pages/personal/PersonalVitals';
 import { PersonalSettings } from './pages/personal/PersonalSettings';
 import { SubscriptionGuard } from './components/SubscriptionGuard';
 import { DemoTour } from './components/DemoTour';
@@ -331,6 +333,8 @@ export default function App() {
             <Route path="nutrition" element={<PersonalNutrition />} />
             <Route path="expenses"  element={<PersonalExpenses />} />
             <Route path="body"      element={<PersonalBody />} />
+            <Route path="sleep"     element={<PersonalSleep />} />
+            <Route path="vitals"    element={<PersonalVitals />} />
             <Route path="settings"  element={<PersonalSettings />} />
           </Route>
           <Route path="/admin/gyms/*" element={<SuperAdminApp onLogout={handleLogout} />} />
