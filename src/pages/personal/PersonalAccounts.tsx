@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus } from 'lucide-react';
-import { MobileHeader, Card, Fab, BottomSheet, PillChip } from '../../components/personal/ui';
+import { MobileHeader, Card, Fab, BottomSheet, PillChip, MoneyInput } from '../../components/personal/ui';
 import { AccountCard } from '../../components/personal/money/AccountCard';
 import { ACCOUNT_KIND_LABELS, ACCOUNT_KIND_DESCRIPTIONS } from '../../components/personal/money/accountKindLabels';
 import { usePersonalProfile } from '../../hooks/usePersonalProfile';
@@ -229,13 +229,18 @@ export const PersonalAccounts: React.FC = () => {
           </div>
 
           {!editingId && (
-            <Field
-              label="Saldo inicial (opcional)"
-              type="number"
-              value={form.initial_balance}
-              onChange={v => setForm({ ...form, initial_balance: v })}
-              placeholder="0"
-            />
+            <div>
+              <label className="text-xs uppercase tracking-wider text-[var(--color-ink-muted)] font-semibold block mb-1.5">Saldo inicial (opcional)</label>
+              <div className="rounded-2xl bg-white border border-[var(--color-ink)]/10 px-4 py-1">
+                <MoneyInput
+                  value={form.initial_balance}
+                  onChange={v => setForm({ ...form, initial_balance: v })}
+                  currency={form.currency}
+                  size="md"
+                  inputClassName="px-0"
+                />
+              </div>
+            </div>
           )}
 
           <div>

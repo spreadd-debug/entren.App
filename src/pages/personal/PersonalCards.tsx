@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, ChevronRight } from 'lucide-react';
-import { MobileHeader, Card, Fab, BottomSheet, PillChip } from '../../components/personal/ui';
+import { MobileHeader, Card, Fab, BottomSheet, PillChip, MoneyInput } from '../../components/personal/ui';
 import { CreditCardVisual } from '../../components/personal/money/CreditCardVisual';
 import { CardStack } from '../../components/personal/money/CardStack';
 import { usePersonalProfile } from '../../hooks/usePersonalProfile';
@@ -21,6 +21,7 @@ interface CardForm {
   pay_from_account_id: string;
   color_a: string;
   color_b: string;
+  image_url: string;
 }
 
 const EMPTY: CardForm = {
@@ -33,6 +34,7 @@ const EMPTY: CardForm = {
   pay_from_account_id: '',
   color_a: '#6366F1',
   color_b: '#A855F7',
+  image_url: '',
 };
 
 const GRADIENT_PRESETS: { name: string; a: string; b: string }[] = [
@@ -92,8 +94,27 @@ export const PersonalCards: React.FC = () => {
       pay_from_account_id: c.pay_from_account_id ?? '',
       color_a: c.color_a ?? '#6366F1',
       color_b: c.color_b ?? '#A855F7',
+      image_url: c.image_url ?? '',
     });
     setFormOpen(true);
+  };
+
+  const [uploadingImage, setUploadingImage] = useState(false);
+
+  const handleImageUpload = async (file: File) => {
+    if (!profile) return;
+    setUploadingImage(true);
+    try {
+      // Generamos un id temporal si todavía no se guardó la card.
+      const targetId = editingId ?? `draft-${Date.now()}`;
+      const url = await PersonalCreditCardsService.uploadImage(profile.id, targetId, file);
+      setForm(f => ({ ...f, image_url: url }));
+    } catch (err: any) {
+      console.error('[cards] upload failed', err);
+      alert(`No se pudo subir la imagen: ${err?.message ?? 'Error'}`);
+    } finally {
+      setUploadingImage(false);
+    }
   };
 
   const handleSubmit = async () => {
@@ -115,6 +136,7 @@ export const PersonalCards: React.FC = () => {
         pay_from_account_id: form.pay_from_account_id || null,
         color_a: form.color_a,
         color_b: form.color_b,
+        image_url: form.image_url || null,
       };
       if (editingId) {
         await PersonalCreditCardsService.update(editingId, payload);
@@ -210,10 +232,34 @@ export const PersonalCards: React.FC = () => {
                 due_day: Number(form.due_day) || 0,
                 color_a: form.color_a,
                 color_b: form.color_b,
+                image_url: form.image_url || null,
               }}
               holderName={holderName}
               variant="hero"
             />
+            <div className="mt-2 flex items-center gap-2">
+              <label className="px-3 py-1.5 rounded-full bg-[var(--color-cream-200)] text-[var(--color-ink)] text-xs font-medium cursor-pointer">
+                {uploadingImage ? 'Subiendo…' : (form.image_url ? 'Cambiar foto' : 'Subir foto de la tarjeta')}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={e => {
+                    const f = e.target.files?.[0];
+                    if (f) handleImageUpload(f);
+                  }}
+                />
+              </label>
+              {form.image_url && (
+                <button
+                  type="button"
+                  onClick={() => setForm(f => ({ ...f, image_url: '' }))}
+                  className="text-xs text-[var(--color-ink-muted)] hover:text-rose-600"
+                >
+                  Quitar foto
+                </button>
+              )}
+            </div>
           </div>
 
           <Field label="Nombre" type="text" value={form.name} onChange={v => setForm({ ...form, name: v })} placeholder="Visa Galicia" />
@@ -225,7 +271,18 @@ export const PersonalCards: React.FC = () => {
             <Field label="Cierre (día)" type="number" value={form.closing_day} onChange={v => setForm({ ...form, closing_day: v })} placeholder="25" />
             <Field label="Vencimiento (día)" type="number" value={form.due_day} onChange={v => setForm({ ...form, due_day: v })} placeholder="5" />
           </div>
-          <Field label="Límite de crédito (opcional)" type="number" value={form.credit_limit} onChange={v => setForm({ ...form, credit_limit: v })} placeholder="por ej. 500000" />
+          <div>
+            <label className="text-xs uppercase tracking-wider text-[var(--color-ink-muted)] font-semibold block mb-1.5">Límite de crédito (opcional)</label>
+            <div className="rounded-2xl bg-white border border-[var(--color-ink)]/10 px-4 py-1">
+              <MoneyInput
+                value={form.credit_limit}
+                onChange={v => setForm({ ...form, credit_limit: v })}
+                size="md"
+                inputClassName="px-0"
+                placeholder="por ej. 1.500.000"
+              />
+            </div>
+          </div>
           <p className="text-[11px] text-[var(--color-ink-muted)] -mt-2">
             La tarjeta acepta compras en pesos y dólares — al cargar cada gasto elegís la moneda.
           </p>

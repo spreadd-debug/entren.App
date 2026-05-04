@@ -13,6 +13,7 @@ interface Props {
     bank?: string | null;
     closing_day?: number;
     due_day?: number;
+    image_url?: string | null;
   };
   holderName?: string | null;
   onClick?: () => void;
@@ -41,40 +42,55 @@ export const CreditCardVisual: React.FC<Props> = ({
   const closingDay = card.closing_day ?? 0;
   const dueDay = card.due_day ?? 0;
 
+  const hasImage = !!card.image_url;
+  const bgStyle: React.CSSProperties = hasImage
+    ? { backgroundImage: `url(${card.image_url})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+    : { background: gradientCss(grad) };
+
   if (variant === 'compact') {
     return (
       <div
         onClick={onClick}
         className={`relative rounded-3xl p-4 text-white shadow-lg overflow-hidden ${onClick ? 'cursor-pointer active:scale-[0.99] transition-transform' : ''} ${className}`}
-        style={{ background: gradientCss(grad), aspectRatio: '16 / 9' }}
+        style={{ ...bgStyle, aspectRatio: '16 / 9' }}
       >
-        <div className="absolute -top-12 -right-12 w-32 h-32 rounded-full opacity-25 blur-2xl" style={{ background: '#fff' }} />
+        {hasImage && <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/20" />}
+        {!hasImage && (
+          <div className="absolute -top-12 -right-12 w-32 h-32 rounded-full opacity-25 blur-2xl" style={{ background: '#fff' }} />
+        )}
         <div className="relative h-full flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <CreditCard size={18} strokeWidth={1.5} className="opacity-90" />
-            {card.bank && <span className="text-[10px] uppercase tracking-[0.18em] opacity-80 font-semibold">{card.bank}</span>}
+            {card.bank && <span className="text-[10px] uppercase tracking-[0.18em] opacity-90 font-semibold drop-shadow">{card.bank}</span>}
           </div>
           <div>
-            <p className="font-mono tracking-[0.18em] text-base">{last4}</p>
-            <p className="text-[10px] uppercase tracking-wider opacity-80 mt-0.5">{card.name}</p>
+            <p className="font-mono tracking-[0.18em] text-base drop-shadow">{last4}</p>
+            <p className="text-[10px] uppercase tracking-wider opacity-90 mt-0.5 drop-shadow">{card.name}</p>
           </div>
         </div>
       </div>
     );
   }
 
-  // hero (16/9, full size)
+  // hero (16/10, full size)
   return (
     <div
       onClick={onClick}
       className={`relative rounded-[1.75rem] p-5 text-white shadow-2xl overflow-hidden ${onClick ? 'cursor-pointer active:scale-[0.99] transition-transform' : ''} ${className}`}
-      style={{ background: gradientCss(grad), aspectRatio: '16 / 10' }}
+      style={{ ...bgStyle, aspectRatio: '16 / 10' }}
     >
-      {/* Blobs decorativos */}
-      <div className="absolute -top-16 -right-16 w-52 h-52 rounded-full opacity-30 blur-3xl" style={{ background: '#fff' }} />
-      <div className="absolute -bottom-20 -left-10 w-40 h-40 rounded-full opacity-20 blur-3xl" style={{ background: grad[0] }} />
+      {/* Si hay imagen real: overlay sutil para legibilidad del texto.
+          Si no: blobs decorativos sobre el gradient. */}
+      {hasImage ? (
+        <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/20" />
+      ) : (
+        <>
+          <div className="absolute -top-16 -right-16 w-52 h-52 rounded-full opacity-30 blur-3xl" style={{ background: '#fff' }} />
+          <div className="absolute -bottom-20 -left-10 w-40 h-40 rounded-full opacity-20 blur-3xl" style={{ background: grad[0] }} />
+        </>
+      )}
 
-      <div className="relative h-full flex flex-col justify-between">
+      <div className={`relative h-full flex flex-col justify-between ${hasImage ? '[text-shadow:0_1px_2px_rgba(0,0,0,0.5)]' : ''}`}>
         <div className="flex items-start justify-between gap-2">
           <div className="w-9 h-9 rounded-xl bg-white/15 backdrop-blur flex items-center justify-center shrink-0">
             <CreditCard size={17} strokeWidth={1.75} />

@@ -579,6 +579,19 @@ export const PersonalCreditCardsService = {
     const { error } = await supabase.from('personal_credit_cards').delete().eq('id', id);
     if (error) throw error;
   },
+
+  // Subir foto de la tarjeta a Supabase Storage. El bucket 'card-images' debe
+  // existir y ser público (ver scripts/personal_credit_card_image_migration.sql).
+  async uploadImage(profileId: string, cardId: string, file: File): Promise<string> {
+    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+    const path = `${profileId}/${cardId}-${Date.now()}.${ext}`;
+    const { error: uploadErr } = await supabase.storage
+      .from('card-images')
+      .upload(path, file, { upsert: true, cacheControl: '3600' });
+    if (uploadErr) throw uploadErr;
+    const { data } = supabase.storage.from('card-images').getPublicUrl(path);
+    return data.publicUrl;
+  },
 };
 
 // ── Card statements ──────────────────────────────────────────────────────────

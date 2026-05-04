@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Trash2, CreditCard as CreditCardIcon, CheckCircle, Clock } from 'lucide-react';
-import { MobileHeader, Card, BottomSheet, PillChip } from '../../components/personal/ui';
+import { MobileHeader, Card, BottomSheet, PillChip, MoneyInput } from '../../components/personal/ui';
 import { CreditCardVisual } from '../../components/personal/money/CreditCardVisual';
 import { resolveStatementWindow, formatDueDate } from '../../components/personal/money/cardStatement';
 import { usePersonalProfile } from '../../hooks/usePersonalProfile';
@@ -386,15 +386,18 @@ export const PersonalCardDetail: React.FC = () => {
                 return null;
               })()}
             </label>
-            <label className="block">
-              <span className="text-xs uppercase tracking-wider text-[var(--color-ink-muted)] font-semibold block mb-1.5">Monto a pagar</span>
-              <input
-                type="number"
-                value={payForm.amount}
-                onChange={e => setPayForm({ ...payForm, amount: e.target.value })}
-                className="w-full px-4 py-2.5 rounded-2xl bg-white text-[var(--color-ink)] text-sm border border-[var(--color-ink)]/10"
-              />
-            </label>
+            <div>
+              <label className="text-xs uppercase tracking-wider text-[var(--color-ink-muted)] font-semibold block mb-1.5">Monto a pagar</label>
+              <div className="rounded-2xl bg-white border border-[var(--color-ink)]/10 px-4 py-1">
+                <MoneyInput
+                  value={payForm.amount}
+                  onChange={v => setPayForm({ ...payForm, amount: v })}
+                  currency={selectedStatement.currency}
+                  size="md"
+                  inputClassName="px-0"
+                />
+              </div>
+            </div>
             <button
               type="button"
               onClick={handlePay}

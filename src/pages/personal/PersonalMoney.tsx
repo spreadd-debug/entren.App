@@ -2,9 +2,10 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, ArrowDownLeft, ArrowUpRight, ArrowRightLeft, Wallet, Trash2, Tag, CreditCard as CreditCardIcon } from 'lucide-react';
 import { BarChart, Bar, ResponsiveContainer, Cell, Tooltip } from 'recharts';
-import { MobileHeader, Card, Fab, BottomSheet, PillChip } from '../../components/personal/ui';
+import { MobileHeader, Card, Fab, PillChip } from '../../components/personal/ui';
 import { AccountStack } from '../../components/personal/money/AccountStack';
 import { CreditCardVisual } from '../../components/personal/money/CreditCardVisual';
+import { TransactionWizard, WizardKind, WizardResult } from '../../components/personal/money/TransactionWizard';
 import { usePersonalProfile } from '../../hooks/usePersonalProfile';
 import {
   PersonalAccountsService,
@@ -19,38 +20,6 @@ import {
   PersonalTransaction,
   PersonalCreditCard,
 } from '../../../shared/types';
-
-type TxFormKind = 'expense' | 'income' | 'transfer';
-
-interface TxForm {
-  kind: TxFormKind;
-  account_id: string;
-  credit_card_id: string;        // si está seteado, la compra va a tarjeta (kind=expense)
-  use_credit_card: boolean;      // toggle UI
-  card_currency: string;         // moneda de la compra cuando es con tarjeta (ARS/USD)
-  to_account_id: string;
-  category_id: string | null;
-  amount: string;
-  to_amount: string;
-  fx_rate: string;
-  occurred_at: string;
-  description: string;
-}
-
-const EMPTY_FORM: TxForm = {
-  kind: 'expense',
-  account_id: '',
-  credit_card_id: '',
-  use_credit_card: false,
-  card_currency: 'ARS',
-  to_account_id: '',
-  category_id: null,
-  amount: '',
-  to_amount: '',
-  fx_rate: '',
-  occurred_at: new Date().toISOString().slice(0, 16),
-  description: '',
-};
 
 function startOfMonthIso(): string {
   const d = new Date();
@@ -78,8 +47,8 @@ export const PersonalMoney: React.FC = () => {
   const [fxRates, setFxRates] = useState<{ name: string; sell: number | null }[]>([]);
   const [loading, setLoading] = useState(true);
   const [chartMode, setChartMode] = useState<'spending' | 'earning'>('spending');
-  const [formOpen, setFormOpen] = useState(false);
-  const [form, setForm] = useState<TxForm>(EMPTY_FORM);
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [wizardKind, setWizardKind] = useState<WizardKind>('expense');
   const [activeAccountIdx, setActiveAccountIdx] = useState(0);
 
   const refresh = async () => {
@@ -109,7 +78,8 @@ export const PersonalMoney: React.FC = () => {
 
   useEffect(() => {
     if (searchParams.get('new') === '1') {
-      setFormOpen(true);
+      setWizardKind('expense');
+      setWizardOpen(true);
       searchParams.delete('new');
       setSearchParams(searchParams, { replace: true });
     }
@@ -171,61 +141,50 @@ export const PersonalMoney: React.FC = () => {
     [txsThisMonth, fxRate],
   );
 
-  // Form handlers
-  const openForm = (kind: TxFormKind) => {
-    setForm({ ...EMPTY_FORM, kind, account_id: accounts[0]?.id ?? '', to_account_id: accounts[1]?.id ?? '' });
-    setFormOpen(true);
+  // Wizard handlers
+  const openWizard = (kind: WizardKind) => {
+    setWizardKind(kind);
+    setWizardOpen(true);
   };
 
-  const handleSubmit = async () => {
+  const handleWizardSubmit = async (r: WizardResult) => {
     if (!profile) return;
-    const amount = Number(form.amount);
-    if (!(amount > 0)) { alert('Ingresá un monto válido'); return; }
-    if (!form.account_id) { alert('Elegí una cuenta'); return; }
-
     try {
-      if (form.kind === 'transfer') {
-        if (!form.to_account_id) { alert('Elegí cuenta destino'); return; }
-        if (form.account_id === form.to_account_id) { alert('Origen y destino no pueden ser la misma'); return; }
+      if (r.kind === 'transfer') {
         await PersonalTransactionsService.createTransfer({
           profile_id: profile.id,
-          from_account_id: form.account_id,
-          to_account_id: form.to_account_id,
-          amount,
-          to_amount: form.to_amount ? Number(form.to_amount) : null,
-          fx_rate: form.fx_rate ? Number(form.fx_rate) : null,
-          occurred_at: new Date(form.occurred_at).toISOString(),
-          description: form.description || null,
+          from_account_id: r.account_id!,
+          to_account_id: r.to_account_id!,
+          amount: r.amount,
+          to_amount: r.to_amount ?? null,
+          fx_rate: r.fx_rate ?? null,
+          occurred_at: r.occurred_at,
+          description: r.description || null,
         });
-      } else if (form.kind === 'expense' && form.use_credit_card) {
-        const card = cards.find(c => c.id === form.credit_card_id);
-        if (!card) { alert('Elegí una tarjeta'); return; }
+      } else if (r.credit_card_id) {
         await PersonalTransactionsService.create({
           profile_id: profile.id,
-          credit_card_id: card.id,
-          category_id: form.category_id,
+          credit_card_id: r.credit_card_id,
+          category_id: r.category_id,
           kind: 'expense',
-          amount,
-          currency: form.card_currency,
-          occurred_at: new Date(form.occurred_at).toISOString(),
-          description: form.description || null,
+          amount: r.amount,
+          currency: r.card_currency!,
+          occurred_at: r.occurred_at,
+          description: r.description,
         });
       } else {
-        const account = accounts.find(a => a.id === form.account_id);
-        if (!account) { alert('Cuenta inexistente'); return; }
         await PersonalTransactionsService.create({
           profile_id: profile.id,
-          account_id: form.account_id,
-          category_id: form.category_id,
-          kind: form.kind,
-          amount,
-          currency: account.currency,
-          occurred_at: new Date(form.occurred_at).toISOString(),
-          description: form.description || null,
+          account_id: r.account_id!,
+          category_id: r.category_id,
+          kind: r.kind,
+          amount: r.amount,
+          currency: r.currency,
+          occurred_at: r.occurred_at,
+          description: r.description,
         });
       }
-      setForm(EMPTY_FORM);
-      setFormOpen(false);
+      setWizardOpen(false);
       refresh();
     } catch (err: any) {
       console.error('[money] create failed', err);
@@ -242,12 +201,6 @@ export const PersonalMoney: React.FC = () => {
       console.error('[money] delete failed', err);
     }
   };
-
-  const filteredCategories = categories.filter(c => c.kind === (form.kind === 'transfer' ? 'expense' : form.kind));
-
-  const fromAccount = accounts.find(a => a.id === form.account_id);
-  const toAccount = accounts.find(a => a.id === form.to_account_id);
-  const transferCrossCurrency = form.kind === 'transfer' && fromAccount && toAccount && fromAccount.currency !== toAccount.currency;
 
   return (
     <>
@@ -349,19 +302,19 @@ export const PersonalMoney: React.FC = () => {
                 icon={<ArrowUpRight size={16} strokeWidth={2.25} />}
                 label="Gasto"
                 color="rose"
-                onClick={() => openForm('expense')}
+                onClick={() => openWizard('expense')}
               />
               <QuickAction
                 icon={<ArrowDownLeft size={16} strokeWidth={2.25} />}
                 label="Ingreso"
                 color="emerald"
-                onClick={() => openForm('income')}
+                onClick={() => openWizard('income')}
               />
               <QuickAction
                 icon={<ArrowRightLeft size={16} strokeWidth={2.25} />}
                 label="Transferir"
                 color="blue"
-                onClick={() => openForm('transfer')}
+                onClick={() => openWizard('transfer')}
               />
             </div>
 
@@ -454,130 +407,18 @@ export const PersonalMoney: React.FC = () => {
         )}
       </div>
 
-      {accounts.length > 0 && <Fab onClick={() => openForm('expense')} icon={<Plus size={24} strokeWidth={2} />} />}
+      {accounts.length > 0 && <Fab onClick={() => openWizard('expense')} icon={<Plus size={24} strokeWidth={2} />} />}
 
-      <BottomSheet
-        open={formOpen}
-        onClose={() => setFormOpen(false)}
-        title={form.kind === 'expense' ? 'Nuevo gasto' : form.kind === 'income' ? 'Nuevo ingreso' : 'Transferencia'}
-      >
-        <div className="space-y-4 mt-2">
-          {/* Tabs */}
-          <div className="flex gap-2">
-            {(['expense', 'income', 'transfer'] as TxFormKind[]).map(k => (
-              <PillChip
-                key={k}
-                variant={form.kind === k ? 'selected' : 'outline'}
-                onClick={() => setForm({ ...form, kind: k })}
-              >
-                {k === 'expense' ? 'Gasto' : k === 'income' ? 'Ingreso' : 'Transferir'}
-              </PillChip>
-            ))}
-          </div>
-
-          {/* Toggle "con tarjeta" — solo para gastos y si hay tarjetas creadas */}
-          {form.kind === 'expense' && cards.length > 0 && (
-            <label className="flex items-center justify-between gap-3 px-1">
-              <span className="text-xs uppercase tracking-wider text-[var(--color-ink-muted)] font-semibold">
-                ¿Lo pagás con tarjeta de crédito?
-              </span>
-              <input
-                type="checkbox"
-                checked={form.use_credit_card}
-                onChange={e => setForm({ ...form, use_credit_card: e.target.checked, credit_card_id: e.target.checked ? (form.credit_card_id || cards[0].id) : '' })}
-                className="w-5 h-5 accent-[var(--color-ink)]"
-              />
-            </label>
-          )}
-
-          {form.kind === 'expense' && form.use_credit_card ? (
-            <>
-              <Field
-                label="Tarjeta"
-                asSelect
-                value={form.credit_card_id}
-                onChange={v => setForm({ ...form, credit_card_id: v })}
-                options={cards.map(c => ({ value: c.id, label: c.name }))}
-              />
-              <div>
-                <label className="text-xs uppercase tracking-wider text-[var(--color-ink-muted)] font-semibold block mb-1.5">Moneda de la compra</label>
-                <div className="flex gap-1.5">
-                  {['ARS', 'USD'].map(c => (
-                    <PillChip
-                      key={c}
-                      variant={form.card_currency === c ? 'selected' : 'outline'}
-                      onClick={() => setForm({ ...form, card_currency: c })}
-                    >
-                      {c}
-                    </PillChip>
-                  ))}
-                </div>
-                <p className="text-[11px] text-[var(--color-ink-muted)] mt-1.5">
-                  Va al resumen {form.card_currency} de esta tarjeta.
-                </p>
-              </div>
-            </>
-          ) : (
-            <Field
-              label={form.kind === 'transfer' ? 'Cuenta origen' : 'Cuenta'}
-              asSelect
-              value={form.account_id}
-              onChange={v => setForm({ ...form, account_id: v })}
-              options={accounts.map(a => ({ value: a.id, label: `${a.name} (${a.currency})` }))}
-            />
-          )}
-
-          {form.kind === 'transfer' && (
-            <Field
-              label="Cuenta destino"
-              asSelect
-              value={form.to_account_id}
-              onChange={v => setForm({ ...form, to_account_id: v })}
-              options={accounts.filter(a => a.id !== form.account_id).map(a => ({ value: a.id, label: `${a.name} (${a.currency})` }))}
-            />
-          )}
-
-          <Field label={form.kind === 'transfer' && fromAccount ? `Monto (${fromAccount.currency})` : 'Monto'} type="number" value={form.amount} onChange={v => setForm({ ...form, amount: v })} placeholder="0" />
-
-          {transferCrossCurrency && (
-            <>
-              <Field label={`Monto destino (${toAccount!.currency})`} type="number" value={form.to_amount} onChange={v => setForm({ ...form, to_amount: v })} placeholder="opcional" />
-              <Field label={`Tipo de cambio (${fromAccount!.currency} → ${toAccount!.currency})`} type="number" value={form.fx_rate} onChange={v => setForm({ ...form, fx_rate: v })} placeholder={fxRate ? String(fxRate) : 'opcional'} />
-              <p className="text-[11px] text-[var(--color-ink-muted)] -mt-2">
-                Si dejás vacíos los 2, se usa el monto origen 1:1. Si llenás el cambio, calculamos el destino.
-              </p>
-            </>
-          )}
-
-          {form.kind !== 'transfer' && (
-            <div>
-              <label className="text-xs uppercase tracking-wider text-[var(--color-ink-muted)] font-semibold">Categoría</label>
-              <div className="flex flex-wrap gap-1.5 mt-2">
-                {filteredCategories.map(c => (
-                  <PillChip
-                    key={c.id}
-                    variant={form.category_id === c.id ? 'selected' : 'outline'}
-                    onClick={() => setForm({ ...form, category_id: c.id })}
-                  >
-                    {c.name}
-                  </PillChip>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <Field label="Fecha y hora" type="datetime-local" value={form.occurred_at} onChange={v => setForm({ ...form, occurred_at: v })} />
-          <Field label="Descripción" type="text" value={form.description} onChange={v => setForm({ ...form, description: v })} placeholder="opcional" />
-
-          <button
-            type="button"
-            onClick={handleSubmit}
-            className="w-full py-3 mt-2 rounded-full bg-[var(--color-ink)] text-white font-medium"
-          >
-            Guardar
-          </button>
-        </div>
-      </BottomSheet>
+      <TransactionWizard
+        open={wizardOpen}
+        onClose={() => setWizardOpen(false)}
+        onSubmit={handleWizardSubmit}
+        accounts={accounts}
+        cards={cards}
+        categories={categories}
+        defaultKind={wizardKind}
+        defaultFxRate={fxRate}
+      />
     </>
   );
 };
@@ -601,37 +442,3 @@ const QuickAction: React.FC<{ icon: React.ReactNode; label: string; color: 'rose
     </button>
   );
 };
-
-interface FieldProps {
-  label: string;
-  type?: string;
-  value: string;
-  onChange: (v: string) => void;
-  placeholder?: string;
-  asSelect?: boolean;
-  options?: { value: string; label: string }[];
-}
-
-const Field: React.FC<FieldProps> = ({ label, type = 'text', value, onChange, placeholder, asSelect, options }) => (
-  <label className="block">
-    <span className="text-xs uppercase tracking-wider text-[var(--color-ink-muted)] font-semibold block mb-1.5">{label}</span>
-    {asSelect ? (
-      <select
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        className="w-full px-4 py-2.5 rounded-2xl bg-white text-[var(--color-ink)] text-sm border border-[var(--color-ink)]/10 focus:outline-none focus:border-[var(--color-ink)]/40 appearance-none"
-      >
-        <option value="">— elegir —</option>
-        {options?.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-      </select>
-    ) : (
-      <input
-        type={type}
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="w-full px-4 py-2.5 rounded-2xl bg-white text-[var(--color-ink)] text-sm border border-[var(--color-ink)]/10 focus:outline-none focus:border-[var(--color-ink)]/40"
-      />
-    )}
-  </label>
-);

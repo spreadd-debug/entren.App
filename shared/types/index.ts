@@ -1087,6 +1087,7 @@ export interface PersonalCreditCard {
   pay_from_account_id: string | null;
   color_a: string | null;
   color_b: string | null;
+  image_url: string | null;
   archived: boolean;
   sort_order: number;
   created_at: string;
@@ -1104,6 +1105,7 @@ export interface PersonalCreditCardInput {
   pay_from_account_id?: string | null;
   color_a?: string | null;
   color_b?: string | null;
+  image_url?: string | null;
 }
 
 export type CardStatementStatus = 'open' | 'closed' | 'partial' | 'paid';
