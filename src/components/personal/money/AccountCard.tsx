@@ -2,6 +2,7 @@ import React from 'react';
 import { Wallet, Banknote, Landmark, TrendingUp, CircleDollarSign } from 'lucide-react';
 import { PersonalAccount } from '../../../../shared/types';
 import { accountGradient, gradientCss } from './accountGradient';
+import { ACCOUNT_KIND_LABELS } from './accountKindLabels';
 
 interface Props {
   account: PersonalAccount;
@@ -83,27 +84,32 @@ export const AccountCard: React.FC<Props> = ({ account, onClick, variant = 'hero
   return (
     <div
       onClick={onClick}
-      className={`relative rounded-[2rem] p-6 text-white shadow-2xl overflow-hidden aspect-[16/10] ${onClick ? 'cursor-pointer active:scale-[0.99] transition-transform' : ''} ${className}`}
-      style={{ background: gradientCss(grad) }}
+      className={`relative rounded-[2rem] p-5 text-white shadow-2xl overflow-hidden ${onClick ? 'cursor-pointer active:scale-[0.99] transition-transform' : ''} ${className}`}
+      style={{ background: gradientCss(grad), minHeight: 200 }}
     >
       {/* Blobs decorativos */}
-      <div className="absolute -top-16 -right-16 w-56 h-56 rounded-full opacity-30 blur-3xl" style={{ background: '#fff' }} />
-      <div className="absolute -bottom-20 -left-10 w-44 h-44 rounded-full opacity-20 blur-3xl" style={{ background: grad[0] }} />
+      <div className="absolute -top-16 -right-16 w-52 h-52 rounded-full opacity-30 blur-3xl" style={{ background: '#fff' }} />
+      <div className="absolute -bottom-20 -left-10 w-40 h-40 rounded-full opacity-20 blur-3xl" style={{ background: grad[0] }} />
 
-      <div className="relative h-full flex flex-col justify-between">
-        <div className="flex items-start justify-between">
-          <div className="w-11 h-11 rounded-2xl bg-white/15 backdrop-blur flex items-center justify-center">
-            <Icon size={20} strokeWidth={1.75} />
+      <div className="relative flex flex-col gap-5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-2xl bg-white/15 backdrop-blur flex items-center justify-center shrink-0">
+              <Icon size={17} strokeWidth={1.75} />
+            </div>
+            <span className="text-[10px] uppercase tracking-[0.18em] opacity-80 font-semibold">
+              {ACCOUNT_KIND_LABELS[account.kind]}
+            </span>
           </div>
-          <span className="text-[10px] uppercase tracking-[0.2em] opacity-80 font-semibold">
-            {account.kind}
+          <span className="text-[10px] uppercase tracking-[0.2em] opacity-80 font-semibold bg-white/15 backdrop-blur rounded-full px-2.5 py-1">
+            {account.currency}
           </span>
         </div>
 
         <div>
-          <p className="text-xs uppercase tracking-wider opacity-80">{account.name}</p>
-          <p className="font-serif text-[2.4rem] leading-none mt-1">
-            <span className="opacity-70 text-lg mr-1.5">{currencySymbol}</span>
+          <p className="text-xs uppercase tracking-wider opacity-80 truncate">{account.name}</p>
+          <p className="font-serif text-4xl leading-none mt-1.5 break-words">
+            <span className="opacity-70 text-base mr-1">{currencySymbol}</span>
             {fmt(balance)}
           </p>
         </div>

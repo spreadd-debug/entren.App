@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Archive } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { MobileHeader, Card, Fab, BottomSheet, PillChip } from '../../components/personal/ui';
 import { AccountCard } from '../../components/personal/money/AccountCard';
+import { ACCOUNT_KIND_LABELS, ACCOUNT_KIND_DESCRIPTIONS } from '../../components/personal/money/accountKindLabels';
 import { usePersonalProfile } from '../../hooks/usePersonalProfile';
 import { PersonalAccountsService } from '../../services/PersonalTrackerService';
 import { PersonalAccount, AccountKind } from '../../../shared/types';
@@ -23,14 +24,6 @@ const EMPTY: AccountForm = {
   initial_balance: '',
   color_a: '',
   color_b: '',
-};
-
-const KIND_LABELS: Record<AccountKind, string> = {
-  cash:       'Efectivo',
-  bank:       'Banco',
-  wallet:     'Billetera',
-  investment: 'Inversión',
-  other:      'Otra',
 };
 
 const PRESETS: { name: string; color_a: string; color_b: string }[] = [
@@ -175,7 +168,7 @@ export const PersonalAccounts: React.FC = () => {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-serif text-base text-[var(--color-ink)]">{a.name}</p>
-                      <p className="text-xs text-[var(--color-ink-muted)]">{a.currency} · {KIND_LABELS[a.kind]}</p>
+                      <p className="text-xs text-[var(--color-ink-muted)]">{a.currency} · {ACCOUNT_KIND_LABELS[a.kind]}</p>
                     </div>
                     <button
                       type="button"
@@ -205,16 +198,19 @@ export const PersonalAccounts: React.FC = () => {
           <div>
             <label className="text-xs uppercase tracking-wider text-[var(--color-ink-muted)] font-semibold">Tipo</label>
             <div className="flex flex-wrap gap-2 mt-2">
-              {(Object.keys(KIND_LABELS) as AccountKind[]).map(k => (
+              {(Object.keys(ACCOUNT_KIND_LABELS) as AccountKind[]).map(k => (
                 <PillChip
                   key={k}
                   variant={form.kind === k ? 'selected' : 'outline'}
                   onClick={() => setForm({ ...form, kind: k })}
                 >
-                  {KIND_LABELS[k]}
+                  {ACCOUNT_KIND_LABELS[k]}
                 </PillChip>
               ))}
             </div>
+            <p className="text-[11px] text-[var(--color-ink-muted)] mt-2 italic">
+              {ACCOUNT_KIND_DESCRIPTIONS[form.kind]}
+            </p>
           </div>
 
           <div>
