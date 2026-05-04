@@ -217,8 +217,9 @@ export const GarminService = {
     await probe.login();
     let displayName: string | null = null;
     try {
+      // displayName es un GCUserHash (UUID) — el nombre legible está en fullName.
       const profile: any = await probe.getUserProfile();
-      displayName = profile?.displayName ?? profile?.fullName ?? null;
+      displayName = profile?.fullName || profile?.userName || profile?.displayName || null;
     } catch { /* opcional, no abortar */ }
 
     const e = encrypt(email);

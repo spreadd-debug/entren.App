@@ -33402,7 +33402,7 @@ var GarminService = {
     let displayName = null;
     try {
       const profile = await probe.getUserProfile();
-      displayName = profile?.displayName ?? profile?.fullName ?? null;
+      displayName = profile?.fullName || profile?.userName || profile?.displayName || null;
     } catch {
     }
     const e = encrypt(email);
