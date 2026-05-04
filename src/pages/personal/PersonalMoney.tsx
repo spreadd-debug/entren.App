@@ -1,20 +1,23 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Plus, ArrowDownLeft, ArrowUpRight, ArrowRightLeft, Wallet, Trash2, Tag } from 'lucide-react';
+import { Plus, ArrowDownLeft, ArrowUpRight, ArrowRightLeft, Wallet, Trash2, Tag, CreditCard as CreditCardIcon } from 'lucide-react';
 import { BarChart, Bar, ResponsiveContainer, Cell, Tooltip } from 'recharts';
 import { MobileHeader, Card, Fab, BottomSheet, PillChip } from '../../components/personal/ui';
 import { AccountStack } from '../../components/personal/money/AccountStack';
+import { CreditCardVisual } from '../../components/personal/money/CreditCardVisual';
 import { usePersonalProfile } from '../../hooks/usePersonalProfile';
 import {
   PersonalAccountsService,
   PersonalCategoriesService,
   PersonalTransactionsService,
+  PersonalCreditCardsService,
 } from '../../services/PersonalTrackerService';
 import { api } from '../../services/api';
 import {
   PersonalAccount,
   PersonalCategory,
   PersonalTransaction,
+  PersonalCreditCard,
 } from '../../../shared/types';
 
 type TxFormKind = 'expense' | 'income' | 'transfer';
@@ -22,6 +25,8 @@ type TxFormKind = 'expense' | 'income' | 'transfer';
 interface TxForm {
   kind: TxFormKind;
   account_id: string;
+  credit_card_id: string;        // si está seteado, la compra va a tarjeta (kind=expense)
+  use_credit_card: boolean;      // toggle UI
   to_account_id: string;
   category_id: string | null;
   amount: string;
@@ -34,6 +39,8 @@ interface TxForm {
 const EMPTY_FORM: TxForm = {
   kind: 'expense',
   account_id: '',
+  credit_card_id: '',
+  use_credit_card: false,
   to_account_id: '',
   category_id: null,
   amount: '',
@@ -63,6 +70,7 @@ export const PersonalMoney: React.FC = () => {
   const { profile } = usePersonalProfile();
 
   const [accounts, setAccounts] = useState<PersonalAccount[]>([]);
+  const [cards, setCards] = useState<PersonalCreditCard[]>([]);
   const [categories, setCategories] = useState<PersonalCategory[]>([]);
   const [transactions, setTransactions] = useState<PersonalTransaction[]>([]);
   const [fxRates, setFxRates] = useState<{ name: string; sell: number | null }[]>([]);
@@ -76,13 +84,15 @@ export const PersonalMoney: React.FC = () => {
     if (!profile) return;
     setLoading(true);
     try {
-      const [acc, cats, txs, fx] = await Promise.all([
+      const [acc, ccs, cats, txs, fx] = await Promise.all([
         PersonalAccountsService.list(profile.id),
+        PersonalCreditCardsService.list(profile.id),
         PersonalCategoriesService.ensureDefaults(profile.id),
         PersonalTransactionsService.list(profile.id, { from: startOfMonthN(5).toISOString() }, 500),
         api.fx.getLatest(),
       ]);
       setAccounts(acc);
+      setCards(ccs);
       setCategories(cats);
       setTransactions(txs);
       setFxRates(fx);
@@ -182,6 +192,19 @@ export const PersonalMoney: React.FC = () => {
           amount,
           to_amount: form.to_amount ? Number(form.to_amount) : null,
           fx_rate: form.fx_rate ? Number(form.fx_rate) : null,
+          occurred_at: new Date(form.occurred_at).toISOString(),
+          description: form.description || null,
+        });
+      } else if (form.kind === 'expense' && form.use_credit_card) {
+        const card = cards.find(c => c.id === form.credit_card_id);
+        if (!card) { alert('Elegí una tarjeta'); return; }
+        await PersonalTransactionsService.create({
+          profile_id: profile.id,
+          credit_card_id: card.id,
+          category_id: form.category_id,
+          kind: 'expense',
+          amount,
+          currency: card.currency,
           occurred_at: new Date(form.occurred_at).toISOString(),
           description: form.description || null,
         });
@@ -286,6 +309,38 @@ export const PersonalMoney: React.FC = () => {
             {/* Account stack */}
             <AccountStack accounts={accounts} activeIndex={activeAccountIdx} onActiveChange={setActiveAccountIdx} onSelect={() => navigate('/admin/personal/accounts')} />
 
+            {/* Tarjetas */}
+            <div className="flex items-center justify-between mt-6 mb-2 px-1">
+              <h3 className="font-serif text-xl text-[var(--color-ink)]">Tarjetas</h3>
+              <button
+                type="button"
+                onClick={() => navigate('/admin/personal/cards')}
+                className="text-xs text-[var(--color-ink-muted)] hover:text-[var(--color-ink)]"
+              >
+                Ver todas
+              </button>
+            </div>
+            {cards.length === 0 ? (
+              <Card tone="tinted" padding="sm" onClick={() => navigate('/admin/personal/cards')}>
+                <div className="flex items-center gap-3">
+                  <CreditCardIcon size={16} className="text-[var(--color-ink-muted)]" />
+                  <p className="text-sm text-[var(--color-ink)]">Agregar tu primera tarjeta de crédito</p>
+                </div>
+              </Card>
+            ) : (
+              <div className="overflow-x-auto -mx-5 px-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden flex gap-3">
+                {cards.map(c => (
+                  <div
+                    key={c.id}
+                    className="shrink-0 w-44 cursor-pointer active:scale-[0.98] transition-transform"
+                    onClick={() => navigate(`/admin/personal/cards/${c.id}`)}
+                  >
+                    <CreditCardVisual card={c} variant="compact" />
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* Quick actions */}
             <div className="grid grid-cols-3 gap-2 mt-5">
               <QuickAction
@@ -344,12 +399,16 @@ export const PersonalMoney: React.FC = () => {
                 <p className="text-center text-sm text-[var(--color-ink-muted)] py-6 italic">Sin movimientos este mes</p>
               )}
               {txsThisMonth.slice(0, 30).map(t => {
-                const account = accounts.find(a => a.id === t.account_id);
+                const account = t.account_id ? accounts.find(a => a.id === t.account_id) : null;
+                const card = t.credit_card_id ? cards.find(c => c.id === t.credit_card_id) : null;
                 const cat = categories.find(c => c.id === t.category_id);
                 const isIn = t.kind === 'income' || t.kind === 'transfer_in';
                 const sign = isIn ? '+' : '−';
                 const color = t.kind === 'expense' ? '#F43F5E' : t.kind === 'income' ? '#10B981' : '#3B82F6';
-                const icon = t.kind === 'expense' ? <ArrowUpRight size={14} /> : t.kind === 'income' ? <ArrowDownLeft size={14} /> : <ArrowRightLeft size={14} />;
+                const icon = card ? <CreditCardIcon size={14} /> :
+                  t.kind === 'expense' ? <ArrowUpRight size={14} /> :
+                  t.kind === 'income' ? <ArrowDownLeft size={14} /> :
+                  <ArrowRightLeft size={14} />;
                 return (
                   <Card key={t.id} padding="sm">
                     <div className="flex items-center gap-3">
@@ -364,7 +423,7 @@ export const PersonalMoney: React.FC = () => {
                           {t.description || cat?.name || (t.kind === 'transfer_out' ? 'Transferencia' : t.kind === 'transfer_in' ? 'Transferencia' : 'Sin descripción')}
                         </h4>
                         <p className="text-xs text-[var(--color-ink-muted)] mt-0.5 truncate">
-                          {account?.name ?? '—'}
+                          {card ? `💳 ${card.name}` : account?.name ?? '—'}
                           {cat ? ` · ${cat.name}` : ''}
                           {' · '}
                           {new Date(t.occurred_at).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })}
@@ -414,13 +473,38 @@ export const PersonalMoney: React.FC = () => {
             ))}
           </div>
 
-          <Field
-            label={form.kind === 'transfer' ? 'Cuenta origen' : 'Cuenta'}
-            asSelect
-            value={form.account_id}
-            onChange={v => setForm({ ...form, account_id: v })}
-            options={accounts.map(a => ({ value: a.id, label: `${a.name} (${a.currency})` }))}
-          />
+          {/* Toggle "con tarjeta" — solo para gastos y si hay tarjetas creadas */}
+          {form.kind === 'expense' && cards.length > 0 && (
+            <label className="flex items-center justify-between gap-3 px-1">
+              <span className="text-xs uppercase tracking-wider text-[var(--color-ink-muted)] font-semibold">
+                ¿Lo pagás con tarjeta de crédito?
+              </span>
+              <input
+                type="checkbox"
+                checked={form.use_credit_card}
+                onChange={e => setForm({ ...form, use_credit_card: e.target.checked, credit_card_id: e.target.checked ? (form.credit_card_id || cards[0].id) : '' })}
+                className="w-5 h-5 accent-[var(--color-ink)]"
+              />
+            </label>
+          )}
+
+          {form.kind === 'expense' && form.use_credit_card ? (
+            <Field
+              label="Tarjeta"
+              asSelect
+              value={form.credit_card_id}
+              onChange={v => setForm({ ...form, credit_card_id: v })}
+              options={cards.map(c => ({ value: c.id, label: `${c.name} (${c.currency})` }))}
+            />
+          ) : (
+            <Field
+              label={form.kind === 'transfer' ? 'Cuenta origen' : 'Cuenta'}
+              asSelect
+              value={form.account_id}
+              onChange={v => setForm({ ...form, account_id: v })}
+              options={accounts.map(a => ({ value: a.id, label: `${a.name} (${a.currency})` }))}
+            />
+          )}
 
           {form.kind === 'transfer' && (
             <Field

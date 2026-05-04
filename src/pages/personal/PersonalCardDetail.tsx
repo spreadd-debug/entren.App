@@ -1,0 +1,348 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { Trash2, CreditCard as CreditCardIcon, CheckCircle, Clock } from 'lucide-react';
+import { MobileHeader, Card, BottomSheet, PillChip } from '../../components/personal/ui';
+import { CreditCardVisual } from '../../components/personal/money/CreditCardVisual';
+import { resolveStatementWindow, formatDueDate } from '../../components/personal/money/cardStatement';
+import { usePersonalProfile } from '../../hooks/usePersonalProfile';
+import {
+  PersonalCreditCardsService,
+  PersonalCardStatementsService,
+  PersonalAccountsService,
+  PersonalTransactionsService,
+} from '../../services/PersonalTrackerService';
+import {
+  PersonalCreditCard,
+  PersonalCardStatement,
+  PersonalAccount,
+  PersonalTransaction,
+} from '../../../shared/types';
+
+type Tab = 'current' | 'next' | 'history';
+
+interface PayForm {
+  account_id: string;
+  amount: string;
+}
+
+function fmt(n: number): string {
+  return Math.abs(n).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  open:    'Abierto',
+  closed:  'Cerrado · pendiente de pago',
+  partial: 'Pagado parcialmente',
+  paid:    'Pagado',
+};
+
+export const PersonalCardDetail: React.FC = () => {
+  const { cardId } = useParams<{ cardId: string }>();
+  const navigate = useNavigate();
+  const { profile } = usePersonalProfile();
+  const [card, setCard] = useState<PersonalCreditCard | null>(null);
+  const [statements, setStatements] = useState<PersonalCardStatement[]>([]);
+  const [accounts, setAccounts] = useState<PersonalAccount[]>([]);
+  const [txs, setTxs] = useState<PersonalTransaction[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<Tab>('current');
+  const [payOpen, setPayOpen] = useState(false);
+  const [payForm, setPayForm] = useState<PayForm>({ account_id: '', amount: '' });
+  const [selectedStatement, setSelectedStatement] = useState<PersonalCardStatement | null>(null);
+
+  const refresh = async () => {
+    if (!profile || !cardId) return;
+    setLoading(true);
+    try {
+      const [c, sts, accs] = await Promise.all([
+        PersonalCreditCardsService.getById(cardId),
+        PersonalCardStatementsService.listByCard(cardId, 24),
+        PersonalAccountsService.list(profile.id),
+      ]);
+      setCard(c);
+      setStatements(sts);
+      setAccounts(accs);
+      const allTxs = await PersonalTransactionsService.list(profile.id, {}, 500);
+      setTxs(allTxs.filter(t => t.credit_card_id === cardId));
+    } catch (err) {
+      console.error('[card detail] load failed', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { refresh(); /* eslint-disable-next-line */ }, [profile?.id, cardId]);
+
+  // Statement actual = el que abarca hoy (resolveStatementWindow con date = hoy)
+  // y el próximo = el que sigue (closing_day del próximo mes).
+  const currentStatement = useMemo<PersonalCardStatement | null>(() => {
+    if (!card) return null;
+    const today = new Date();
+    const win = resolveStatementWindow(card, today);
+    return statements.find(s => s.period_end === win.period_end) ?? null;
+  }, [card, statements]);
+
+  const nextStatement = useMemo<PersonalCardStatement | null>(() => {
+    if (!card) return null;
+    // Avanzar 1 mes después del cierre actual
+    const today = new Date();
+    const winNow = resolveStatementWindow(card, today);
+    const nextRefDate = new Date(winNow.period_end);
+    nextRefDate.setDate(nextRefDate.getDate() + 1);
+    const winNext = resolveStatementWindow(card, nextRefDate);
+    return statements.find(s => s.period_end === winNext.period_end) ?? null;
+  }, [card, statements]);
+
+  const closedPending = useMemo(
+    () => statements.filter(s => s.status === 'closed' || s.status === 'partial'),
+    [statements],
+  );
+
+  const txsForStatement = (s: PersonalCardStatement | null) => {
+    if (!s) return [];
+    return txs.filter(t => t.statement_id === s.id);
+  };
+
+  const openPay = (s: PersonalCardStatement) => {
+    if (!card) return;
+    const remaining = Number(s.total_amount) - Number(s.paid_amount);
+    setPayForm({
+      account_id: card.pay_from_account_id ?? accounts[0]?.id ?? '',
+      amount: String(remaining > 0 ? remaining.toFixed(2) : ''),
+    });
+    setSelectedStatement(s);
+    setPayOpen(true);
+  };
+
+  const handlePay = async () => {
+    if (!profile || !selectedStatement) return;
+    const amount = Number(payForm.amount);
+    if (!(amount > 0)) { alert('Monto inválido'); return; }
+    if (!payForm.account_id) { alert('Elegí cuenta'); return; }
+    try {
+      await PersonalCardStatementsService.pay({
+        profile_id: profile.id,
+        statement_id: selectedStatement.id,
+        from_account_id: payForm.account_id,
+        amount,
+      });
+      setPayOpen(false);
+      setSelectedStatement(null);
+      refresh();
+    } catch (err: any) {
+      console.error('[card detail] pay failed', err);
+      alert(`No se pudo pagar: ${err?.message ?? 'Error'}`);
+    }
+  };
+
+  const handleDeleteTx = async (id: string) => {
+    if (!confirm('¿Eliminar esta transacción? Se ajusta el statement.')) return;
+    try {
+      await PersonalTransactionsService.delete(id);
+      refresh();
+    } catch (err) {
+      console.error('[card detail] delete tx failed', err);
+    }
+  };
+
+  const holderName = profile?.display_name || null;
+
+  const stmtForTab = tab === 'current' ? currentStatement : tab === 'next' ? nextStatement : null;
+  const stmtTxs = txsForStatement(stmtForTab);
+
+  return (
+    <>
+      <MobileHeader title={card?.name ?? 'Tarjeta'} onBack={() => navigate('/admin/personal/cards')} large />
+
+      <div className="px-5 pb-32">
+        {loading && <p className="text-center text-sm text-[var(--color-ink-muted)] py-8">Cargando…</p>}
+
+        {!loading && card && (
+          <>
+            <CreditCardVisual card={card} holderName={holderName} variant="hero" />
+
+            {/* Resumen current */}
+            <Card className="mt-4" tone="ink">
+              <p className="text-xs uppercase tracking-wider opacity-60">Resumen actual</p>
+              <p className="font-serif text-4xl mt-1">
+                <span className="opacity-70 text-base mr-1">$</span>
+                {fmt(Number(currentStatement?.total_amount ?? 0))}
+              </p>
+              {currentStatement && (
+                <p className="text-xs opacity-70 mt-2">
+                  Cierra el {formatDueDate(currentStatement.period_end)} · vence el {formatDueDate(currentStatement.due_date)}
+                </p>
+              )}
+              {!currentStatement && (
+                <p className="text-xs opacity-70 mt-2 italic">Sin compras este período.</p>
+              )}
+            </Card>
+
+            {/* Statements pendientes de pago */}
+            {closedPending.length > 0 && (
+              <div className="mt-3 space-y-2">
+                {closedPending.map(s => {
+                  const remaining = Number(s.total_amount) - Number(s.paid_amount);
+                  return (
+                    <Card key={s.id} tone="tinted">
+                      <div className="flex items-center gap-3">
+                        <Clock size={18} className="text-amber-600 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-serif text-base text-[var(--color-ink)] leading-tight">
+                            ${fmt(remaining)} a pagar
+                          </p>
+                          <p className="text-xs text-[var(--color-ink-muted)] mt-0.5">
+                            Vence el {formatDueDate(s.due_date)}
+                            {s.status === 'partial' && ` · pagado parcial $${fmt(Number(s.paid_amount))}`}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => openPay(s)}
+                          className="px-4 py-2 rounded-full bg-[var(--color-ink)] text-white text-sm font-medium shrink-0"
+                        >
+                          Pagar
+                        </button>
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Tabs */}
+            <div className="flex gap-1.5 mt-6 mb-3">
+              <PillChip variant={tab === 'current' ? 'selected' : 'outline'} onClick={() => setTab('current')}>Actual</PillChip>
+              <PillChip variant={tab === 'next' ? 'selected' : 'outline'} onClick={() => setTab('next')}>Próximo</PillChip>
+              <PillChip variant={tab === 'history' ? 'selected' : 'outline'} onClick={() => setTab('history')}>Histórico</PillChip>
+            </div>
+
+            {tab !== 'history' && (
+              <>
+                {!stmtForTab && (
+                  <p className="text-center text-sm text-[var(--color-ink-muted)] py-6 italic">
+                    Sin statement {tab === 'current' ? 'actual' : 'próximo'} todavía
+                  </p>
+                )}
+                {stmtForTab && stmtTxs.length === 0 && (
+                  <p className="text-center text-sm text-[var(--color-ink-muted)] py-6 italic">
+                    Sin movimientos en este resumen
+                  </p>
+                )}
+                <div className="space-y-2">
+                  {stmtTxs.map(t => (
+                    <Card key={t.id} padding="sm">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                          <CreditCardIcon size={15} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-serif text-base text-[var(--color-ink)] leading-tight truncate">
+                            {t.description || 'Compra'}
+                          </h4>
+                          <p className="text-xs text-[var(--color-ink-muted)] mt-0.5">
+                            {new Date(t.occurred_at).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })}
+                          </p>
+                        </div>
+                        <p className="font-serif text-lg text-rose-600 shrink-0">
+                          − {fmt(Number(t.amount))}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteTx(t.id)}
+                          className="p-1 text-[var(--color-ink-muted)] hover:text-rose-600 shrink-0"
+                          aria-label="Eliminar"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {tab === 'history' && (
+              <div className="space-y-2">
+                {statements.length === 0 && (
+                  <p className="text-center text-sm text-[var(--color-ink-muted)] py-6 italic">Sin resúmenes históricos</p>
+                )}
+                {statements.map(s => (
+                  <Card key={s.id} padding="sm">
+                    <div className="flex items-center gap-3">
+                      {s.status === 'paid' ? (
+                        <CheckCircle size={18} className="text-emerald-600 shrink-0" />
+                      ) : (
+                        <Clock size={18} className="text-[var(--color-ink-muted)] shrink-0" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-serif text-base text-[var(--color-ink)] leading-tight">
+                          {new Date(s.period_end).toLocaleDateString('es-AR', { month: 'long', year: 'numeric' })}
+                        </p>
+                        <p className="text-xs text-[var(--color-ink-muted)] mt-0.5">
+                          {STATUS_LABELS[s.status]} · venció {formatDueDate(s.due_date)}
+                        </p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="font-serif text-base text-[var(--color-ink)]">${fmt(Number(s.total_amount))}</p>
+                        {s.paid_amount > 0 && s.status !== 'paid' && (
+                          <p className="text-[10px] text-[var(--color-ink-muted)] mt-0.5">
+                            pagado ${fmt(Number(s.paid_amount))}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      <BottomSheet
+        open={payOpen}
+        onClose={() => { setPayOpen(false); setSelectedStatement(null); }}
+        title="Pagar resumen"
+      >
+        {selectedStatement && (
+          <div className="space-y-4 mt-2">
+            <div className="text-sm text-[var(--color-ink-muted)]">
+              Total del resumen: <span className="font-semibold text-[var(--color-ink)]">${fmt(Number(selectedStatement.total_amount))}</span>
+              {selectedStatement.paid_amount > 0 && (
+                <> · ya pagado <span className="font-semibold text-[var(--color-ink)]">${fmt(Number(selectedStatement.paid_amount))}</span></>
+              )}
+            </div>
+            <label className="block">
+              <span className="text-xs uppercase tracking-wider text-[var(--color-ink-muted)] font-semibold block mb-1.5">Cuenta que paga</span>
+              <select
+                value={payForm.account_id}
+                onChange={e => setPayForm({ ...payForm, account_id: e.target.value })}
+                className="w-full px-4 py-2.5 rounded-2xl bg-white text-[var(--color-ink)] text-sm border border-[var(--color-ink)]/10"
+              >
+                <option value="">— elegir —</option>
+                {accounts.map(a => <option key={a.id} value={a.id}>{a.name} ({a.currency} {fmt(Number(a.current_balance))})</option>)}
+              </select>
+            </label>
+            <label className="block">
+              <span className="text-xs uppercase tracking-wider text-[var(--color-ink-muted)] font-semibold block mb-1.5">Monto a pagar</span>
+              <input
+                type="number"
+                value={payForm.amount}
+                onChange={e => setPayForm({ ...payForm, amount: e.target.value })}
+                className="w-full px-4 py-2.5 rounded-2xl bg-white text-[var(--color-ink)] text-sm border border-[var(--color-ink)]/10"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={handlePay}
+              className="w-full py-3 mt-2 rounded-full bg-[var(--color-ink)] text-white font-medium"
+            >
+              Confirmar pago
+            </button>
+          </div>
+        )}
+      </BottomSheet>
+    </>
+  );
+};

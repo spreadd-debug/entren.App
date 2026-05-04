@@ -40,6 +40,8 @@ import { PersonalWorkouts } from './pages/personal/PersonalWorkouts';
 import { PersonalNutrition } from './pages/personal/PersonalNutrition';
 import { PersonalMoney } from './pages/personal/PersonalMoney';
 import { PersonalAccounts } from './pages/personal/PersonalAccounts';
+import { PersonalCards } from './pages/personal/PersonalCards';
+import { PersonalCardDetail } from './pages/personal/PersonalCardDetail';
 import { PersonalBody } from './pages/personal/PersonalBody';
 import { PersonalSleep } from './pages/personal/PersonalSleep';
 import { PersonalVitals } from './pages/personal/PersonalVitals';
@@ -334,6 +336,8 @@ export default function App() {
             <Route path="nutrition" element={<PersonalNutrition />} />
             <Route path="money"     element={<PersonalMoney />} />
             <Route path="accounts"  element={<PersonalAccounts />} />
+            <Route path="cards"            element={<PersonalCards />} />
+            <Route path="cards/:cardId"    element={<PersonalCardDetail />} />
             <Route path="body"      element={<PersonalBody />} />
             <Route path="sleep"     element={<PersonalSleep />} />
             <Route path="vitals"    element={<PersonalVitals />} />

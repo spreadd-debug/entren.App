@@ -1042,7 +1042,7 @@ export interface PersonalCategoryInput {
 export interface PersonalTransaction {
   id: string;
   profile_id: string;
-  account_id: string;
+  account_id: string | null;
   category_id: string | null;
   kind: TransactionKind;
   amount: number;
@@ -1051,17 +1051,84 @@ export interface PersonalTransaction {
   description: string | null;
   transfer_group_id: string | null;
   fx_rate: number | null;
+  credit_card_id: string | null;
+  statement_id: string | null;
   raw?: any;
   created_at: string;
 }
 
 export interface PersonalTransactionInput {
   profile_id: string;
-  account_id: string;
+  // account_id es required cuando la transacción es de cuenta (cash/bank/wallet/...).
+  // Para compras con tarjeta, pasar credit_card_id en su lugar y account_id puede
+  // ser null/undefined (no afecta balance de cuenta hasta el pago del resumen).
+  account_id?: string | null;
+  credit_card_id?: string | null;
   category_id?: string | null;
   kind: 'expense' | 'income';
   amount: number;
   currency: string;
+  occurred_at?: string;
+  description?: string | null;
+}
+
+// Ahora agrego los tipos del módulo de tarjetas
+export interface PersonalCreditCard {
+  id: string;
+  profile_id: string;
+  name: string;
+  bank: string | null;
+  last_4: string | null;
+  currency: string;
+  credit_limit: number | null;
+  closing_day: number;
+  due_day: number;
+  pay_from_account_id: string | null;
+  color_a: string | null;
+  color_b: string | null;
+  archived: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PersonalCreditCardInput {
+  profile_id: string;
+  name: string;
+  bank?: string | null;
+  last_4?: string | null;
+  currency?: string;
+  credit_limit?: number | null;
+  closing_day: number;
+  due_day: number;
+  pay_from_account_id?: string | null;
+  color_a?: string | null;
+  color_b?: string | null;
+}
+
+export type CardStatementStatus = 'open' | 'closed' | 'partial' | 'paid';
+
+export interface PersonalCardStatement {
+  id: string;
+  card_id: string;
+  profile_id: string;
+  period_start: string;     // YYYY-MM-DD
+  period_end: string;
+  due_date: string;
+  total_amount: number;
+  paid_amount: number;
+  status: CardStatementStatus;
+  closed_at: string | null;
+  paid_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PayCardStatementInput {
+  profile_id: string;
+  statement_id: string;
+  from_account_id: string;
+  amount: number;
   occurred_at?: string;
   description?: string | null;
 }

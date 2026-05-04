@@ -19,7 +19,12 @@ import {
   PersonalBodyMetricInput,
   PersonalSleep,
   PersonalDailyMetrics,
+  PersonalCreditCard,
+  PersonalCreditCardInput,
+  PersonalCardStatement,
+  PayCardStatementInput,
 } from '../../shared/types';
+import { resolveStatementWindow } from '../components/personal/money/cardStatement';
 
 // ── Profiles ─────────────────────────────────────────────────────────────────
 
@@ -345,6 +350,43 @@ export const PersonalTransactionsService = {
 
   async create(input: PersonalTransactionInput): Promise<PersonalTransaction> {
     const occurred = input.occurred_at ?? new Date().toISOString();
+
+    // Si va con tarjeta de crédito, no afectamos balance de cuenta — la tx
+    // queda asociada al statement correspondiente y se materializa al pagar.
+    if (input.credit_card_id) {
+      if (input.kind !== 'expense') {
+        throw new Error('Solo se aceptan gastos en tarjeta de crédito (income va a una cuenta).');
+      }
+      const statement = await PersonalCardStatementsService.ensureForCardAndDate(
+        input.credit_card_id,
+        input.profile_id,
+        occurred,
+      );
+      const { data, error } = await supabase
+        .from('personal_transactions')
+        .insert({
+          profile_id: input.profile_id,
+          account_id: null,
+          credit_card_id: input.credit_card_id,
+          statement_id: statement.id,
+          category_id: input.category_id ?? null,
+          kind: input.kind,
+          amount: input.amount,
+          currency: input.currency,
+          occurred_at: occurred,
+          description: input.description ?? null,
+        })
+        .select('*')
+        .single();
+      if (error) throw error;
+      // Sumar al total del statement.
+      await PersonalCardStatementsService.adjustTotal(statement.id, input.amount);
+      return data as PersonalTransaction;
+    }
+
+    if (!input.account_id) {
+      throw new Error('account_id requerido cuando no es transacción con tarjeta');
+    }
     const { data, error } = await supabase
       .from('personal_transactions')
       .insert({
@@ -424,7 +466,6 @@ export const PersonalTransactionsService = {
   },
 
   async delete(id: string): Promise<void> {
-    // Para mantener balance correcto al borrar, primero leemos la transacción.
     const { data: tx, error: fetchErr } = await supabase
       .from('personal_transactions')
       .select('*')
@@ -433,14 +474,23 @@ export const PersonalTransactionsService = {
     if (fetchErr) throw fetchErr;
     if (!tx) return;
 
+    // Compra con tarjeta: revertir el total del statement y borrar.
+    if (tx.credit_card_id && tx.statement_id) {
+      await PersonalCardStatementsService.adjustTotal(tx.statement_id, -Number(tx.amount));
+      const { error } = await supabase.from('personal_transactions').delete().eq('id', id);
+      if (error) throw error;
+      return;
+    }
+
+    // Transferencia: borrar las 2 patas y revertir balances.
     if (tx.transfer_group_id) {
-      // Borrar las 2 patas y revertir balances.
       const { data: pair } = await supabase
         .from('personal_transactions')
         .select('*')
         .eq('transfer_group_id', tx.transfer_group_id);
       const rows = (pair ?? []) as PersonalTransaction[];
       for (const r of rows) {
+        if (!r.account_id) continue;
         const delta = r.kind === 'transfer_out' ? r.amount : -r.amount;
         await PersonalAccountsService.adjustBalance(r.account_id, delta);
       }
@@ -449,12 +499,221 @@ export const PersonalTransactionsService = {
         .delete()
         .eq('transfer_group_id', tx.transfer_group_id);
       if (error) throw error;
-    } else {
+      return;
+    }
+
+    // Expense/income normal de cuenta.
+    if (tx.account_id) {
       const delta = tx.kind === 'expense' ? tx.amount : -tx.amount;
       await PersonalAccountsService.adjustBalance(tx.account_id, delta);
-      const { error } = await supabase.from('personal_transactions').delete().eq('id', id);
-      if (error) throw error;
     }
+    const { error } = await supabase.from('personal_transactions').delete().eq('id', id);
+    if (error) throw error;
+  },
+};
+
+// ── Credit cards ─────────────────────────────────────────────────────────────
+
+const DEFAULT_CARD_GRADIENT: [string, string] = ['#6366F1', '#A855F7'];
+
+export const PersonalCreditCardsService = {
+  async list(profileId: string, includeArchived = false): Promise<PersonalCreditCard[]> {
+    let q = supabase
+      .from('personal_credit_cards')
+      .select('*')
+      .eq('profile_id', profileId)
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: true });
+    if (!includeArchived) q = q.eq('archived', false);
+    const { data, error } = await q;
+    if (error) throw error;
+    return (data ?? []) as PersonalCreditCard[];
+  },
+
+  async getById(id: string): Promise<PersonalCreditCard | null> {
+    const { data, error } = await supabase
+      .from('personal_credit_cards')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+    if (error) throw error;
+    return (data ?? null) as PersonalCreditCard | null;
+  },
+
+  async create(input: PersonalCreditCardInput): Promise<PersonalCreditCard> {
+    const payload = {
+      ...input,
+      currency: input.currency ?? 'ARS',
+      color_a: input.color_a ?? DEFAULT_CARD_GRADIENT[0],
+      color_b: input.color_b ?? DEFAULT_CARD_GRADIENT[1],
+    };
+    const { data, error } = await supabase
+      .from('personal_credit_cards')
+      .insert(payload)
+      .select('*')
+      .single();
+    if (error) throw error;
+    return data as PersonalCreditCard;
+  },
+
+  async update(id: string, updates: Partial<PersonalCreditCard>): Promise<PersonalCreditCard> {
+    const { data, error } = await supabase
+      .from('personal_credit_cards')
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select('*')
+      .single();
+    if (error) throw error;
+    return data as PersonalCreditCard;
+  },
+
+  async archive(id: string, archived = true): Promise<void> {
+    const { error } = await supabase
+      .from('personal_credit_cards')
+      .update({ archived, updated_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) throw error;
+  },
+
+  async delete(id: string): Promise<void> {
+    const { error } = await supabase.from('personal_credit_cards').delete().eq('id', id);
+    if (error) throw error;
+  },
+};
+
+// ── Card statements ──────────────────────────────────────────────────────────
+
+export const PersonalCardStatementsService = {
+  async listByCard(cardId: string, limit = 24): Promise<PersonalCardStatement[]> {
+    const { data, error } = await supabase
+      .from('personal_card_statements')
+      .select('*')
+      .eq('card_id', cardId)
+      .order('period_end', { ascending: false })
+      .limit(limit);
+    if (error) throw error;
+    return (data ?? []) as PersonalCardStatement[];
+  },
+
+  async getById(id: string): Promise<PersonalCardStatement | null> {
+    const { data, error } = await supabase
+      .from('personal_card_statements')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+    if (error) throw error;
+    return (data ?? null) as PersonalCardStatement | null;
+  },
+
+  // Lazy-create del statement: si ya existe para (card, period_end) lo devuelve,
+  // si no lo crea con total_amount=0 y status=open.
+  async ensureForCardAndDate(cardId: string, profileId: string, occurredAt: string): Promise<PersonalCardStatement> {
+    const card = await PersonalCreditCardsService.getById(cardId);
+    if (!card) throw new Error(`Tarjeta ${cardId} inexistente`);
+    const win = resolveStatementWindow(card, occurredAt);
+
+    const existing = await supabase
+      .from('personal_card_statements')
+      .select('*')
+      .eq('card_id', cardId)
+      .eq('period_end', win.period_end)
+      .maybeSingle();
+    if (existing.error) throw existing.error;
+    if (existing.data) return existing.data as PersonalCardStatement;
+
+    // Status: si el período ya cerró (period_end pasó), arrancar en 'closed'.
+    const today = new Date();
+    const periodEndDate = new Date(win.period_end + 'T23:59:59');
+    const status = today > periodEndDate ? 'closed' : 'open';
+
+    const { data, error } = await supabase
+      .from('personal_card_statements')
+      .insert({
+        card_id: cardId,
+        profile_id: profileId,
+        period_start: win.period_start,
+        period_end: win.period_end,
+        due_date: win.due_date,
+        total_amount: 0,
+        paid_amount: 0,
+        status,
+        closed_at: status === 'closed' ? new Date().toISOString() : null,
+      })
+      .select('*')
+      .single();
+    if (error) throw error;
+    return data as PersonalCardStatement;
+  },
+
+  // Suma delta al total_amount (negativo para revertir al borrar tx).
+  async adjustTotal(statementId: string, delta: number): Promise<void> {
+    const stmt = await this.getById(statementId);
+    if (!stmt) throw new Error(`Statement ${statementId} inexistente`);
+    const newTotal = Number(stmt.total_amount) + delta;
+    const { error } = await supabase
+      .from('personal_card_statements')
+      .update({ total_amount: newTotal, updated_at: new Date().toISOString() })
+      .eq('id', statementId);
+    if (error) throw error;
+  },
+
+  // Pago del resumen: crea una transacción 'expense' desde la cuenta elegida
+  // y actualiza paid_amount/status del statement. Idempotente sobre el monto.
+  async pay(input: PayCardStatementInput): Promise<{ statement: PersonalCardStatement; transaction: PersonalTransaction }> {
+    const stmt = await this.getById(input.statement_id);
+    if (!stmt) throw new Error('Statement inexistente');
+    const card = await PersonalCreditCardsService.getById(stmt.card_id);
+    if (!card) throw new Error('Tarjeta inexistente');
+    const account = await PersonalAccountsService.getById(input.from_account_id);
+    if (!account) throw new Error('Cuenta inexistente');
+
+    const occurred = input.occurred_at ?? new Date().toISOString();
+
+    // 1. Crear la tx 'expense' contra la cuenta. La asociamos al statement
+    //    por traceability, sin credit_card_id (esa es la convención: tx con
+    //    statement_id pero sin credit_card_id = pago, no compra).
+    const { data: txData, error: txErr } = await supabase
+      .from('personal_transactions')
+      .insert({
+        profile_id: input.profile_id,
+        account_id: input.from_account_id,
+        statement_id: input.statement_id,
+        category_id: null,
+        kind: 'expense',
+        amount: input.amount,
+        currency: account.currency,
+        occurred_at: occurred,
+        description: input.description ?? `Pago resumen ${card.name}`,
+      })
+      .select('*')
+      .single();
+    if (txErr) throw txErr;
+    const transaction = txData as PersonalTransaction;
+
+    // 2. Bajar balance de la cuenta.
+    await PersonalAccountsService.adjustBalance(input.from_account_id, -input.amount);
+
+    // 3. Actualizar paid_amount y status del statement.
+    const newPaid = Number(stmt.paid_amount) + input.amount;
+    const total = Number(stmt.total_amount);
+    let newStatus: PersonalCardStatement['status'];
+    if (newPaid >= total - 0.01) newStatus = 'paid';
+    else if (newPaid > 0)         newStatus = 'partial';
+    else                          newStatus = stmt.status;
+
+    const { data: stmtData, error: stmtErr } = await supabase
+      .from('personal_card_statements')
+      .update({
+        paid_amount: newPaid,
+        status: newStatus,
+        paid_at: newStatus === 'paid' ? occurred : stmt.paid_at,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', input.statement_id)
+      .select('*')
+      .single();
+    if (stmtErr) throw stmtErr;
+    return { statement: stmtData as PersonalCardStatement, transaction };
   },
 };
 
