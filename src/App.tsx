@@ -34,6 +34,13 @@ import { StudentSummaryService } from './services/pt/StudentSummaryService';
 import { ShiftsView } from './pages/ShiftsView';
 import CheckInView from './pages/CheckInView';
 import { SuperAdminApp } from './pages/SuperAdminApp';
+import { PersonalLayout } from './components/personal/PersonalLayout';
+import { PersonalDashboard } from './pages/personal/PersonalDashboard';
+import { PersonalWorkouts } from './pages/personal/PersonalWorkouts';
+import { PersonalNutrition } from './pages/personal/PersonalNutrition';
+import { PersonalExpenses } from './pages/personal/PersonalExpenses';
+import { PersonalBody } from './pages/personal/PersonalBody';
+import { PersonalSettings } from './pages/personal/PersonalSettings';
 import { SubscriptionGuard } from './components/SubscriptionGuard';
 import { DemoTour } from './components/DemoTour';
 import { ThemeProvider } from './context/ThemeContext';
@@ -317,7 +324,18 @@ export default function App() {
   if (isSuperAdmin) {
     return (
       <ThemeProvider>
-        <SuperAdminApp onLogout={handleLogout} />
+        <Routes>
+          <Route path="/admin/personal" element={<PersonalLayout />}>
+            <Route index element={<PersonalDashboard onLogout={handleLogout} />} />
+            <Route path="workouts"  element={<PersonalWorkouts />} />
+            <Route path="nutrition" element={<PersonalNutrition />} />
+            <Route path="expenses"  element={<PersonalExpenses />} />
+            <Route path="body"      element={<PersonalBody />} />
+            <Route path="settings"  element={<PersonalSettings />} />
+          </Route>
+          <Route path="/admin/gyms/*" element={<SuperAdminApp onLogout={handleLogout} />} />
+          <Route path="*" element={<Navigate to="/admin/personal" replace />} />
+        </Routes>
       </ThemeProvider>
     );
   }

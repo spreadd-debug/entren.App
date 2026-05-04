@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { supabase } from '../db/supabase';
 import { StudentDisciplinesService } from './StudentDisciplinesService';
 import { StravaConnection } from '../../shared/types';
+import { estimateKcal } from '../utils/metKcal';
 
 const STRAVA_OAUTH_BASE = 'https://www.strava.com';
 const STRAVA_API_BASE = 'https://www.strava.com/api/v3';
@@ -10,7 +11,18 @@ const STATE_TTL_MS = 15 * 60 * 1000; // 15 minutos para completar el OAuth
 const TOKEN_REFRESH_MARGIN_MS = 5 * 60 * 1000; // refrescar si expira en <5min
 const DEDUPE_DISTANCE_TOLERANCE_KM = 0.5;
 
-const RUN_ACTIVITY_TYPES = new Set(['Run', 'TrailRun', 'VirtualRun']);
+// Mapping Strava activity type → sport_type interno.
+// Para alumnos solo se persisten los de RUNNING_SPORTS (running_sessions).
+// Para superadmin (owner_kind='personal') se persisten todos los del map.
+const TRACKED_SPORT_TYPES: Record<string, string> = {
+  Run: 'run',
+  TrailRun: 'trail_run',
+  VirtualRun: 'virtual_run',
+  Tennis: 'tennis',
+};
+const RUNNING_SPORTS = new Set(['run', 'trail_run', 'virtual_run']);
+
+type OwnerKind = 'student' | 'personal';
 
 interface StravaTokenResponse {
   token_type: string;
@@ -42,6 +54,8 @@ interface StoredConnection extends StravaConnection {
   access_token: string;
   refresh_token: string;
   expires_at: string; // ISO
+  owner_kind: OwnerKind;
+  owner_id: string; // student_id (when owner_kind='student') or personal_profile id
 }
 
 function env(name: string): string {
@@ -56,14 +70,20 @@ function envOptional(name: string): string | null {
 
 // ── State signing (HMAC) ─────────────────────────────────────────────────────
 
-function signState(payload: { sid: string; ts: number }): string {
+interface StatePayload {
+  sid: string;       // student_id o personal_profile id
+  ts: number;
+  kind?: OwnerKind;  // default 'student' (back-compat: payloads viejos sin kind)
+}
+
+function signState(payload: StatePayload): string {
   const secret = env('STRAVA_OAUTH_STATE_SECRET');
   const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
   const sig = crypto.createHmac('sha256', secret).update(body).digest('base64url');
   return `${body}.${sig}`;
 }
 
-function verifyState(state: string): { sid: string; ts: number } | null {
+function verifyState(state: string): StatePayload | null {
   const secret = env('STRAVA_OAUTH_STATE_SECRET');
   const [body, sig] = state.split('.');
   if (!body || !sig) return null;
@@ -73,7 +93,8 @@ function verifyState(state: string): { sid: string; ts: number } | null {
     const parsed = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'));
     if (typeof parsed.sid !== 'string' || typeof parsed.ts !== 'number') return null;
     if (Date.now() - parsed.ts > STATE_TTL_MS) return null;
-    return parsed;
+    if (parsed.kind && parsed.kind !== 'student' && parsed.kind !== 'personal') return null;
+    return parsed as StatePayload;
   } catch {
     return null;
   }
@@ -99,6 +120,10 @@ function mapStravaTypeToSession(type: string): 'easy' | 'long' | 'other' {
   if (type === 'TrailRun') return 'long';
   if (type === 'Run' || type === 'VirtualRun') return 'easy';
   return 'other';
+}
+
+function mapStravaTypeToSport(type: string): string | null {
+  return TRACKED_SPORT_TYPES[type] ?? null;
 }
 
 function buildNotes(activity: StravaActivity): string | null {
@@ -129,7 +154,19 @@ async function getStoredByStudent(studentId: string): Promise<StoredConnection |
   const { data, error } = await supabase
     .from('strava_connections')
     .select('*')
+    .eq('owner_kind', 'student')
     .eq('student_id', studentId)
+    .maybeSingle();
+  if (error) throw error;
+  return (data ?? null) as StoredConnection | null;
+}
+
+async function getStoredByPersonalProfile(profileId: string): Promise<StoredConnection | null> {
+  const { data, error } = await supabase
+    .from('strava_connections')
+    .select('*')
+    .eq('owner_kind', 'personal')
+    .eq('owner_id', profileId)
     .maybeSingle();
   if (error) throw error;
   return (data ?? null) as StoredConnection | null;
@@ -209,17 +246,16 @@ async function deleteManualDuplicates(
   if (error) throw error;
 }
 
-async function upsertActivity(
+async function upsertStudentRunningActivity(
   connection: StoredConnection,
   activity: StravaActivity,
 ): Promise<void> {
-  if (!RUN_ACTIVITY_TYPES.has(activity.type)) return;
-
   const sessionDate = (activity.start_date_local || '').slice(0, 10);
   const distanceKm = Math.round((activity.distance / 1000) * 100) / 100;
   const durationSeconds = Math.round(activity.moving_time);
 
   if (!sessionDate || !(distanceKm > 0) || !(durationSeconds > 0)) return;
+  if (!connection.student_id || !connection.gym_id) return;
 
   await deleteManualDuplicates(connection.student_id, sessionDate, distanceKm);
 
@@ -252,6 +288,68 @@ async function upsertActivity(
   if (error) throw error;
 }
 
+async function upsertPersonalActivity(
+  connection: StoredConnection,
+  activity: StravaActivity,
+  sportType: string,
+): Promise<void> {
+  const startedAt = activity.start_date_local;
+  const durationSeconds = Math.round(activity.moving_time);
+  if (!startedAt || !(durationSeconds > 0)) return;
+
+  // Peso del perfil para calcular kcal por MET cuando Strava no las da.
+  const { data: profile } = await supabase
+    .from('personal_profiles')
+    .select('weight_kg')
+    .eq('id', connection.owner_id)
+    .maybeSingle();
+  const weightKg = (profile as any)?.weight_kg ?? null;
+
+  const distanceKm = activity.distance > 0
+    ? Math.round((activity.distance / 1000) * 100) / 100
+    : null;
+
+  const payload = {
+    profile_id: connection.owner_id,
+    source: 'strava' as const,
+    external_id: String(activity.id),
+    sport_type: sportType,
+    started_at: new Date(startedAt).toISOString(),
+    duration_seconds: durationSeconds,
+    distance_km: distanceKm,
+    avg_hr_bpm: activity.average_heartrate != null ? Math.round(activity.average_heartrate) : null,
+    elevation_gain_m: activity.total_elevation_gain != null
+      ? Math.round(activity.total_elevation_gain)
+      : null,
+    calories_kcal: estimateKcal({ sportType, durationSeconds, weightKg }),
+    notes: buildNotes(activity),
+    raw: activity as any,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { error } = await supabase
+    .from('personal_activities')
+    .upsert(payload, { onConflict: 'source,external_id' });
+  if (error) throw error;
+}
+
+async function upsertActivity(
+  connection: StoredConnection,
+  activity: StravaActivity,
+): Promise<void> {
+  const sportType = mapStravaTypeToSport(activity.type);
+  if (!sportType) return;
+
+  if (connection.owner_kind === 'personal') {
+    await upsertPersonalActivity(connection, activity, sportType);
+    return;
+  }
+
+  // owner_kind='student': flujo legacy — solo running se persiste.
+  if (!RUNNING_SPORTS.has(sportType)) return;
+  await upsertStudentRunningActivity(connection, activity);
+}
+
 async function backfillSince(connection: StoredConnection, sinceUnix: number): Promise<number> {
   const fresh = await getValidConnection(connection);
   let imported = 0;
@@ -269,7 +367,7 @@ async function backfillSince(connection: StoredConnection, sinceUnix: number): P
     for (const activity of list) {
       try {
         await upsertActivity(fresh, activity);
-        if (RUN_ACTIVITY_TYPES.has(activity.type)) imported += 1;
+        if (mapStravaTypeToSport(activity.type)) imported += 1;
       } catch (err) {
         console.error('[strava] failed to upsert activity', activity.id, err);
       }
@@ -284,90 +382,159 @@ async function backfillSince(connection: StoredConnection, sinceUnix: number): P
   return imported;
 }
 
+// ── Connection bootstrap helpers ─────────────────────────────────────────────
+
+function buildAuthorizationUrl(state: string): string {
+  const params = new URLSearchParams({
+    client_id: env('STRAVA_CLIENT_ID'),
+    response_type: 'code',
+    redirect_uri: env('STRAVA_REDIRECT_URI'),
+    approval_prompt: 'auto',
+    scope: 'read,activity:read',
+    state,
+  });
+  return `${STRAVA_OAUTH_BASE}/oauth/authorize?${params.toString()}`;
+}
+
+async function handleStudentConnection(
+  studentId: string,
+  tokens: StravaTokenResponse,
+): Promise<{ ok: true } | { ok: false; reason: string }> {
+  const { data: studentRow, error: studentErr } = await supabase
+    .from('students')
+    .select('id, gym_id')
+    .eq('id', studentId)
+    .maybeSingle();
+  if (studentErr) throw studentErr;
+  if (!studentRow) return { ok: false, reason: 'student_not_found' };
+
+  const { data: connRow, error: connErr } = await supabase
+    .from('strava_connections')
+    .upsert(
+      {
+        owner_kind: 'student',
+        owner_id: studentId,
+        gym_id: studentRow.gym_id,
+        student_id: studentId,
+        athlete_id: tokens.athlete!.id,
+        access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token,
+        expires_at: new Date(tokens.expires_at * 1000).toISOString(),
+        scope: 'read,activity:read',
+        athlete_firstname: tokens.athlete!.firstname ?? null,
+        athlete_lastname: tokens.athlete!.lastname ?? null,
+        connected_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'student_id' },
+    )
+    .select('*')
+    .single();
+  if (connErr) throw connErr;
+
+  // Auto-marcar discipline running (el atleta podría no haberse marcado todavía)
+  try {
+    await StudentDisciplinesService.add(studentRow.gym_id, studentId, 'running');
+  } catch (err) {
+    console.error('[strava] failed to auto-mark running discipline', err);
+  }
+
+  await backfillThirtyDays(connRow as StoredConnection);
+  return { ok: true };
+}
+
+async function handlePersonalConnection(
+  profileId: string,
+  tokens: StravaTokenResponse,
+): Promise<{ ok: true } | { ok: false; reason: string }> {
+  const { data: profileRow, error: profileErr } = await supabase
+    .from('personal_profiles')
+    .select('id')
+    .eq('id', profileId)
+    .maybeSingle();
+  if (profileErr) throw profileErr;
+  if (!profileRow) return { ok: false, reason: 'profile_not_found' };
+
+  // No usamos onConflict porque student_id puede ser NULL — onConflict requiere
+  // una constraint única no-nullable. Hacemos delete+insert manual.
+  await supabase
+    .from('strava_connections')
+    .delete()
+    .eq('owner_kind', 'personal')
+    .eq('owner_id', profileId);
+
+  const { data: connRow, error: connErr } = await supabase
+    .from('strava_connections')
+    .insert({
+      owner_kind: 'personal',
+      owner_id: profileId,
+      gym_id: null,
+      student_id: null,
+      athlete_id: tokens.athlete!.id,
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+      expires_at: new Date(tokens.expires_at * 1000).toISOString(),
+      scope: 'read,activity:read',
+      athlete_firstname: tokens.athlete!.firstname ?? null,
+      athlete_lastname: tokens.athlete!.lastname ?? null,
+      connected_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .select('*')
+    .single();
+  if (connErr) throw connErr;
+
+  await backfillThirtyDays(connRow as StoredConnection);
+  return { ok: true };
+}
+
+async function backfillThirtyDays(connection: StoredConnection): Promise<void> {
+  const since = Math.floor((Date.now() - 30 * 24 * 60 * 60 * 1000) / 1000);
+  try {
+    await backfillSince(connection, since);
+  } catch (err) {
+    console.error('[strava] backfill failed', err);
+  }
+}
+
 // ── Public API ───────────────────────────────────────────────────────────────
 
 export const StravaService = {
   buildAuthUrl(studentId: string): string {
-    const state = signState({ sid: studentId, ts: Date.now() });
-    const params = new URLSearchParams({
-      client_id: env('STRAVA_CLIENT_ID'),
-      response_type: 'code',
-      redirect_uri: env('STRAVA_REDIRECT_URI'),
-      approval_prompt: 'auto',
-      scope: 'read,activity:read',
-      state,
-    });
-    return `${STRAVA_OAUTH_BASE}/oauth/authorize?${params.toString()}`;
+    const state = signState({ sid: studentId, ts: Date.now(), kind: 'student' });
+    return buildAuthorizationUrl(state);
+  },
+
+  buildAuthUrlForPersonal(profileId: string): string {
+    const state = signState({ sid: profileId, ts: Date.now(), kind: 'personal' });
+    return buildAuthorizationUrl(state);
   },
 
   async handleCallback(code: string, state: string): Promise<{ ok: true } | { ok: false; reason: string }> {
     const verified = verifyState(state);
     if (!verified) return { ok: false, reason: 'invalid_state' };
 
-    // Resolver gym_id del alumno
-    const { data: studentRow, error: studentErr } = await supabase
-      .from('students')
-      .select('id, gym_id')
-      .eq('id', verified.sid)
-      .maybeSingle();
-    if (studentErr) throw studentErr;
-    if (!studentRow) return { ok: false, reason: 'student_not_found' };
+    const kind: OwnerKind = verified.kind ?? 'student';
 
-    // Intercambiar code por tokens
-    const res = await postForm(`${STRAVA_OAUTH_BASE}/oauth/token`, {
+    // Intercambiar code por tokens (común a ambos flujos)
+    const tokenRes = await postForm(`${STRAVA_OAUTH_BASE}/oauth/token`, {
       client_id: env('STRAVA_CLIENT_ID'),
       client_secret: env('STRAVA_CLIENT_SECRET'),
       code,
       grant_type: 'authorization_code',
     });
-    if (!res.ok) {
-      const text = await res.text();
-      console.error('[strava] token exchange failed', res.status, text);
+    if (!tokenRes.ok) {
+      const text = await tokenRes.text();
+      console.error('[strava] token exchange failed', tokenRes.status, text);
       return { ok: false, reason: 'token_exchange_failed' };
     }
-    const tokens = (await res.json()) as StravaTokenResponse;
+    const tokens = (await tokenRes.json()) as StravaTokenResponse;
     if (!tokens.athlete?.id) return { ok: false, reason: 'missing_athlete' };
 
-    // Upsert connection
-    const { data: connRow, error: connErr } = await supabase
-      .from('strava_connections')
-      .upsert(
-        {
-          gym_id: studentRow.gym_id,
-          student_id: verified.sid,
-          athlete_id: tokens.athlete.id,
-          access_token: tokens.access_token,
-          refresh_token: tokens.refresh_token,
-          expires_at: new Date(tokens.expires_at * 1000).toISOString(),
-          scope: 'read,activity:read',
-          athlete_firstname: tokens.athlete.firstname ?? null,
-          athlete_lastname: tokens.athlete.lastname ?? null,
-          connected_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'student_id' },
-      )
-      .select('*')
-      .single();
-    if (connErr) throw connErr;
-
-    // Auto-marcar discipline running (el atleta podría no haberse marcado todavía)
-    try {
-      await StudentDisciplinesService.add(studentRow.gym_id, verified.sid, 'running');
-    } catch (err) {
-      console.error('[strava] failed to auto-mark running discipline', err);
+    if (kind === 'personal') {
+      return handlePersonalConnection(verified.sid, tokens);
     }
-
-    // Backfill 30 días — awaited porque en Vercel serverless la función se mata
-    // ni bien respondemos, y un fire-and-forget no llega a correr.
-    const since = Math.floor((Date.now() - 30 * 24 * 60 * 60 * 1000) / 1000);
-    try {
-      await backfillSince(connRow as StoredConnection, since);
-    } catch (err) {
-      console.error('[strava] backfill failed', err);
-    }
-
-    return { ok: true };
+    return handleStudentConnection(verified.sid, tokens);
   },
 
   async importActivity(athleteId: number, activityId: number): Promise<void> {
@@ -393,6 +560,19 @@ export const StravaService = {
   async deleteImportedActivity(athleteId: number, activityId: number): Promise<void> {
     const stored = await getStoredByAthlete(athleteId);
     if (!stored) return;
+
+    if (stored.owner_kind === 'personal') {
+      const { error } = await supabase
+        .from('personal_activities')
+        .delete()
+        .eq('profile_id', stored.owner_id)
+        .eq('source', 'strava')
+        .eq('external_id', String(activityId));
+      if (error) throw error;
+      return;
+    }
+
+    if (!stored.student_id) return;
     const { error } = await supabase
       .from('running_sessions')
       .delete()
@@ -431,6 +611,33 @@ export const StravaService = {
   async getConnectionStatus(studentId: string): Promise<StravaConnection | null> {
     const stored = await getStoredByStudent(studentId);
     return stored ? publicConnection(stored) : null;
+  },
+
+  async getPersonalConnectionStatus(profileId: string): Promise<StravaConnection | null> {
+    const stored = await getStoredByPersonalProfile(profileId);
+    return stored ? publicConnection(stored) : null;
+  },
+
+  async disconnectPersonal(profileId: string): Promise<void> {
+    const stored = await getStoredByPersonalProfile(profileId);
+    if (!stored) return;
+
+    const fresh = await getValidConnection(stored);
+    const res = await fetch(`${STRAVA_OAUTH_BASE}/oauth/deauthorize`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${fresh.access_token}` },
+    });
+    if (!res.ok && res.status !== 401) {
+      const text = await res.text();
+      throw new Error(`Strava deauthorize failed: ${res.status} ${text}`);
+    }
+
+    const { error } = await supabase
+      .from('strava_connections')
+      .delete()
+      .eq('owner_kind', 'personal')
+      .eq('owner_id', profileId);
+    if (error) throw error;
   },
 
   async backfillRecentForAllConnections(windowHours = 24): Promise<{ checked: number; imported: number }> {

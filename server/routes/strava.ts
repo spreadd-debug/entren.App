@@ -9,13 +9,19 @@ function portalUrl(): string {
 
 // ── OAuth initiation ─────────────────────────────────────────────────────────
 
-// GET /api/strava/authorize?student_id=
+// GET /api/strava/authorize?student_id=  (alumno)
+// GET /api/strava/authorize?personal_profile_id=  (superadmin personal tracker)
 // Devuelve la URL a la que el SPA debe navegar (no hacemos 302 server-side
 // para que el cliente controle el flujo y pueda mostrar feedback).
 router.get('/authorize', async (req, res) => {
   try {
+    const personalProfileId = String(req.query.personal_profile_id || '').trim();
+    if (personalProfileId) {
+      const url = StravaService.buildAuthUrlForPersonal(personalProfileId);
+      return res.json({ url });
+    }
     const studentId = String(req.query.student_id || '').trim();
-    if (!studentId) return res.status(400).json({ error: 'student_id is required' });
+    if (!studentId) return res.status(400).json({ error: 'student_id or personal_profile_id is required' });
     const url = StravaService.buildAuthUrl(studentId);
     res.json({ url });
   } catch (err: any) {
@@ -25,11 +31,27 @@ router.get('/authorize', async (req, res) => {
 
 // GET /api/strava/callback?code=&state=&scope=&error=
 // Strava redirige aquí después de la autorización. Hacemos el token exchange y
-// volvemos al portal con un flag de éxito/error.
+// volvemos al portal (alumno) o al admin personal (superadmin) con un flag.
 router.get('/callback', async (req, res) => {
-  const success = `${portalUrl()}/portal?strava=success`;
+  // Decodificar el state para saber a dónde redirigir tras éxito/error.
+  // No verifica firma — handleCallback() lo hace adentro.
+  let isPersonal = false;
+  try {
+    const stateRaw = String(req.query.state || '');
+    const body = stateRaw.split('.')[0];
+    if (body) {
+      const parsed = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'));
+      isPersonal = parsed?.kind === 'personal';
+    }
+  } catch { /* ignore */ }
+
+  const success = isPersonal
+    ? `${portalUrl()}/admin/personal/workouts?strava=success`
+    : `${portalUrl()}/portal?strava=success`;
   const failure = (reason: string) =>
-    `${portalUrl()}/portal?strava=error&reason=${encodeURIComponent(reason)}`;
+    isPersonal
+      ? `${portalUrl()}/admin/personal/workouts?strava=error&reason=${encodeURIComponent(reason)}`
+      : `${portalUrl()}/portal?strava=error&reason=${encodeURIComponent(reason)}`;
 
   if (req.query.error) {
     return res.redirect(302, failure(String(req.query.error)));
@@ -111,6 +133,28 @@ router.get('/connection/:studentId', async (req, res) => {
 router.delete('/connection/:studentId', async (req, res) => {
   try {
     await StravaService.disconnect(req.params.studentId);
+    res.status(204).end();
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Personal connection (superadmin life tracker) ───────────────────────────
+
+// GET /api/strava/personal/:profileId
+router.get('/personal/:profileId', async (req, res) => {
+  try {
+    const conn = await StravaService.getPersonalConnectionStatus(req.params.profileId);
+    res.json(conn);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/strava/personal/:profileId
+router.delete('/personal/:profileId', async (req, res) => {
+  try {
+    await StravaService.disconnectPersonal(req.params.profileId);
     res.status(204).end();
   } catch (err: any) {
     res.status(500).json({ error: err.message });

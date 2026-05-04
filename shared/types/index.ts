@@ -883,3 +883,153 @@ export interface RunningGymAlert extends RunningAlert {
   student_id: string;
   student_name: string;
 }
+
+// ── Personal Life Tracker (superadmin) ───────────────────────────────────────
+
+export interface PersonalProfile {
+  id: string;
+  user_id: string;
+  display_name: string | null;
+  weight_kg: number | null;
+  height_cm: number | null;
+  birth_date: string | null;
+  timezone: string;
+  currency: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type PersonalActivitySource = 'manual' | 'strava';
+export type PersonalSportType = 'run' | 'trail_run' | 'virtual_run' | 'tennis' | 'other';
+
+export interface PersonalActivity {
+  id: string;
+  profile_id: string;
+  source: PersonalActivitySource;
+  external_id: string | null;
+  sport_type: PersonalSportType;
+  started_at: string;
+  duration_seconds: number | null;
+  distance_km: number | null;
+  avg_hr_bpm: number | null;
+  elevation_gain_m: number | null;
+  calories_kcal: number | null;
+  notes: string | null;
+  raw?: any;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PersonalActivityInput {
+  profile_id: string;
+  source?: PersonalActivitySource;
+  sport_type: PersonalSportType;
+  started_at: string;
+  duration_seconds?: number | null;
+  distance_km?: number | null;
+  avg_hr_bpm?: number | null;
+  elevation_gain_m?: number | null;
+  calories_kcal?: number | null;
+  notes?: string | null;
+}
+
+export type PersonalMealType =
+  | 'desayuno' | 'media_mañana' | 'almuerzo' | 'merienda'
+  | 'cena' | 'pre_entreno' | 'post_entreno' | 'snack';
+
+export interface PersonalMeal {
+  id: string;
+  profile_id: string;
+  consumed_at: string;
+  meal_type: PersonalMealType | null;
+  name: string | null;
+  calories: number | null;
+  protein_g: number | null;
+  carbs_g: number | null;
+  fat_g: number | null;
+  fiber_g: number | null;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface PersonalMealFood {
+  id: string;
+  meal_id: string;
+  food_name: string;
+  amount: number | null;
+  unit: string | null;
+  calories: number | null;
+  protein_g: number | null;
+  carbs_g: number | null;
+  fat_g: number | null;
+  order_index: number;
+  created_at: string;
+}
+
+export interface PersonalMealWithFoods extends PersonalMeal {
+  foods: PersonalMealFood[];
+}
+
+export interface PersonalMealInput {
+  profile_id: string;
+  consumed_at: string;
+  meal_type?: PersonalMealType | null;
+  name?: string | null;
+  calories?: number | null;
+  protein_g?: number | null;
+  carbs_g?: number | null;
+  fat_g?: number | null;
+  fiber_g?: number | null;
+  notes?: string | null;
+  foods?: Array<Omit<PersonalMealFood, 'id' | 'meal_id' | 'created_at'>>;
+}
+
+export interface PersonalExpenseCategory {
+  id: string;
+  profile_id: string;
+  name: string;
+  icon: string | null;
+  color: string | null;
+  archived: boolean;
+  created_at: string;
+}
+
+export interface PersonalExpense {
+  id: string;
+  profile_id: string;
+  category_id: string | null;
+  spent_at: string;
+  amount: number;
+  currency: string;
+  description: string | null;
+  created_at: string;
+}
+
+export interface PersonalExpenseInput {
+  profile_id: string;
+  category_id?: string | null;
+  spent_at: string;
+  amount: number;
+  currency?: string;
+  description?: string | null;
+}
+
+export interface PersonalBodyMetric {
+  id: string;
+  profile_id: string;
+  measured_at: string;
+  weight_kg: number | null;
+  body_fat_pct: number | null;
+  waist_cm: number | null;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface PersonalBodyMetricInput {
+  profile_id: string;
+  measured_at: string;
+  weight_kg?: number | null;
+  body_fat_pct?: number | null;
+  waist_cm?: number | null;
+  notes?: string | null;
+}
