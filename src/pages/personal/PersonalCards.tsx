@@ -4,6 +4,7 @@ import { Plus, ChevronRight } from 'lucide-react';
 import { MobileHeader, Card, Fab, BottomSheet, PillChip, MoneyInput } from '../../components/personal/ui';
 import { CreditCardVisual } from '../../components/personal/money/CreditCardVisual';
 import { CardStack } from '../../components/personal/money/CardStack';
+import { CARD_PRESETS } from '../../components/personal/money/cardPresets';
 import { usePersonalProfile } from '../../hooks/usePersonalProfile';
 import {
   PersonalCreditCardsService,
@@ -260,6 +261,33 @@ export const PersonalCards: React.FC = () => {
                 </button>
               )}
             </div>
+          </div>
+
+          {/* Picker de bancos: autocompleta nombre + colores + logo del visual */}
+          <div>
+            <label className="text-xs uppercase tracking-wider text-[var(--color-ink-muted)] font-semibold block mb-1.5">Banco / billetera</label>
+            <div className="flex flex-wrap gap-1.5">
+              {CARD_PRESETS.map(p => {
+                const selected = form.bank.trim().toLowerCase() === p.bank.toLowerCase();
+                return (
+                  <PillChip
+                    key={p.bank}
+                    variant={selected ? 'selected' : 'outline'}
+                    onClick={() => setForm({
+                      ...form,
+                      bank: p.bank,
+                      color_a: p.color_a,
+                      color_b: p.color_b,
+                    })}
+                  >
+                    {p.label}
+                  </PillChip>
+                );
+              })}
+            </div>
+            <p className="text-[11px] text-[var(--color-ink-muted)] mt-2">
+              Elegí uno o escribí abajo a mano si tu banco no está en la lista.
+            </p>
           </div>
 
           <Field label="Nombre" type="text" value={form.name} onChange={v => setForm({ ...form, name: v })} placeholder="Visa Galicia" />

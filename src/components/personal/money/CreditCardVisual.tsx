@@ -3,6 +3,7 @@ import { CreditCard } from 'lucide-react';
 import { PersonalCreditCard } from '../../../../shared/types';
 import { gradientCss } from './accountGradient';
 import { formatLast4 } from './cardStatement';
+import { findPresetByBank } from './cardPresets';
 
 interface Props {
   card: Partial<PersonalCreditCard> & {
@@ -47,6 +48,12 @@ export const CreditCardVisual: React.FC<Props> = ({
     ? { backgroundImage: `url(${card.image_url})`, backgroundSize: 'cover', backgroundPosition: 'center' }
     : { background: gradientCss(grad) };
 
+  // Si el banco matchea un preset con logo, lo usamos en vez del ícono genérico
+  // de CreditCard. La foto subida (image_url) sigue teniendo prioridad — si está,
+  // se muestra cubriendo todo y no renderizamos logo encima.
+  const preset = !hasImage ? findPresetByBank(card.bank) : null;
+  const brandLogo = preset?.logo_url || null;
+
   if (variant === 'compact') {
     return (
       <div
@@ -60,8 +67,12 @@ export const CreditCardVisual: React.FC<Props> = ({
         )}
         <div className="relative h-full flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <CreditCard size={18} strokeWidth={1.5} className="opacity-90" />
-            {card.bank && <span className="text-[10px] uppercase tracking-[0.18em] opacity-90 font-semibold drop-shadow">{card.bank}</span>}
+            {brandLogo ? (
+              <img src={brandLogo} alt={card.bank ?? ''} className="h-5 w-auto opacity-95 drop-shadow" />
+            ) : (
+              <CreditCard size={18} strokeWidth={1.5} className="opacity-90" />
+            )}
+            {card.bank && !brandLogo && <span className="text-[10px] uppercase tracking-[0.18em] opacity-90 font-semibold drop-shadow">{card.bank}</span>}
           </div>
           <div>
             <p className="font-mono tracking-[0.18em] text-base drop-shadow">{last4}</p>
@@ -92,16 +103,20 @@ export const CreditCardVisual: React.FC<Props> = ({
 
       <div className={`relative h-full flex flex-col justify-between ${hasImage ? '[text-shadow:0_1px_2px_rgba(0,0,0,0.5)]' : ''}`}>
         <div className="flex items-start justify-between gap-2">
-          <div className="w-9 h-9 rounded-xl bg-white/15 backdrop-blur flex items-center justify-center shrink-0">
-            <CreditCard size={17} strokeWidth={1.75} />
-          </div>
+          {brandLogo ? (
+            <img src={brandLogo} alt={card.bank ?? ''} className="h-9 w-auto max-w-[120px] object-contain object-left drop-shadow" />
+          ) : (
+            <div className="w-9 h-9 rounded-xl bg-white/15 backdrop-blur flex items-center justify-center shrink-0">
+              <CreditCard size={17} strokeWidth={1.75} />
+            </div>
+          )}
           <div className="flex items-center gap-1.5 shrink-0">
             {badge && (
               <span className="text-[10px] uppercase tracking-[0.2em] opacity-90 font-semibold bg-white/15 backdrop-blur rounded-full px-2.5 py-1">
                 {badge}
               </span>
             )}
-            {card.bank && (
+            {card.bank && !brandLogo && (
               <span className="text-[10px] uppercase tracking-[0.2em] opacity-90 font-semibold bg-white/15 backdrop-blur rounded-full px-2.5 py-1">
                 {card.bank}
               </span>
