@@ -6,6 +6,7 @@ import { MobileHeader, Card, Fab, PillChip } from '../../components/personal/ui'
 import { AccountStack } from '../../components/personal/money/AccountStack';
 import { HideBalanceToggle } from '../../components/personal/money/HideBalanceToggle';
 import { resolveCategoryIcon } from '../../components/personal/money/categoryIcons';
+import { TransactionEditor } from '../../components/personal/money/TransactionEditor';
 import { useHideBalances } from '../../hooks/useHideBalances';
 import { CreditCardVisual } from '../../components/personal/money/CreditCardVisual';
 import { TransactionWizard, WizardKind, WizardResult } from '../../components/personal/money/TransactionWizard';
@@ -59,6 +60,7 @@ export const PersonalMoney: React.FC = () => {
   const [wizardOpen, setWizardOpen] = useState(false);
   const [wizardKind, setWizardKind] = useState<WizardKind>('expense');
   const [activeAccountIdx, setActiveAccountIdx] = useState(0);
+  const [editingTx, setEditingTx] = useState<PersonalTransaction | null>(null);
 
   const refresh = async () => {
     if (!profile) return;
@@ -443,29 +445,35 @@ export const PersonalMoney: React.FC = () => {
                 return (
                   <Card key={t.id} padding="sm">
                     <div className="flex items-center gap-3">
-                      <div
-                        className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0"
-                        style={{ background: (cat?.color ?? color) + '22', color: cat?.color ?? color }}
+                      <button
+                        type="button"
+                        onClick={() => setEditingTx(t)}
+                        className="flex items-center gap-3 flex-1 min-w-0 text-left"
                       >
-                        {CatIcon ? <CatIcon size={16} strokeWidth={1.85} /> : fallbackIcon}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-serif text-base text-[var(--color-ink)] leading-tight truncate">
-                          {t.description || cat?.name || (t.kind === 'transfer_out' ? 'Transferencia' : t.kind === 'transfer_in' ? 'Transferencia' : 'Sin descripción')}
-                        </h4>
-                        <p className="text-xs text-[var(--color-ink-muted)] mt-0.5 truncate">
-                          {card ? `💳 ${card.name}` : account?.name ?? '—'}
-                          {cat ? ` · ${cat.name}` : ''}
-                          {' · '}
-                          {new Date(t.occurred_at).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })}
-                        </p>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <p className="font-serif text-lg leading-none" style={{ color }}>
-                          {sign} {fmtAmount(Number(t.amount))}
-                        </p>
-                        <p className="text-[10px] text-[var(--color-ink-muted)] mt-0.5">{t.currency}</p>
-                      </div>
+                        <div
+                          className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0"
+                          style={{ background: (cat?.color ?? color) + '22', color: cat?.color ?? color }}
+                        >
+                          {CatIcon ? <CatIcon size={16} strokeWidth={1.85} /> : fallbackIcon}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-serif text-base text-[var(--color-ink)] leading-tight truncate">
+                            {t.description || cat?.name || (t.kind === 'transfer_out' ? 'Transferencia' : t.kind === 'transfer_in' ? 'Transferencia' : 'Sin descripción')}
+                          </h4>
+                          <p className="text-xs text-[var(--color-ink-muted)] mt-0.5 truncate">
+                            {card ? `💳 ${card.name}` : account?.name ?? '—'}
+                            {cat ? ` · ${cat.name}` : ''}
+                            {' · '}
+                            {new Date(t.occurred_at).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })}
+                          </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="font-serif text-lg leading-none" style={{ color }}>
+                            {sign} {fmtAmount(Number(t.amount))}
+                          </p>
+                          <p className="text-[10px] text-[var(--color-ink-muted)] mt-0.5">{t.currency}</p>
+                        </div>
+                      </button>
                       <button
                         type="button"
                         onClick={() => handleDelete(t.id, t.installment_group_id, t.installment_total)}
@@ -494,6 +502,22 @@ export const PersonalMoney: React.FC = () => {
         categories={categories}
         defaultKind={wizardKind}
         defaultFxRate={fxRate}
+      />
+
+      <TransactionEditor
+        open={!!editingTx}
+        tx={editingTx}
+        categories={categories}
+        onClose={() => setEditingTx(null)}
+        onSave={async (id, patch) => {
+          try {
+            await PersonalTransactionsService.update(id, patch);
+            await refresh();
+          } catch (err: any) {
+            console.error('[money] update tx failed', err);
+            alert(`No se pudo guardar: ${err?.message ?? 'Error'}`);
+          }
+        }}
       />
     </>
   );

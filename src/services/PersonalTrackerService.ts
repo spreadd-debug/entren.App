@@ -582,6 +582,36 @@ export const PersonalTransactionsService = {
     return { out, in: inn };
   },
 
+  // Edición restringida: sólo description + category_id. NO se permite cambiar
+  // amount/kind/account_id/credit_card_id/currency/occurred_at desde acá porque
+  // afectarían balances de cuentas o totales de statements y habría que
+  // reconciliar. Si hace falta cambiar algo de eso, el flujo correcto es
+  // borrar la tx y crear una nueva (los grupos de cuotas y subs se manejan
+  // automáticamente en el delete cascade).
+  async update(id: string, patch: { description?: string | null; category_id?: string | null }): Promise<PersonalTransaction> {
+    const updates: Record<string, any> = {};
+    if (patch.description !== undefined) updates.description = patch.description;
+    if (patch.category_id !== undefined) updates.category_id = patch.category_id;
+    if (Object.keys(updates).length === 0) {
+      // Nada para actualizar — devolvemos la tx tal cual
+      const { data, error } = await supabase
+        .from('personal_transactions')
+        .select('*')
+        .eq('id', id)
+        .single();
+      if (error) throw error;
+      return data as PersonalTransaction;
+    }
+    const { data, error } = await supabase
+      .from('personal_transactions')
+      .update(updates)
+      .eq('id', id)
+      .select('*')
+      .single();
+    if (error) throw error;
+    return data as PersonalTransaction;
+  },
+
   async delete(id: string): Promise<void> {
     const { data: tx, error: fetchErr } = await supabase
       .from('personal_transactions')

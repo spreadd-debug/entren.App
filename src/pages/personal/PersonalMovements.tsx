@@ -4,6 +4,7 @@ import { ArrowDownLeft, ArrowUpRight, ArrowRightLeft, Trash2, CreditCard as Cred
 import { MobileHeader, Card, PillChip } from '../../components/personal/ui';
 import { HideBalanceToggle } from '../../components/personal/money/HideBalanceToggle';
 import { resolveCategoryIcon } from '../../components/personal/money/categoryIcons';
+import { TransactionEditor } from '../../components/personal/money/TransactionEditor';
 import { usePersonalProfile } from '../../hooks/usePersonalProfile';
 import { usePersistentState } from '../../hooks/usePersistentState';
 import { useHideBalances } from '../../hooks/useHideBalances';
@@ -55,6 +56,7 @@ export const PersonalMovements: React.FC = () => {
   const [kind, setKind]         = usePersistentState<KindFilter>('v1:movs:kind', 'all');
   const [catFilter, setCatFilter] = usePersistentState<string[]>('v1:movs:cats', []);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [editingTx, setEditingTx] = useState<PersonalTransaction | null>(null);
 
   // Data — cacheada para render instantáneo SWR.
   const [transactions, setTransactions] = usePersistentState<PersonalTransaction[]>('v1:movs:txs', []);
@@ -175,6 +177,16 @@ export const PersonalMovements: React.FC = () => {
 
   const toggleCat = (id: string) => {
     setCatFilter(prev => prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]);
+  };
+
+  const handleEditSave = async (id: string, patch: { description: string | null; category_id: string | null }) => {
+    try {
+      await PersonalTransactionsService.update(id, patch);
+      await refresh();
+    } catch (err: any) {
+      console.error('[movements] update failed', err);
+      alert(`No se pudo guardar: ${err?.message ?? 'Error'}`);
+    }
   };
 
   const activeFilterCount = (kind === 'all' ? 0 : 1) + catFilter.length;
@@ -346,27 +358,33 @@ export const PersonalMovements: React.FC = () => {
             return (
               <Card key={t.id} padding="sm">
                 <div className="flex items-center gap-3">
-                  <div
-                    className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0"
-                    style={{ background: accent + '22', color: accent }}
+                  <button
+                    type="button"
+                    onClick={() => setEditingTx(t)}
+                    className="flex items-center gap-3 flex-1 min-w-0 text-left"
                   >
-                    {CatIcon ? <CatIcon size={16} strokeWidth={1.85} /> : fallbackIcon}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-serif text-base text-[var(--color-ink)] leading-tight truncate">
-                      {t.description || cat?.name || (t.kind === 'transfer_in' || t.kind === 'transfer_out' ? 'Transferencia' : 'Sin descripción')}
-                    </h4>
-                    <p className="text-[11px] text-[var(--color-ink-muted)] mt-0.5 truncate">
-                      {(card?.name ?? account?.name ?? '—')} · {new Date(t.occurred_at).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })}
-                      {cat && ` · ${cat.name}`}
-                    </p>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <p className="font-serif text-base leading-none" style={{ color: baseColor }}>
-                      {sign} {mask(fmtAmount(Number(t.amount)))}
-                    </p>
-                    <p className="text-[9px] text-[var(--color-ink-muted)] mt-0.5">{t.currency}</p>
-                  </div>
+                    <div
+                      className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0"
+                      style={{ background: accent + '22', color: accent }}
+                    >
+                      {CatIcon ? <CatIcon size={16} strokeWidth={1.85} /> : fallbackIcon}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-serif text-base text-[var(--color-ink)] leading-tight truncate">
+                        {t.description || cat?.name || (t.kind === 'transfer_in' || t.kind === 'transfer_out' ? 'Transferencia' : 'Sin descripción')}
+                      </h4>
+                      <p className="text-[11px] text-[var(--color-ink-muted)] mt-0.5 truncate">
+                        {(card?.name ?? account?.name ?? '—')} · {new Date(t.occurred_at).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })}
+                        {cat && ` · ${cat.name}`}
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="font-serif text-base leading-none" style={{ color: baseColor }}>
+                        {sign} {mask(fmtAmount(Number(t.amount)))}
+                      </p>
+                      <p className="text-[9px] text-[var(--color-ink-muted)] mt-0.5">{t.currency}</p>
+                    </div>
+                  </button>
                   <button
                     type="button"
                     onClick={() => handleDelete(t.id, t.installment_group_id, t.installment_total)}
@@ -381,6 +399,14 @@ export const PersonalMovements: React.FC = () => {
           })}
         </div>
       </div>
+
+      <TransactionEditor
+        open={!!editingTx}
+        tx={editingTx}
+        categories={categories}
+        onClose={() => setEditingTx(null)}
+        onSave={handleEditSave}
+      />
     </>
   );
 };

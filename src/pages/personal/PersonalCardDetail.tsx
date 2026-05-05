@@ -15,6 +15,7 @@ import {
   PersonalCategoriesService,
 } from '../../services/PersonalTrackerService';
 import { resolveCategoryIcon } from '../../components/personal/money/categoryIcons';
+import { TransactionEditor } from '../../components/personal/money/TransactionEditor';
 import {
   PersonalCreditCard,
   PersonalCardStatement,
@@ -69,6 +70,7 @@ export const PersonalCardDetail: React.FC = () => {
   // disparan el submit dos veces y se duplican txs / subs.
   const [savingSub, setSavingSub] = useState(false);
   const [paying, setPaying] = useState(false);
+  const [editingTx, setEditingTx] = useState<PersonalTransaction | null>(null);
   const [subscriptions, setSubscriptions] = useState<PersonalCardSubscription[]>([]);
   const [categories, setCategories] = useState<PersonalCategory[]>([]);
   const [subOpen, setSubOpen] = useState(false);
@@ -401,23 +403,29 @@ export const PersonalCardDetail: React.FC = () => {
                     return (
                     <Card key={t.id} padding="sm">
                       <div className="flex items-center gap-3">
-                        <div
-                          className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0"
-                          style={{ background: accent + '22', color: accent }}
+                        <button
+                          type="button"
+                          onClick={() => setEditingTx(t)}
+                          className="flex items-center gap-3 flex-1 min-w-0 text-left"
                         >
-                          {CatIcon ? <CatIcon size={16} strokeWidth={1.85} /> : <CreditCardIcon size={15} />}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-serif text-base text-[var(--color-ink)] leading-tight truncate">
-                            {t.description || 'Compra'}
-                          </h4>
-                          <p className="text-xs text-[var(--color-ink-muted)] mt-0.5">
-                            {new Date(t.occurred_at).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })}
+                          <div
+                            className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0"
+                            style={{ background: accent + '22', color: accent }}
+                          >
+                            {CatIcon ? <CatIcon size={16} strokeWidth={1.85} /> : <CreditCardIcon size={15} />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-serif text-base text-[var(--color-ink)] leading-tight truncate">
+                              {t.description || 'Compra'}
+                            </h4>
+                            <p className="text-xs text-[var(--color-ink-muted)] mt-0.5 truncate">
+                              {cat ? `${cat.name} · ` : ''}{new Date(t.occurred_at).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })}
+                            </p>
+                          </div>
+                          <p className="font-serif text-lg text-rose-600 shrink-0">
+                            − {currencySymbol(t.currency)} {fmt(Number(t.amount))}
                           </p>
-                        </div>
-                        <p className="font-serif text-lg text-rose-600 shrink-0">
-                          − {currencySymbol(t.currency)} {fmt(Number(t.amount))}
-                        </p>
+                        </button>
                         <button
                           type="button"
                           onClick={() => handleDeleteTx(t.id, t.installment_group_id, t.installment_total)}
@@ -688,6 +696,22 @@ export const PersonalCardDetail: React.FC = () => {
           </button>
         </div>
       </BottomSheet>
+
+      <TransactionEditor
+        open={!!editingTx}
+        tx={editingTx}
+        categories={categories}
+        onClose={() => setEditingTx(null)}
+        onSave={async (id, patch) => {
+          try {
+            await PersonalTransactionsService.update(id, patch);
+            await refresh();
+          } catch (err: any) {
+            console.error('[card detail] update tx failed', err);
+            alert(`No se pudo guardar: ${err?.message ?? 'Error'}`);
+          }
+        }}
+      />
     </>
   );
 };
