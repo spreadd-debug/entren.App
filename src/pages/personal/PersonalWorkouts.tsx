@@ -3,8 +3,10 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Activity, Bike, Footprints, Mountain, Dumbbell, Waves, Trash2 } from 'lucide-react';
 import { MobileHeader, Card, Fab, BottomSheet, PillChip } from '../../components/personal/ui';
 import { usePersonalProfile } from '../../hooks/usePersonalProfile';
+import { usePersistentState } from '../../hooks/usePersistentState';
 import { PersonalActivitiesService } from '../../services/PersonalTrackerService';
 import { PersonalActivity, PersonalSportType } from '../../../shared/types';
+import { WorkoutCalendar } from '../../components/personal/workouts/WorkoutCalendar';
 
 const SPORT_LABELS: Record<string, string> = {
   run: 'Running',
@@ -94,17 +96,19 @@ export const PersonalWorkouts: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { profile } = usePersonalProfile();
   const [range, setRange] = useState<Range>('week');
-  const [items, setItems] = useState<PersonalActivity[]>([]);
-  const [loading, setLoading] = useState(false);
+  // SWR: cacheamos TODAS las activities (no filtradas) — el calendario necesita
+  // historia y la lista filtra en memoria, no en el fetch.
+  const [allActivities, setAllActivities, hadCache] = usePersistentState<PersonalActivity[]>('v1:workouts:all', []);
+  const [loading, setLoading] = useState(!hadCache);
   const [formOpen, setFormOpen] = useState(false);
   const [form, setForm] = useState<ManualForm>(EMPTY_FORM);
 
   const refresh = async () => {
     if (!profile) return;
-    setLoading(true);
+    if (!hadCache) setLoading(true);
     try {
-      const list = await PersonalActivitiesService.list(profile.id, { from: rangeStart(range) });
-      setItems(list);
+      const list = await PersonalActivitiesService.list(profile.id, {});
+      setAllActivities(list);
     } catch (err) {
       console.error('[workouts] load failed', err);
     } finally {
@@ -112,7 +116,14 @@ export const PersonalWorkouts: React.FC = () => {
     }
   };
 
-  useEffect(() => { refresh(); /* eslint-disable-next-line */ }, [profile?.id, range]);
+  useEffect(() => { refresh(); /* eslint-disable-next-line */ }, [profile?.id]);
+
+  // Lista visible: aplica el range filter en memoria.
+  const items = useMemo(() => {
+    const startIso = rangeStart(range);
+    if (!startIso) return allActivities;
+    return allActivities.filter(a => a.started_at >= startIso);
+  }, [allActivities, range]);
 
   // Open form si vino con ?new=1 desde el dashboard
   useEffect(() => {
@@ -163,26 +174,19 @@ export const PersonalWorkouts: React.FC = () => {
       <MobileHeader title="Workouts" onBack={() => navigate(-1)} large />
 
       <div className="px-5 pb-32">
-        <div className="flex items-center gap-2 mt-2">
+        {/* Calendario tipo Strava: streak + grid del mes + totales */}
+        <WorkoutCalendar activities={allActivities} />
+
+        <div className="flex items-center gap-2 mt-6 mb-3">
           <PillChip variant={range === 'week'  ? 'selected' : 'outline'} onClick={() => setRange('week')}>Semana</PillChip>
           <PillChip variant={range === 'month' ? 'selected' : 'outline'} onClick={() => setRange('month')}>Mes</PillChip>
           <PillChip variant={range === 'all'   ? 'selected' : 'outline'} onClick={() => setRange('all')}>Todo</PillChip>
+          <span className="text-[11px] text-[var(--color-ink-muted)] ml-auto">
+            {items.length} · {totalKcal} kcal
+          </span>
         </div>
 
-        <Card className="mt-4" tone="ink">
-          <div className="flex items-baseline justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-wider opacity-60">Total</p>
-              <p className="font-serif text-3xl mt-0.5">{items.length} entrenos</p>
-            </div>
-            <div className="text-right">
-              <p className="text-xs uppercase tracking-wider opacity-60">Kcal</p>
-              <p className="font-serif text-3xl mt-0.5">{totalKcal}</p>
-            </div>
-          </div>
-        </Card>
-
-        <div className="mt-4 space-y-2">
+        <div className="mt-2 space-y-2">
           {loading && <p className="text-center text-sm text-[var(--color-ink-muted)] py-8">Cargando…</p>}
           {!loading && items.length === 0 && (
             <p className="text-center text-sm text-[var(--color-ink-muted)] py-8 italic">Sin entrenamientos en este rango</p>
