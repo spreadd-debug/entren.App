@@ -165,8 +165,11 @@ export const PersonalCardDetail: React.FC = () => {
     }
   };
 
-  const handleDeleteTx = async (id: string) => {
-    if (!confirm('¿Eliminar esta transacción? Se ajusta el statement.')) return;
+  const handleDeleteTx = async (id: string, groupId?: string | null, total?: number | null) => {
+    const msg = groupId && total
+      ? `Esta es 1 de ${total} cuotas de la misma compra. Si confirmás se borran TODAS las cuotas y se descuentan de los resúmenes correspondientes. ¿Continuar?`
+      : '¿Eliminar esta transacción? Se ajusta el statement.';
+    if (!confirm(msg)) return;
     try {
       await PersonalTransactionsService.delete(id);
       refresh();
@@ -299,7 +302,7 @@ export const PersonalCardDetail: React.FC = () => {
                         </p>
                         <button
                           type="button"
-                          onClick={() => handleDeleteTx(t.id)}
+                          onClick={() => handleDeleteTx(t.id, t.installment_group_id, t.installment_total)}
                           className="p-1 text-[var(--color-ink-muted)] hover:text-rose-600 shrink-0"
                           aria-label="Eliminar"
                         >

@@ -21,6 +21,9 @@ export interface WizardResult {
   // expense con tarjeta
   credit_card_id?: string;
   card_currency?: string;
+  // cuotas (sólo válido cuando credit_card_id está seteado y total >= 2)
+  installment_total?: number | null;
+  installment_current?: number | null;
   // transferencia
   to_account_id?: string;
   to_amount?: number | null;
@@ -51,6 +54,10 @@ interface State {
   account_id: string;
   credit_card_id: string;
   card_currency: string;   // ARS/USD para compras con tarjeta
+  // cuotas
+  installment_enabled: boolean;
+  installment_total: number;     // 2..N
+  installment_current: number;   // 1..installment_total
   // transferencia
   to_account_id: string;
   to_amount: string;
@@ -73,6 +80,9 @@ const EMPTY_STATE: State = {
   account_id: '',
   credit_card_id: '',
   card_currency: 'ARS',
+  installment_enabled: false,
+  installment_total: 6,
+  installment_current: 1,
   to_account_id: '',
   to_amount: '',
   fx_rate: '',
@@ -154,6 +164,7 @@ export const TransactionWizard: React.FC<Props> = ({
     setSubmitting(true);
     try {
       const amount = Number(state.amount);
+      const useInstallments = !!state.credit_card_id && state.installment_enabled && state.installment_total >= 2;
       const result: WizardResult = {
         kind: state.kind,
         amount,
@@ -163,6 +174,8 @@ export const TransactionWizard: React.FC<Props> = ({
         account_id: state.account_id || undefined,
         credit_card_id: state.credit_card_id || undefined,
         card_currency: state.credit_card_id ? state.card_currency : undefined,
+        installment_total: useInstallments ? state.installment_total : null,
+        installment_current: useInstallments ? state.installment_current : null,
         to_account_id: state.to_account_id || undefined,
         to_amount: state.to_amount ? Number(state.to_amount) : null,
         fx_rate: state.fx_rate ? Number(state.fx_rate) : null,
@@ -312,7 +325,7 @@ const Step1Amount: React.FC<{ state: State; setState: (s: State) => void; active
             <button
               key={k.key}
               type="button"
-              onClick={() => setState({ ...state, kind: k.key, account_id: '', credit_card_id: '', to_account_id: '' })}
+              onClick={() => setState({ ...state, kind: k.key, account_id: '', credit_card_id: '', to_account_id: '', installment_enabled: false })}
               className={`flex flex-col items-center gap-1.5 py-3 rounded-2xl transition-all ${
                 selected
                   ? 'bg-[var(--color-ink)] text-white'
@@ -487,6 +500,100 @@ const Step2Source: React.FC<{
               </div>
               <p className="text-[11px] text-[var(--color-ink-muted)] mt-2">
                 Va al resumen {state.card_currency} de esta tarjeta.
+              </p>
+            </div>
+          )}
+
+          {state.credit_card_id && (
+            <InstallmentsBlock state={state} setState={setState} />
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─── Cuotas (sub-bloque dentro de Step2) ────────────────────────────────────
+const InstallmentsBlock: React.FC<{ state: State; setState: (s: State) => void }> = ({ state, setState }) => {
+  const COMMON_TOTALS = [3, 6, 9, 12, 18, 24];
+  const total = state.installment_total;
+  const current = Math.min(state.installment_current, total);
+  const totalAmount = Number(state.amount) || 0;
+  const perCuota = total > 0 ? totalAmount / total : 0;
+  const remaining = Math.max(0, total - current + 1);
+  const currencySymbol = state.card_currency === 'USD' ? 'US$' : '$';
+
+  return (
+    <div className="mt-5 rounded-2xl bg-white border border-[var(--color-ink)]/10 p-3.5">
+      <label className="flex items-center justify-between gap-3 cursor-pointer">
+        <div>
+          <p className="text-sm font-medium text-[var(--color-ink)]">En cuotas</p>
+          <p className="text-[11px] text-[var(--color-ink-muted)] mt-0.5">
+            Se carga al resumen mes a mes automáticamente.
+          </p>
+        </div>
+        <input
+          type="checkbox"
+          checked={state.installment_enabled}
+          onChange={e => setState({ ...state, installment_enabled: e.target.checked })}
+          className="w-5 h-5 accent-[var(--color-ink)]"
+        />
+      </label>
+
+      {state.installment_enabled && (
+        <div className="mt-4 space-y-4">
+          <div>
+            <p className="text-[11px] uppercase tracking-wider text-[var(--color-ink-muted)] font-semibold mb-1.5">¿Cuántas cuotas?</p>
+            <div className="flex flex-wrap gap-1.5">
+              {COMMON_TOTALS.map(n => (
+                <PillChip
+                  key={n}
+                  variant={state.installment_total === n ? 'selected' : 'outline'}
+                  onClick={() => setState({ ...state, installment_total: n, installment_current: Math.min(state.installment_current, n) })}
+                >
+                  {n}
+                </PillChip>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <p className="text-[11px] uppercase tracking-wider text-[var(--color-ink-muted)] font-semibold mb-1.5">¿Por cuál vas?</p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setState({ ...state, installment_current: Math.max(1, current - 1) })}
+                className="w-9 h-9 rounded-full bg-[var(--color-ink)]/5 text-[var(--color-ink)] flex items-center justify-center font-semibold text-lg active:scale-95 transition-transform"
+                aria-label="Una cuota menos"
+              >
+                −
+              </button>
+              <div className="flex-1 text-center">
+                <p className="font-serif text-2xl text-[var(--color-ink)]">{current} <span className="text-base text-[var(--color-ink-muted)]">/ {total}</span></p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setState({ ...state, installment_current: Math.min(total, current + 1) })}
+                className="w-9 h-9 rounded-full bg-[var(--color-ink)]/5 text-[var(--color-ink)] flex items-center justify-center font-semibold text-lg active:scale-95 transition-transform"
+                aria-label="Una cuota más"
+              >
+                +
+              </button>
+            </div>
+            <p className="text-[11px] text-[var(--color-ink-muted)] mt-1.5">
+              {current === 1
+                ? 'Compra nueva — empieza desde la primera.'
+                : `Las cuotas 1 a ${current - 1} no se cargan (las pagaste antes).`}
+            </p>
+          </div>
+
+          {totalAmount > 0 && (
+            <div className="rounded-xl bg-[var(--color-cream-100)] px-3 py-2.5">
+              <p className="text-[11px] text-[var(--color-ink-muted)]">
+                {total} cuotas de <span className="font-semibold text-[var(--color-ink)]">{currencySymbol} {perCuota.toLocaleString('es-AR', { maximumFractionDigits: 2 })}</span>
+              </p>
+              <p className="text-[11px] text-[var(--color-ink-muted)] mt-0.5">
+                Se van a crear <span className="font-semibold text-[var(--color-ink)]">{remaining}</span> cuotas, una por mes a partir de la fecha que elijas.
               </p>
             </div>
           )}

@@ -328,6 +328,77 @@ export interface TransactionsFilter {
   category_id?: string;
 }
 
+// ─── Cuotas ───────────────────────────────────────────────────────────────────
+// Crea N transacciones (una por cuota) cuando installment_total >= 2.
+// La fecha de cada cuota es occurred_at + i meses (i = 0..N-current). Cada cuota
+// resuelve su propio statement_window según el closing_day de la tarjeta.
+//
+// El monto guardado por cuota es total / installment_total (redondeado a 2
+// decimales). La última cuota absorbe el resto del redondeo para que la suma
+// dé exacto el monto original.
+async function createInstallmentPurchase(
+  input: PersonalTransactionInput,
+  occurredAt: string,
+  total: number,
+): Promise<PersonalTransaction> {
+  const current = Math.max(1, Math.min(total, input.installment_current ?? 1));
+  const groupId = crypto.randomUUID();
+  const baseDate = new Date(occurredAt);
+  // Por simetría con el monto en cuotas que se ve en el resumen del banco,
+  // dividimos en N partes iguales (en vez de en N - current + 1).
+  const perCuotaRaw = Number(input.amount) / total;
+  const perCuota = Math.round(perCuotaRaw * 100) / 100;
+
+  const created: PersonalTransaction[] = [];
+  for (let i = current; i <= total; i++) {
+    const cuotaDate = new Date(baseDate);
+    cuotaDate.setMonth(cuotaDate.getMonth() + (i - current));
+    const cuotaIso = cuotaDate.toISOString();
+
+    const isLast = i === total;
+    // Última cuota absorbe el residuo de redondeo: total - sum(perCuota * (N-1)).
+    const cuotaAmount = isLast
+      ? Math.round((Number(input.amount) - perCuota * (total - 1)) * 100) / 100
+      : perCuota;
+
+    const statement = await PersonalCardStatementsService.ensureForCardAndDate(
+      input.credit_card_id!,
+      input.profile_id,
+      cuotaIso,
+      input.currency,
+    );
+
+    const cuotaSuffix = ` · Cuota ${i}/${total}`;
+    const description = (input.description ?? 'Compra') + cuotaSuffix;
+
+    const { data, error } = await supabase
+      .from('personal_transactions')
+      .insert({
+        profile_id: input.profile_id,
+        account_id: null,
+        credit_card_id: input.credit_card_id,
+        statement_id: statement.id,
+        category_id: input.category_id ?? null,
+        kind: input.kind,
+        amount: cuotaAmount,
+        currency: input.currency,
+        occurred_at: cuotaIso,
+        description,
+        installment_total: total,
+        installment_number: i,
+        installment_group_id: groupId,
+      })
+      .select('*')
+      .single();
+    if (error) throw error;
+    await PersonalCardStatementsService.adjustTotal(statement.id, cuotaAmount);
+    created.push(data as PersonalTransaction);
+  }
+
+  // Devolvemos la primera cuota creada (la del statement actual) como referencia.
+  return created[0];
+}
+
 export const PersonalTransactionsService = {
   async list(profileId: string, filter: TransactionsFilter = {}, limit = 200): Promise<PersonalTransaction[]> {
     let q = supabase
@@ -357,6 +428,14 @@ export const PersonalTransactionsService = {
       if (input.kind !== 'expense') {
         throw new Error('Solo se aceptan gastos en tarjeta de crédito (income va a una cuenta).');
       }
+
+      // Modo cuotas: si installment_total >= 2, generamos N transacciones,
+      // una por mes a partir de occurred_at, cada una en el statement que le toca.
+      const total = input.installment_total ?? 1;
+      if (total >= 2) {
+        return await createInstallmentPurchase(input, occurred, total);
+      }
+
       const statement = await PersonalCardStatementsService.ensureForCardAndDate(
         input.credit_card_id,
         input.profile_id,
@@ -476,7 +555,28 @@ export const PersonalTransactionsService = {
     if (!tx) return;
 
     // Compra con tarjeta: revertir el total del statement y borrar.
+    // Si la tx forma parte de un grupo de cuotas, borramos TODAS las cuotas
+    // del grupo y revertimos el total de cada statement afectado — borrar
+    // sólo una cuota dejaría una compra a medio cargar, que nunca es lo deseado.
     if (tx.credit_card_id && tx.statement_id) {
+      if (tx.installment_group_id) {
+        const { data: group, error: groupErr } = await supabase
+          .from('personal_transactions')
+          .select('*')
+          .eq('installment_group_id', tx.installment_group_id);
+        if (groupErr) throw groupErr;
+        for (const cuota of (group ?? []) as PersonalTransaction[]) {
+          if (cuota.statement_id) {
+            await PersonalCardStatementsService.adjustTotal(cuota.statement_id, -Number(cuota.amount));
+          }
+        }
+        const { error } = await supabase
+          .from('personal_transactions')
+          .delete()
+          .eq('installment_group_id', tx.installment_group_id);
+        if (error) throw error;
+        return;
+      }
       await PersonalCardStatementsService.adjustTotal(tx.statement_id, -Number(tx.amount));
       const { error } = await supabase.from('personal_transactions').delete().eq('id', id);
       if (error) throw error;

@@ -1053,6 +1053,11 @@ export interface PersonalTransaction {
   fx_rate: number | null;
   credit_card_id: string | null;
   statement_id: string | null;
+  // Cuotas: null para compras de un solo pago. Para una compra en N cuotas,
+  // cada cuota es una tx independiente que comparte installment_group_id.
+  installment_total: number | null;
+  installment_number: number | null;
+  installment_group_id: string | null;
   raw?: any;
   created_at: string;
 }
@@ -1066,10 +1071,17 @@ export interface PersonalTransactionInput {
   credit_card_id?: string | null;
   category_id?: string | null;
   kind: 'expense' | 'income';
-  amount: number;
+  amount: number; // monto TOTAL de la compra (si es en cuotas, se divide por installment_total)
   currency: string;
   occurred_at?: string;
   description?: string | null;
+  // Cuotas (sólo válido cuando credit_card_id está seteado).
+  // installment_total: cantidad total de cuotas (>=2 para activar el modo cuotas).
+  // installment_current: por cuál cuota arranca el alta (default 1 = compra nueva).
+  //   Si entrás "voy por la cuota 3 de 6", current=3 → se crean 4 cuotas (3,4,5,6),
+  //   cada una en el statement que le corresponde mes a mes.
+  installment_total?: number | null;
+  installment_current?: number | null;
 }
 
 // Ahora agrego los tipos del módulo de tarjetas
