@@ -25,9 +25,14 @@ function parseInput(input: string): string {
   // Un único separador decimal permitido.
   const cleaned = input.replace(/[^\d.,]/g, '');
   // Si hay coma, la usamos como decimal; los puntos se descartan (separadores de miles).
+  // Importante: si el usuario acaba de tipear ',' (sin decimales aún), preservamos
+  // el punto trailing — sino la coma "desaparece" en el próximo render y nunca
+  // logra escribir un valor decimal como "2,47".
   if (cleaned.includes(',')) {
     const [intP, decP = ''] = cleaned.split(',');
-    return `${intP.replace(/\D/g, '')}${decP ? '.' + decP.replace(/\D/g, '').slice(0, 2) : ''}`;
+    const intDigits = intP.replace(/\D/g, '');
+    const decDigits = decP.replace(/\D/g, '').slice(0, 2);
+    return `${intDigits}.${decDigits}`;
   }
   // Sin coma: si hay punto al final podría ser separador de miles o decimal.
   // Asumimos que es separador de miles → strip todos.
