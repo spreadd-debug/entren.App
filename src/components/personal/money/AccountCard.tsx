@@ -5,6 +5,9 @@ import { accountGradient, gradientCss } from './accountGradient';
 import { ACCOUNT_KIND_LABELS } from './accountKindLabels';
 import { LeatherWalletCard } from './LeatherWalletCard';
 import { TicketCard } from './TicketCard';
+import { VaultCard } from './VaultCard';
+import { BankPassbookCard } from './BankPassbookCard';
+import { StockCertificateCard } from './StockCertificateCard';
 import { useHideBalances } from '../../../hooks/useHideBalances';
 
 interface Props {
@@ -41,14 +44,20 @@ export const AccountCard: React.FC<Props> = ({ account, onClick, variant = 'hero
   const currencySymbol = CURRENCY_LABELS[account.currency] ?? account.currency;
   const balance = Number(account.current_balance) || 0;
 
-  // Dispatch skeuomorphic por kind: cash → billetera de cuero,
-  // wallet → ticket digital. Las otras (bank/investment/other) caen al
-  // diseño gradient genérico de abajo (queda igual que antes).
-  if (account.kind === 'cash' && variant !== 'mini') {
-    return <LeatherWalletCard account={account} variant={variant} onClick={onClick} className={className} />;
-  }
-  if (account.kind === 'wallet' && variant !== 'mini') {
-    return <TicketCard account={account} variant={variant} onClick={onClick} className={className} />;
+  // Dispatch skeuomorphic. Orden de prioridad:
+  //  1. is_savings  → caja fuerte (independiente del kind, así USD billete
+  //                   ahorrado no queda igual que el cash del día a día).
+  //  2. cash        → billetera de cuero
+  //  3. wallet      → ticket digital
+  //  4. bank        → libreta bancaria
+  //  5. investment  → certificado de acciones
+  //  6. fallback    → diseño gradient genérico de abajo
+  if (variant !== 'mini') {
+    if (account.is_savings)              return <VaultCard           account={account} variant={variant} onClick={onClick} className={className} />;
+    if (account.kind === 'cash')         return <LeatherWalletCard   account={account} variant={variant} onClick={onClick} className={className} />;
+    if (account.kind === 'wallet')       return <TicketCard          account={account} variant={variant} onClick={onClick} className={className} />;
+    if (account.kind === 'bank')         return <BankPassbookCard    account={account} variant={variant} onClick={onClick} className={className} />;
+    if (account.kind === 'investment')   return <StockCertificateCard account={account} variant={variant} onClick={onClick} className={className} />;
   }
 
   if (variant === 'mini') {
