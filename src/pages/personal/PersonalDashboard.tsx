@@ -352,15 +352,32 @@ export const PersonalDashboard: React.FC<Props> = ({ onLogout }) => {
               <div className="flex-1 min-w-0">
                 <div className="flex items-baseline gap-2">
                   <span className="text-[11px] uppercase tracking-wider text-[var(--color-ink-muted)] font-semibold">Hoy</span>
-                  {latestDaily?.steps != null && (
+                  {latestDaily?.body_battery_current != null && (
                     <span className="text-[11px] text-[var(--color-ink-muted)]">
-                      {latestDaily.steps.toLocaleString('es-AR')} pasos
+                      battery {latestDaily.body_battery_current}
                     </span>
                   )}
                 </div>
                 <h3 className="font-serif text-2xl text-[var(--color-ink)] leading-tight mt-0.5">Vitals</h3>
                 <div className="mt-2 flex items-baseline gap-3">
-                  {latestDaily?.body_battery_current != null ? (
+                  {/* Pasos = métrica primaria (siempre los hay si Garmin sincronizó).
+                      body_battery / kcal / hr quedan como hint secundario. */}
+                  {latestDaily?.steps != null ? (
+                    <>
+                      <div>
+                        <span className="font-serif text-3xl text-[var(--color-ink)]">
+                          {latestDaily.steps.toLocaleString('es-AR')}
+                        </span>
+                        <span className="text-xs text-[var(--color-ink-muted)] ml-1">pasos</span>
+                      </div>
+                      {latestDaily.total_kcal != null && (
+                        <div className="text-xs text-[var(--color-ink-muted)]">
+                          <span className="font-semibold text-[var(--color-ink)]">{latestDaily.total_kcal.toLocaleString('es-AR')}</span> kcal
+                        </div>
+                      )}
+                    </>
+                  ) : latestDaily?.body_battery_current != null ? (
+                    // Sin pasos pero hay battery → mostramos eso como fallback
                     <>
                       <div>
                         <span className="font-serif text-3xl text-[var(--color-ink)]">{latestDaily.body_battery_current}</span>
