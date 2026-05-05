@@ -147,6 +147,21 @@ export const PersonalMoney: React.FC = () => {
     [transactions],
   );
 
+  // Para el listado "Movimientos" filtramos las txs futuras — cuotas posteriores
+  // y débitos automáticos se materializan con fecha futura (ej. cuota 6/6 va
+  // a 3 meses) y aparecían arriba del listado por sort desc, confundiendo al
+  // usuario. El chart sigue usando todas para ver el panorama del mes completo.
+  const todayEnd = useMemo(() => {
+    const d = new Date();
+    d.setHours(23, 59, 59, 999);
+    return d;
+  }, []);
+  const recentTxs = useMemo(
+    () => txsThisMonth.filter(t => new Date(t.occurred_at) <= todayEnd),
+    [txsThisMonth, todayEnd],
+  );
+  const upcomingCount = txsThisMonth.length - recentTxs.length;
+
   const monthSpending = useMemo(
     () => txsThisMonth
       .filter(t => t.kind === 'expense')
@@ -397,13 +412,20 @@ export const PersonalMoney: React.FC = () => {
               </div>
             </Card>
 
-            {/* Transactions del mes */}
-            <h3 className="font-serif text-xl text-[var(--color-ink)] mt-6 mb-2 px-1">Movimientos</h3>
+            {/* Transactions del mes (sólo pasadas + hoy — futuras viven en el resumen de la tarjeta) */}
+            <div className="flex items-center justify-between mt-6 mb-2 px-1">
+              <h3 className="font-serif text-xl text-[var(--color-ink)]">Movimientos</h3>
+              {upcomingCount > 0 && (
+                <span className="text-[11px] text-[var(--color-ink-muted)]">
+                  + {upcomingCount} próxima{upcomingCount === 1 ? '' : 's'} este mes
+                </span>
+              )}
+            </div>
             <div className="space-y-2">
-              {txsThisMonth.length === 0 && (
+              {recentTxs.length === 0 && (
                 <p className="text-center text-sm text-[var(--color-ink-muted)] py-6 italic">Sin movimientos este mes</p>
               )}
-              {txsThisMonth.slice(0, 30).map(t => {
+              {recentTxs.slice(0, 30).map(t => {
                 const account = t.account_id ? accounts.find(a => a.id === t.account_id) : null;
                 const card = t.credit_card_id ? cards.find(c => c.id === t.credit_card_id) : null;
                 const cat = categories.find(c => c.id === t.category_id);
