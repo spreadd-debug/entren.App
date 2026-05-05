@@ -745,13 +745,20 @@ const Step3Details: React.FC<{ state: State; setState: (s: State) => void; categ
       </div>
 
       <div>
-        <label className="text-xs uppercase tracking-wider text-[var(--color-ink-muted)] font-semibold block mb-1.5">Fecha y hora</label>
+        <label className="text-xs uppercase tracking-wider text-[var(--color-ink-muted)] font-semibold block mb-1.5">
+          {state.installment_enabled ? 'Fecha de la compra ORIGINAL' : 'Fecha y hora'}
+        </label>
         <input
           type="datetime-local"
           value={state.occurred_at}
           onChange={e => setState({ ...state, occurred_at: e.target.value })}
           className="w-full px-4 py-2.5 rounded-2xl bg-white text-[var(--color-ink)] text-sm border border-[var(--color-ink)]/10 focus:outline-none focus:border-[var(--color-ink)]/40"
         />
+        {state.installment_enabled && (
+          <p className="text-[11px] text-[var(--color-ink-muted)] mt-1.5">
+            Poné el día en que hiciste la compra (la cuota 1). El sistema ubica las cuotas restantes mes a mes desde esa fecha.
+          </p>
+        )}
       </div>
     </div>
   );

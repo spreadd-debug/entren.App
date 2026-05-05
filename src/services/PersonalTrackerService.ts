@@ -332,8 +332,12 @@ export interface TransactionsFilter {
 
 // ─── Cuotas ───────────────────────────────────────────────────────────────────
 // Crea N transacciones (una por cuota) cuando installment_total >= 2.
-// La fecha de cada cuota es occurred_at + i meses (i = 0..N-current). Cada cuota
-// resuelve su propio statement_window según el closing_day de la tarjeta.
+//
+// `occurredAt` es la fecha de la COMPRA ORIGINAL (cuota 1). Cada cuota i cae
+// en occurredAt + (i-1) meses, así que el sistema sabe en qué statement va
+// cada una. Si `current > 1`, salteamos las cuotas anteriores (las pagaste
+// antes), pero las que sí creamos mantienen su fecha calendario correcta:
+// cuota 3 de una compra de marzo cae en mayo, no en marzo.
 //
 // El monto guardado por cuota es total / installment_total (redondeado a 2
 // decimales). La última cuota absorbe el resto del redondeo para que la suma
@@ -354,7 +358,8 @@ async function createInstallmentPurchase(
   const created: PersonalTransaction[] = [];
   for (let i = current; i <= total; i++) {
     const cuotaDate = new Date(baseDate);
-    cuotaDate.setMonth(cuotaDate.getMonth() + (i - current));
+    // Cuota i = compra original + (i-1) meses. Cuota 1 = mismo día de la compra.
+    cuotaDate.setMonth(cuotaDate.getMonth() + (i - 1));
     const cuotaIso = cuotaDate.toISOString();
 
     const isLast = i === total;
