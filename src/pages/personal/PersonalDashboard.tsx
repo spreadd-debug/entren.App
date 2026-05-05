@@ -45,6 +45,19 @@ function startOfPrevMonthIso(): string {
   return new Date(d.getFullYear(), d.getMonth() - 1, 1).toISOString();
 }
 
+// "Anoche" si el sleep es de hoy o ayer (Garmin marca sleep_date = fecha de despertar).
+// Si es más viejo, mostramos "Hace N días" para que sea claro que no es la noche actual.
+function sleepRelativeLabel(sleepDateIso: string): string {
+  const sleep = new Date(sleepDateIso + 'T00:00:00');
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const days = Math.round((today.getTime() - sleep.getTime()) / 86_400_000);
+  if (days <= 0) return 'Anoche';
+  if (days === 1) return 'Anoche';
+  if (days <= 7) return `Hace ${days} días`;
+  return sleep.toLocaleDateString('es-AR', { day: '2-digit', month: 'short' });
+}
+
 export const PersonalDashboard: React.FC<Props> = ({ onLogout }) => {
   const navigate = useNavigate();
   const { profile, loading } = usePersonalProfile();
@@ -57,7 +70,24 @@ export const PersonalDashboard: React.FC<Props> = ({ onLogout }) => {
   const [latestBody, setLatestBody] = useState<PersonalBodyMetric | null>(null);
   const [latestSleep, setLatestSleep] = useState<PersonalSleep | null>(null);
   const [latestDaily, setLatestDaily] = useState<PersonalDailyMetrics | null>(null);
+  const [garminConnected, setGarminConnected] = useState<boolean | null>(null);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
+
+  // Garmin a veces deja una fila sin minutos válidos para la fecha del día actual
+  // antes de que el reloj termine de sincronizar. Buscamos el último registro real.
+  const pickLatestValidSleep = (rows: PersonalSleep[]): PersonalSleep | null =>
+    rows.find(r => (r.total_seconds ?? 0) > 0) ?? null;
+  const pickLatestValidDaily = (rows: PersonalDailyMetrics[]): PersonalDailyMetrics | null =>
+    rows.find(r => r.steps != null || r.body_battery_current != null || r.resting_hr_bpm != null) ?? null;
+
+  const reloadGarminLatest = async (profileId: string) => {
+    const [sleepRows, dailyRows] = await Promise.all([
+      PersonalSleepService.list(profileId, 7),
+      PersonalDailyMetricsService.list(profileId, 7),
+    ]);
+    setLatestSleep(pickLatestValidSleep(sleepRows));
+    setLatestDaily(pickLatestValidDaily(dailyRows));
+  };
 
   useEffect(() => {
     if (!profile) return;
@@ -69,20 +99,32 @@ export const PersonalDashboard: React.FC<Props> = ({ onLogout }) => {
       PersonalTransactionsService.list(profile.id, { from: monthStart }, 500),
       PersonalTransactionsService.list(profile.id, { from: startOfPrevMonthIso(), to: monthStart }, 500),
       PersonalBodyService.latest(profile.id),
-      PersonalSleepService.latest(profile.id),
-      PersonalDailyMetricsService.latest(profile.id),
+      PersonalSleepService.list(profile.id, 7),
+      PersonalDailyMetricsService.list(profile.id, 7),
       api.fx.getLatest(),
-    ]).then(([acts, meals, acc, txCurr, txPrev, body, sleep, daily, fx]) => {
+      api.garmin.getStatus(profile.id),
+    ]).then(([acts, meals, acc, txCurr, txPrev, body, sleepRows, dailyRows, fx, garmin]) => {
       setActivitiesWeek(acts);
       setTodayMeals(meals);
       setAccounts(acc);
       setTxsThisMonth(txCurr);
       setTxsPrevMonth(txPrev);
       setLatestBody(body);
-      setLatestSleep(sleep);
-      setLatestDaily(daily);
+      setLatestSleep(pickLatestValidSleep(sleepRows));
+      setLatestDaily(pickLatestValidDaily(dailyRows));
+      setGarminConnected(!!garmin);
       const preferred = profile.preferred_fx_name ?? 'blue';
       setFxRate(fx.find(r => r.name === preferred)?.sell ?? null);
+
+      // Auto-sync silencioso si Garmin está conectado y la última sync es vieja.
+      // Refresca sleep + daily 12s después si efectivamente disparó.
+      if (garmin) {
+        api.garmin.maybeSync(profile.id, 30).then((triggered) => {
+          if (triggered) {
+            setTimeout(() => { reloadGarminLatest(profile.id).catch(() => {}); }, 12_000);
+          }
+        });
+      }
     }).catch(err => console.error('[dashboard] load failed', err));
   }, [profile?.id]);
 
@@ -264,8 +306,10 @@ export const PersonalDashboard: React.FC<Props> = ({ onLogout }) => {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-baseline gap-2">
-                  <span className="text-[11px] uppercase tracking-wider text-[var(--color-ink-muted)] font-semibold">Anoche</span>
-                  {latestSleep?.sleep_score != null && (
+                  <span className="text-[11px] uppercase tracking-wider text-[var(--color-ink-muted)] font-semibold">
+                    {latestSleep?.total_seconds ? sleepRelativeLabel(latestSleep.sleep_date) : 'Sleep'}
+                  </span>
+                  {latestSleep?.total_seconds && latestSleep?.sleep_score != null && (
                     <span className="text-[11px] text-[var(--color-ink-muted)]">score {latestSleep.sleep_score}</span>
                   )}
                 </div>
@@ -279,7 +323,9 @@ export const PersonalDashboard: React.FC<Props> = ({ onLogout }) => {
                       </span>
                     </>
                   ) : (
-                    <span className="text-sm text-[var(--color-ink-muted)] italic">Conectá Garmin</span>
+                    <span className="text-sm text-[var(--color-ink-muted)] italic">
+                      {garminConnected === false ? 'Conectá Garmin' : 'Sin datos aún'}
+                    </span>
                   )}
                 </div>
               </div>
@@ -316,7 +362,9 @@ export const PersonalDashboard: React.FC<Props> = ({ onLogout }) => {
                       )}
                     </>
                   ) : (
-                    <span className="text-sm text-[var(--color-ink-muted)] italic">Conectá Garmin</span>
+                    <span className="text-sm text-[var(--color-ink-muted)] italic">
+                      {garminConnected === false ? 'Conectá Garmin' : 'Sin datos aún'}
+                    </span>
                   )}
                 </div>
               </div>

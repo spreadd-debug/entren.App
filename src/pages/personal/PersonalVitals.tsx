@@ -5,6 +5,7 @@ import { LineChart, Line, ResponsiveContainer, YAxis, Tooltip } from 'recharts';
 import { MobileHeader, Card } from '../../components/personal/ui';
 import { usePersonalProfile } from '../../hooks/usePersonalProfile';
 import { PersonalDailyMetricsService } from '../../services/PersonalTrackerService';
+import { api } from '../../services/api';
 import { PersonalDailyMetrics } from '../../../shared/types';
 
 type MetricKey = 'steps' | 'total_kcal' | 'resting_hr_bpm' | 'avg_stress' | 'body_battery_high';
@@ -24,13 +25,25 @@ export const PersonalVitals: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [chartMetric, setChartMetric] = useState<MetricKey>('steps');
 
+  const reload = async (profileId: string) => {
+    const rows = await PersonalDailyMetricsService.list(profileId, 30);
+    // Filtra registros sin métricas reales — Garmin a veces deja la fila del
+    // día actual vacía hasta que el reloj sincroniza.
+    setItems(rows.filter(r => r.steps != null || r.body_battery_current != null || r.resting_hr_bpm != null));
+  };
+
   useEffect(() => {
     if (!profile) return;
     setLoading(true);
-    PersonalDailyMetricsService.list(profile.id, 30)
-      .then(setItems)
+    reload(profile.id)
       .catch(err => console.error('[vitals] load failed', err))
       .finally(() => setLoading(false));
+    // Auto-sync silencioso si Garmin está conectado y la última sync es vieja.
+    api.garmin.maybeSync(profile.id, 30).then((triggered) => {
+      if (triggered) {
+        setTimeout(() => { reload(profile.id).catch(() => {}); }, 12_000);
+      }
+    });
   }, [profile?.id]);
 
   const today = items[0] ?? null;

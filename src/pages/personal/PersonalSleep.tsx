@@ -5,6 +5,7 @@ import { LineChart, Line, ResponsiveContainer, YAxis, Tooltip } from 'recharts';
 import { MobileHeader, Card } from '../../components/personal/ui';
 import { usePersonalProfile } from '../../hooks/usePersonalProfile';
 import { PersonalSleepService } from '../../services/PersonalTrackerService';
+import { api } from '../../services/api';
 import { PersonalSleep as PSleep } from '../../../shared/types';
 
 function fmtHours(seconds: number | null | undefined): string {
@@ -15,7 +16,19 @@ function fmtHours(seconds: number | null | undefined): string {
 }
 
 function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('es-AR', { weekday: 'short', day: '2-digit', month: 'short' });
+  return new Date(iso + 'T00:00:00').toLocaleDateString('es-AR', { weekday: 'short', day: '2-digit', month: 'short' });
+}
+
+// "Anoche" sólo cuando el sleep es de hoy (Garmin marca sleep_date = fecha de despertar).
+// Si la última noche registrada es vieja, mostramos algo claro tipo "Hace N días".
+function relativeLabel(sleepDateIso: string): string {
+  const sleep = new Date(sleepDateIso + 'T00:00:00');
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const days = Math.round((today.getTime() - sleep.getTime()) / 86_400_000);
+  if (days <= 1) return 'Anoche';
+  if (days <= 7) return `Hace ${days} días`;
+  return sleep.toLocaleDateString('es-AR', { day: '2-digit', month: 'short' });
 }
 
 export const PersonalSleep: React.FC = () => {
@@ -24,13 +37,25 @@ export const PersonalSleep: React.FC = () => {
   const [items, setItems] = useState<PSleep[]>([]);
   const [loading, setLoading] = useState(false);
 
+  const reload = async (profileId: string) => {
+    const rows = await PersonalSleepService.list(profileId, 30);
+    // Garmin a veces crea filas vacías para la fecha del día actual antes de
+    // que termines de dormir. Filtramos cualquier registro sin minutos válidos.
+    setItems(rows.filter(r => (r.total_seconds ?? 0) > 0));
+  };
+
   useEffect(() => {
     if (!profile) return;
     setLoading(true);
-    PersonalSleepService.list(profile.id, 30)
-      .then(setItems)
+    reload(profile.id)
       .catch(err => console.error('[sleep] load failed', err))
       .finally(() => setLoading(false));
+    // Auto-sync silencioso si Garmin está conectado y la última sync es vieja.
+    api.garmin.maybeSync(profile.id, 30).then((triggered) => {
+      if (triggered) {
+        setTimeout(() => { reload(profile.id).catch(() => {}); }, 12_000);
+      }
+    });
   }, [profile?.id]);
 
   const last = items[0] ?? null;
@@ -75,7 +100,7 @@ export const PersonalSleep: React.FC = () => {
         {!loading && last && (
           <>
             <Card className="mt-4" tone="ink">
-              <p className="text-xs uppercase tracking-wider opacity-60">Anoche</p>
+              <p className="text-xs uppercase tracking-wider opacity-60">{relativeLabel(last.sleep_date)}</p>
               <p className="font-serif text-5xl mt-1">{fmtHours(last.total_seconds)}</p>
               {last.sleep_score != null && (
                 <p className="text-sm opacity-80 mt-1">Sleep score <span className="font-semibold">{last.sleep_score}/100</span></p>

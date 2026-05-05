@@ -703,5 +703,26 @@ export const api = {
         body: JSON.stringify({ days }),
       });
     },
+
+    // Auto-sync silencioso: si la última sincronización es vieja, dispara una nueva
+    // en background. Devuelve true si la disparó. La UI puede usar el flag para
+    // refrescar la data después de N segundos. Falla en silencio.
+    async maybeSync(profileId: string, minMinutesSince = 30): Promise<boolean> {
+      try {
+        const status = await this.getStatus(profileId);
+        if (!status) return false; // no conectado
+        const last = status.last_sync_at ? Date.parse(status.last_sync_at) : 0;
+        const elapsedMin = (Date.now() - last) / 60_000;
+        if (elapsedMin < minMinutesSince) return false;
+        // fire-and-forget — no esperamos la respuesta para no bloquear la UI
+        this.sync(profileId, 2).catch((err) => {
+          console.warn('[garmin] background sync failed', err);
+        });
+        return true;
+      } catch (err) {
+        console.warn('[garmin] maybeSync failed', err);
+        return false;
+      }
+    },
   },
 };
