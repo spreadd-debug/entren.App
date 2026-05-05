@@ -171,6 +171,18 @@ export const PersonalMoney: React.FC = () => {
           occurred_at: r.occurred_at,
           description: r.description || null,
         });
+      } else if (r.credit_card_id && r.recurring_enabled && r.recurring_day) {
+        // Recurrente: crea la sub + carga la primera tx con la fecha de hoy.
+        // El cron del próximo mes sigue a partir del día elegido.
+        await PersonalCardSubscriptionsService.createWithImmediateCharge({
+          profile_id: profile.id,
+          credit_card_id: r.credit_card_id,
+          category_id: r.category_id,
+          description: r.description ?? 'Pago recurrente',
+          amount: r.amount,
+          currency: r.card_currency!,
+          day_of_month: r.recurring_day,
+        }, r.occurred_at);
       } else if (r.credit_card_id) {
         await PersonalTransactionsService.create({
           profile_id: profile.id,

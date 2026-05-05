@@ -24,6 +24,9 @@ export interface WizardResult {
   // cuotas (sólo válido cuando credit_card_id está seteado y total >= 2)
   installment_total?: number | null;
   installment_current?: number | null;
+  // débito automático recurrente: se crea la sub + la primera tx del mes.
+  recurring_enabled?: boolean;
+  recurring_day?: number;
   // transferencia
   to_account_id?: string;
   to_amount?: number | null;
@@ -58,6 +61,9 @@ interface State {
   installment_enabled: boolean;
   installment_total: number;     // 2..N
   installment_current: number;   // 1..installment_total
+  // recurrente — excluyente con cuotas
+  recurring_enabled: boolean;
+  recurring_day: number;         // 1..28
   // transferencia
   to_account_id: string;
   to_amount: string;
@@ -83,6 +89,8 @@ const EMPTY_STATE: State = {
   installment_enabled: false,
   installment_total: 6,
   installment_current: 1,
+  recurring_enabled: false,
+  recurring_day: new Date().getDate() > 28 ? 28 : new Date().getDate(),
   to_account_id: '',
   to_amount: '',
   fx_rate: '',
@@ -189,7 +197,8 @@ export const TransactionWizard: React.FC<Props> = ({
     setSubmitting(true);
     try {
       const amount = Number(state.amount);
-      const useInstallments = !!state.credit_card_id && state.installment_enabled && state.installment_total >= 2;
+      const useRecurring = !!state.credit_card_id && state.recurring_enabled && state.recurring_day >= 1;
+      const useInstallments = !!state.credit_card_id && state.installment_enabled && state.installment_total >= 2 && !useRecurring;
       const result: WizardResult = {
         kind: state.kind,
         amount,
@@ -201,6 +210,8 @@ export const TransactionWizard: React.FC<Props> = ({
         card_currency: state.credit_card_id ? state.card_currency : undefined,
         installment_total: useInstallments ? state.installment_total : null,
         installment_current: useInstallments ? state.installment_current : null,
+        recurring_enabled: useRecurring,
+        recurring_day: useRecurring ? state.recurring_day : undefined,
         to_account_id: state.to_account_id || undefined,
         to_amount: state.to_amount ? Number(state.to_amount) : null,
         fx_rate: state.fx_rate ? Number(state.fx_rate) : null,
@@ -536,8 +547,70 @@ const Step2Source: React.FC<{
           )}
 
           {state.credit_card_id && (
-            <InstallmentsBlock state={state} setState={setState} />
+            <>
+              <InstallmentsBlock state={state} setState={setState} />
+              <RecurringBlock state={state} setState={setState} />
+            </>
           )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─── Recurrente (sub-bloque dentro de Step2) ────────────────────────────────
+const RecurringBlock: React.FC<{ state: State; setState: (s: State) => void }> = ({ state, setState }) => {
+  // Mutual exclusion: si hay cuotas activas, no podemos también ser recurrente.
+  // El toggle apaga el otro al prenderse.
+  return (
+    <div className="mt-3 rounded-2xl bg-white border border-[var(--color-ink)]/10 p-3.5">
+      <label className="flex items-center justify-between gap-3 cursor-pointer">
+        <div>
+          <p className="text-sm font-medium text-[var(--color-ink)]">Pago recurrente mensual</p>
+          <p className="text-[11px] text-[var(--color-ink-muted)] mt-0.5">
+            Cargás este mes y queda agendado para los próximos (gym, Netflix…).
+          </p>
+        </div>
+        <input
+          type="checkbox"
+          checked={state.recurring_enabled}
+          onChange={e => setState({
+            ...state,
+            recurring_enabled: e.target.checked,
+            // Excluyente con cuotas
+            installment_enabled: e.target.checked ? false : state.installment_enabled,
+          })}
+          className="w-5 h-5 accent-[var(--color-ink)]"
+        />
+      </label>
+
+      {state.recurring_enabled && (
+        <div className="mt-4">
+          <p className="text-[11px] uppercase tracking-wider text-[var(--color-ink-muted)] font-semibold mb-1.5">¿Qué día del mes se cobra?</p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setState({ ...state, recurring_day: Math.max(1, state.recurring_day - 1) })}
+              className="w-9 h-9 rounded-full bg-[var(--color-ink)]/5 text-[var(--color-ink)] flex items-center justify-center font-semibold text-lg active:scale-95 transition-transform"
+              aria-label="Día anterior"
+            >
+              −
+            </button>
+            <div className="flex-1 text-center">
+              <p className="font-serif text-2xl text-[var(--color-ink)]">Día {state.recurring_day}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setState({ ...state, recurring_day: Math.min(28, state.recurring_day + 1) })}
+              className="w-9 h-9 rounded-full bg-[var(--color-ink)]/5 text-[var(--color-ink)] flex items-center justify-center font-semibold text-lg active:scale-95 transition-transform"
+              aria-label="Día siguiente"
+            >
+              +
+            </button>
+          </div>
+          <p className="text-[11px] text-[var(--color-ink-muted)] mt-2">
+            Hoy se carga este gasto. A partir del próximo mes, el día {state.recurring_day} se carga solo al resumen.
+          </p>
         </div>
       )}
     </div>
@@ -566,7 +639,12 @@ const InstallmentsBlock: React.FC<{ state: State; setState: (s: State) => void }
         <input
           type="checkbox"
           checked={state.installment_enabled}
-          onChange={e => setState({ ...state, installment_enabled: e.target.checked })}
+          onChange={e => setState({
+            ...state,
+            installment_enabled: e.target.checked,
+            // Excluyente con recurrente
+            recurring_enabled: e.target.checked ? false : state.recurring_enabled,
+          })}
           className="w-5 h-5 accent-[var(--color-ink)]"
         />
       </label>

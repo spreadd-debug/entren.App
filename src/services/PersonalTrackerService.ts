@@ -881,6 +881,64 @@ export const PersonalCardSubscriptionsService = {
     return data as PersonalCardSubscription;
   },
 
+  // Crea la sub y a la vez registra la primera tx (la del mes en curso) usando
+  // la fecha real de hoy. Marca last_charged_period del mes corriente para que
+  // el cron no la cobre dos veces. Pensado para el flujo "cargo el gasto del
+  // gym de este mes y queda agendado para los próximos".
+  async createWithImmediateCharge(
+    input: PersonalCardSubscriptionInput,
+    immediateOccurredAt: string,
+  ): Promise<{ subscription: PersonalCardSubscription; transaction: PersonalTransaction }> {
+    const today = new Date(immediateOccurredAt);
+    const period = periodKey(today);
+
+    const { data: subData, error: subErr } = await supabase
+      .from('personal_card_subscriptions')
+      .insert({
+        profile_id: input.profile_id,
+        credit_card_id: input.credit_card_id,
+        category_id: input.category_id ?? null,
+        description: input.description,
+        amount: input.amount,
+        currency: input.currency,
+        day_of_month: input.day_of_month,
+        active: input.active ?? true,
+        starts_on: input.starts_on ?? new Date().toISOString().slice(0, 10),
+        last_charged_period: period, // ya cobrada este mes — el cron skipea
+      })
+      .select('*')
+      .single();
+    if (subErr) throw subErr;
+    const sub = subData as PersonalCardSubscription;
+
+    const statement = await PersonalCardStatementsService.ensureForCardAndDate(
+      sub.credit_card_id,
+      sub.profile_id,
+      immediateOccurredAt,
+      sub.currency,
+    );
+    const { data: txData, error: txErr } = await supabase
+      .from('personal_transactions')
+      .insert({
+        profile_id: sub.profile_id,
+        account_id: null,
+        credit_card_id: sub.credit_card_id,
+        statement_id: statement.id,
+        subscription_id: sub.id,
+        category_id: sub.category_id,
+        kind: 'expense',
+        amount: sub.amount,
+        currency: sub.currency,
+        occurred_at: immediateOccurredAt,
+        description: `${sub.description} · Auto`,
+      })
+      .select('*')
+      .single();
+    if (txErr) throw txErr;
+    await PersonalCardStatementsService.adjustTotal(statement.id, sub.amount);
+    return { subscription: sub, transaction: txData as PersonalTransaction };
+  },
+
   async update(id: string, patch: Partial<PersonalCardSubscriptionInput>): Promise<PersonalCardSubscription> {
     const { data, error } = await supabase
       .from('personal_card_subscriptions')
