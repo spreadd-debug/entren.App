@@ -960,19 +960,24 @@ export const PersonalCardSubscriptionsService = {
 
   // Crea las txs de las subs que les toca este mes y todavía no se cargaron.
   // Devuelve cuántas materializó. Idempotente por last_charged_period.
+  //
+  // Cargamos para el mes corriente con fecha = day_of_month del mes en curso,
+  // aunque el día sea futuro (ej. hoy 5 y el cobro es el 23). De esa manera el
+  // resumen refleja todos los pagos recurrentes del mes desde que se setean —
+  // no hace falta esperar al día calendario para verlo planificado.
   async materializeDue(profileId: string, today: Date = new Date()): Promise<number> {
     const subs = await this.list(profileId);
-    const todayDay = today.getDate();
     const period = periodKey(today);
     let created = 0;
 
     for (const sub of subs) {
       if (!sub.active) continue;
       if (sub.last_charged_period === period) continue; // ya se cobró este mes
-      if (sub.day_of_month > todayDay) continue;        // todavía no llega el día
       if (sub.starts_on && new Date(sub.starts_on) > today) continue;
 
-      // Fecha de la tx: día day_of_month del mes corriente.
+      // Fecha de la tx: día day_of_month del mes corriente. Puede ser pasado o
+      // futuro respecto a hoy — lo importante es que cada mes calendario tenga
+      // exactamente 1 tx por sub (ese día del mes que vos definiste).
       const occurred = new Date(today.getFullYear(), today.getMonth(), sub.day_of_month, 12, 0, 0);
       const occurredIso = occurred.toISOString();
 
