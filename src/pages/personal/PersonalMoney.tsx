@@ -331,6 +331,18 @@ export const PersonalMoney: React.FC = () => {
             {/* Account stack (sólo cuentas gastables) */}
             <AccountStack accounts={spendableAccounts} activeIndex={activeAccountIdx} onActiveChange={setActiveAccountIdx} onSelect={() => navigate('/admin/personal/accounts')} />
 
+            {/* Plan del mes — link a forecast */}
+            <button
+              type="button"
+              onClick={() => navigate('/admin/personal/forecast')}
+              className="mt-4 w-full px-4 py-3 rounded-2xl bg-[var(--color-cream-200)] hover:bg-[var(--color-cream-300)] text-[var(--color-ink)] text-sm font-medium flex items-center justify-between transition-colors active:scale-[0.99]"
+            >
+              <span className="flex items-center gap-2">
+                📊 Plan del mes
+              </span>
+              <span className="text-xs text-[var(--color-ink-muted)]">¿cuánto puedo gastar libre?</span>
+            </button>
+
             {/* Tarjetas */}
             <div className="flex items-center justify-between mt-6 mb-2 px-1">
               <h3 className="font-serif text-xl text-[var(--color-ink)]">Tarjetas</h3>

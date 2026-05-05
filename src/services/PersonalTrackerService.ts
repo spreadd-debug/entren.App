@@ -764,6 +764,17 @@ export const PersonalCreditCardsService = {
 // ── Card statements ──────────────────────────────────────────────────────────
 
 export const PersonalCardStatementsService = {
+  async listForProfile(profileId: string, limit = 60): Promise<PersonalCardStatement[]> {
+    const { data, error } = await supabase
+      .from('personal_card_statements')
+      .select('*')
+      .eq('profile_id', profileId)
+      .order('due_date', { ascending: true })
+      .limit(limit);
+    if (error) throw error;
+    return (data ?? []) as PersonalCardStatement[];
+  },
+
   async listByCard(cardId: string, limit = 24): Promise<PersonalCardStatement[]> {
     const { data, error } = await supabase
       .from('personal_card_statements')
