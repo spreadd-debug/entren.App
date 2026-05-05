@@ -15,6 +15,7 @@ interface AccountForm {
   initial_balance: string;
   color_a: string;
   color_b: string;
+  is_savings: boolean;
 }
 
 const EMPTY: AccountForm = {
@@ -24,6 +25,7 @@ const EMPTY: AccountForm = {
   initial_balance: '',
   color_a: '',
   color_b: '',
+  is_savings: false,
 };
 
 const PRESETS: { name: string; color_a: string; color_b: string }[] = [
@@ -74,6 +76,7 @@ export const PersonalAccounts: React.FC = () => {
       initial_balance: String(a.current_balance ?? ''),
       color_a: a.color_a ?? '',
       color_b: a.color_b ?? '',
+      is_savings: !!a.is_savings,
     });
     setFormOpen(true);
   };
@@ -89,6 +92,7 @@ export const PersonalAccounts: React.FC = () => {
           currency: form.currency,
           color_a: form.color_a || null,
           color_b: form.color_b || null,
+          is_savings: form.is_savings,
         });
       } else {
         await PersonalAccountsService.create({
@@ -99,6 +103,7 @@ export const PersonalAccounts: React.FC = () => {
           current_balance: form.initial_balance ? Number(form.initial_balance) : 0,
           color_a: form.color_a || null,
           color_b: form.color_b || null,
+          is_savings: form.is_savings,
         });
       }
       setForm(EMPTY);
@@ -117,7 +122,8 @@ export const PersonalAccounts: React.FC = () => {
     refresh();
   };
 
-  const active = accounts.filter(a => !a.archived);
+  const active = accounts.filter(a => !a.archived && !a.is_savings);
+  const savings = accounts.filter(a => !a.archived && a.is_savings);
   const archived = accounts.filter(a => a.archived);
 
   return (
@@ -157,6 +163,27 @@ export const PersonalAccounts: React.FC = () => {
               </div>
             ))}
           </div>
+        )}
+
+        {!loading && savings.length > 0 && (
+          <>
+            <h3 className="text-xs uppercase tracking-wider text-[var(--color-ink-muted)] font-semibold mt-8 mb-2 px-1">Ahorros</h3>
+            <p className="text-[11px] text-[var(--color-ink-muted)] px-1 mb-2">No suman al balance gastable.</p>
+            <div className="space-y-3">
+              {savings.map(a => (
+                <div key={a.id} className="space-y-1.5">
+                  <AccountCard account={a} variant="compact" onClick={() => openEdit(a)} />
+                  <button
+                    type="button"
+                    onClick={() => handleArchive(a)}
+                    className="text-[10px] uppercase tracking-wider text-[var(--color-ink-muted)] hover:text-rose-600 ml-1"
+                  >
+                    Archivar
+                  </button>
+                </div>
+              ))}
+            </div>
+          </>
         )}
 
         {archived.length > 0 && (
@@ -242,6 +269,23 @@ export const PersonalAccounts: React.FC = () => {
               </div>
             </div>
           )}
+
+          <div className="rounded-2xl bg-white border border-[var(--color-ink)]/10 p-3.5">
+            <label className="flex items-center justify-between gap-3 cursor-pointer">
+              <div>
+                <p className="text-sm font-medium text-[var(--color-ink)]">Es ahorro</p>
+                <p className="text-[11px] text-[var(--color-ink-muted)] mt-0.5">
+                  Las cuentas de ahorro NO suman en el balance gastable. Aparecen aparte como "Ahorros" para ver patrimonio total.
+                </p>
+              </div>
+              <input
+                type="checkbox"
+                checked={form.is_savings}
+                onChange={e => setForm({ ...form, is_savings: e.target.checked })}
+                className="w-5 h-5 accent-[var(--color-ink)]"
+              />
+            </label>
+          </div>
 
           <div>
             <label className="text-xs uppercase tracking-wider text-[var(--color-ink-muted)] font-semibold">Gradient</label>

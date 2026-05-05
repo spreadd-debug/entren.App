@@ -1003,6 +1003,9 @@ export interface PersonalAccount {
   icon: string | null;
   archived: boolean;
   sort_order: number;
+  // Si es ahorro (USD billete guardado, etc.) NO suma en el balance gastable
+  // del Dashboard / Money. Se lista aparte como "Ahorros" para ver patrimonio.
+  is_savings: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -1017,6 +1020,7 @@ export interface PersonalAccountInput {
   color_b?: string | null;
   icon?: string | null;
   sort_order?: number;
+  is_savings?: boolean;
 }
 
 export interface PersonalCategory {

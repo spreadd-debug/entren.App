@@ -4,6 +4,7 @@ import { Plus, ArrowDownLeft, ArrowUpRight, ArrowRightLeft, Wallet, Trash2, Tag,
 import { BarChart, Bar, ResponsiveContainer, Cell, Tooltip } from 'recharts';
 import { MobileHeader, Card, Fab, PillChip } from '../../components/personal/ui';
 import { AccountStack } from '../../components/personal/money/AccountStack';
+import { AccountCard } from '../../components/personal/money/AccountCard';
 import { CreditCardVisual } from '../../components/personal/money/CreditCardVisual';
 import { TransactionWizard, WizardKind, WizardResult } from '../../components/personal/money/TransactionWizard';
 import { usePersonalProfile } from '../../hooks/usePersonalProfile';
@@ -101,15 +102,22 @@ export const PersonalMoney: React.FC = () => {
     return fxRates.find(r => r.name === preferred)?.sell ?? null;
   }, [fxRates, profile?.preferred_fx_name]);
 
-  // Total combinado en ARS sumando todas las cuentas convertidas.
-  const totalArs = useMemo(() => {
-    return accounts.reduce((sum, a) => {
-      const bal = Number(a.current_balance) || 0;
-      if (a.currency === 'ARS') return sum + bal;
-      if (fxRate && a.currency === 'USD') return sum + bal * fxRate;
-      return sum; // si no podemos convertir, no la sumamos al total
-    }, 0);
-  }, [accounts, fxRate]);
+  // Cuentas gastables (las que afectan el balance principal) vs ahorros
+  // (intocables: USD billete, etc.). El stack arriba muestra solo gastables
+  // — los ahorros van en una sección aparte abajo.
+  const spendableAccounts = useMemo(() => accounts.filter(a => !a.is_savings), [accounts]);
+  const savingsAccounts   = useMemo(() => accounts.filter(a => a.is_savings),  [accounts]);
+
+  const sumInArs = (list: typeof accounts) => list.reduce((sum, a) => {
+    const bal = Number(a.current_balance) || 0;
+    if (a.currency === 'ARS') return sum + bal;
+    if (fxRate && a.currency === 'USD') return sum + bal * fxRate;
+    return sum;
+  }, 0);
+
+  // Total "gastable": el que importa para saber si te estás yendo de gasto.
+  const totalArs = useMemo(() => sumInArs(spendableAccounts), [spendableAccounts, fxRate]);
+  const savingsArs = useMemo(() => sumInArs(savingsAccounts), [savingsAccounts, fxRate]);
 
   // Chart de últimos 6 meses (en ARS, convertido)
   const monthlyChart = useMemo(() => {
@@ -268,10 +276,10 @@ export const PersonalMoney: React.FC = () => {
 
         {!loading && accounts.length > 0 && (
           <>
-            {/* Hero: total combinado */}
+            {/* Hero: total combinado (gastable, sin ahorros) */}
             <div className="mt-2 mb-4 px-1">
               <p className="text-[11px] uppercase tracking-wider text-[var(--color-ink-muted)] font-semibold">
-                Total · convertido a ARS ({profile?.preferred_fx_name ?? 'blue'}
+                Disponible · ARS ({profile?.preferred_fx_name ?? 'blue'}
                 {fxRate ? ` · $${fxRate.toLocaleString('es-AR')}` : ''})
               </p>
               <p className="font-serif text-[3rem] leading-none text-[var(--color-ink)] mt-1">
@@ -286,10 +294,15 @@ export const PersonalMoney: React.FC = () => {
                 </span>
                 <span className="opacity-60">este mes</span>
               </div>
+              {savingsAccounts.length > 0 && (
+                <p className="text-[11px] text-[var(--color-ink-muted)] mt-1.5">
+                  + <span className="font-semibold text-[var(--color-ink)]">${fmtAmount(savingsArs)}</span> en ahorros (no se cuentan acá)
+                </p>
+              )}
             </div>
 
-            {/* Account stack */}
-            <AccountStack accounts={accounts} activeIndex={activeAccountIdx} onActiveChange={setActiveAccountIdx} onSelect={() => navigate('/admin/personal/accounts')} />
+            {/* Account stack (sólo cuentas gastables) */}
+            <AccountStack accounts={spendableAccounts} activeIndex={activeAccountIdx} onActiveChange={setActiveAccountIdx} onSelect={() => navigate('/admin/personal/accounts')} />
 
             {/* Tarjetas */}
             <div className="flex items-center justify-between mt-6 mb-2 px-1">
@@ -321,6 +334,27 @@ export const PersonalMoney: React.FC = () => {
                   </div>
                 ))}
               </div>
+            )}
+
+            {/* Ahorros — sólo aparece si hay alguna marcada como ahorro */}
+            {savingsAccounts.length > 0 && (
+              <>
+                <div className="flex items-center justify-between mt-6 mb-2 px-1">
+                  <h3 className="font-serif text-xl text-[var(--color-ink)]">Ahorros</h3>
+                  <span className="text-xs text-[var(--color-ink-muted)]">no afecta el balance</span>
+                </div>
+                <div className="space-y-2">
+                  {savingsAccounts.map(a => (
+                    <div
+                      key={a.id}
+                      onClick={() => navigate('/admin/personal/accounts')}
+                      className="cursor-pointer active:scale-[0.99] transition-transform"
+                    >
+                      <AccountCard account={a} variant="compact" />
+                    </div>
+                  ))}
+                </div>
+              </>
             )}
 
             {/* Quick actions */}

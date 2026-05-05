@@ -141,8 +141,11 @@ export const PersonalDashboard: React.FC<Props> = ({ onLogout }) => {
     [todayMeals],
   );
 
+  // Total "gastable" — excluye cuentas marcadas como ahorro (USD billete
+  // guardado, etc.). Lo que ves acá es lo que tenés disponible para usar
+  // sin tocar el patrimonio.
   const totalArs = useMemo(() => {
-    return accounts.reduce((sum, a) => {
+    return accounts.filter(a => !a.is_savings).reduce((sum, a) => {
       const bal = Number(a.current_balance) || 0;
       if (a.currency === 'ARS') return sum + bal;
       if (fxRate && a.currency === 'USD') return sum + bal * fxRate;
