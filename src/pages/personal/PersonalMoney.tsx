@@ -4,7 +4,8 @@ import { Plus, ArrowDownLeft, ArrowUpRight, ArrowRightLeft, Wallet, Trash2, Tag,
 import { BarChart, Bar, ResponsiveContainer, Cell, Tooltip } from 'recharts';
 import { MobileHeader, Card, Fab, PillChip } from '../../components/personal/ui';
 import { AccountStack } from '../../components/personal/money/AccountStack';
-import { AccountCard } from '../../components/personal/money/AccountCard';
+import { HideBalanceToggle } from '../../components/personal/money/HideBalanceToggle';
+import { useHideBalances } from '../../hooks/useHideBalances';
 import { CreditCardVisual } from '../../components/personal/money/CreditCardVisual';
 import { TransactionWizard, WizardKind, WizardResult } from '../../components/personal/money/TransactionWizard';
 import { usePersonalProfile } from '../../hooks/usePersonalProfile';
@@ -42,6 +43,7 @@ export const PersonalMoney: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { profile } = usePersonalProfile();
+  const { mask } = useHideBalances();
 
   // SWR via localStorage: data instantánea de la última visita, refetch en background.
   const [accounts, setAccounts, accountsCached] = usePersistentState<PersonalAccount[]>('v1:money:accounts', []);
@@ -244,14 +246,17 @@ export const PersonalMoney: React.FC = () => {
         large
         onBack={() => navigate(-1)}
         rightSlot={
-          <button
-            type="button"
-            onClick={() => navigate('/admin/personal/accounts')}
-            className="px-3 h-9 rounded-full bg-white/60 hover:bg-white text-[var(--color-ink)] text-xs font-medium flex items-center gap-1.5"
-          >
-            <Wallet size={14} />
-            Cuentas
-          </button>
+          <div className="flex items-center gap-1">
+            <HideBalanceToggle />
+            <button
+              type="button"
+              onClick={() => navigate('/admin/personal/accounts')}
+              className="px-3 h-9 rounded-full bg-white/60 hover:bg-white text-[var(--color-ink)] text-xs font-medium flex items-center gap-1.5"
+            >
+              <Wallet size={14} />
+              Cuentas
+            </button>
+          </div>
         }
       />
 
@@ -283,21 +288,25 @@ export const PersonalMoney: React.FC = () => {
                 {fxRate ? ` · $${fxRate.toLocaleString('es-AR')}` : ''})
               </p>
               <p className="font-serif text-[3rem] leading-none text-[var(--color-ink)] mt-1">
-                ${fmtAmount(totalArs)}
+                ${mask(fmtAmount(totalArs))}
               </p>
               <div className="flex items-center gap-3 mt-2 text-xs text-[var(--color-ink-muted)]">
                 <span className="flex items-center gap-1">
-                  <ArrowDownLeft size={12} className="text-emerald-600" /> +{fmtAmount(monthEarning)}
+                  <ArrowDownLeft size={12} className="text-emerald-600" /> +{mask(fmtAmount(monthEarning))}
                 </span>
                 <span className="flex items-center gap-1">
-                  <ArrowUpRight size={12} className="text-rose-600" /> -{fmtAmount(monthSpending)}
+                  <ArrowUpRight size={12} className="text-rose-600" /> -{mask(fmtAmount(monthSpending))}
                 </span>
                 <span className="opacity-60">este mes</span>
               </div>
               {savingsAccounts.length > 0 && (
-                <p className="text-[11px] text-[var(--color-ink-muted)] mt-1.5">
-                  + <span className="font-semibold text-[var(--color-ink)]">${fmtAmount(savingsArs)}</span> en ahorros (no se cuentan acá)
-                </p>
+                <button
+                  type="button"
+                  onClick={() => navigate('/admin/personal/accounts')}
+                  className="text-[11px] text-[var(--color-ink-muted)] mt-1.5 underline-offset-2 hover:underline"
+                >
+                  + ahorros (verlos en Cuentas)
+                </button>
               )}
             </div>
 
@@ -336,26 +345,6 @@ export const PersonalMoney: React.FC = () => {
               </div>
             )}
 
-            {/* Ahorros — sólo aparece si hay alguna marcada como ahorro */}
-            {savingsAccounts.length > 0 && (
-              <>
-                <div className="flex items-center justify-between mt-6 mb-2 px-1">
-                  <h3 className="font-serif text-xl text-[var(--color-ink)]">Ahorros</h3>
-                  <span className="text-xs text-[var(--color-ink-muted)]">no afecta el balance</span>
-                </div>
-                <div className="space-y-2">
-                  {savingsAccounts.map(a => (
-                    <div
-                      key={a.id}
-                      onClick={() => navigate('/admin/personal/accounts')}
-                      className="cursor-pointer active:scale-[0.99] transition-transform"
-                    >
-                      <AccountCard account={a} variant="compact" />
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
 
             {/* Quick actions */}
             <div className="grid grid-cols-3 gap-2 mt-5">

@@ -2,8 +2,10 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronRight, Activity, Apple, Wallet, HeartPulse, Moon, Battery, Settings, LogOut, Sparkles } from 'lucide-react';
 import { MobileHeader, GradientBlob, Card, Fab, BottomSheet } from '../../components/personal/ui';
+import { HideBalanceToggle } from '../../components/personal/money/HideBalanceToggle';
 import { usePersonalProfile } from '../../hooks/usePersonalProfile';
 import { usePersistentState } from '../../hooks/usePersistentState';
+import { useHideBalances } from '../../hooks/useHideBalances';
 import {
   PersonalActivitiesService,
   PersonalMealsService,
@@ -62,6 +64,7 @@ function sleepRelativeLabel(sleepDateIso: string): string {
 export const PersonalDashboard: React.FC<Props> = ({ onLogout }) => {
   const navigate = useNavigate();
   const { profile, loading: profileLoading } = usePersonalProfile();
+  const { mask } = useHideBalances();
   // Stale-while-revalidate: cada estado se hidrata con la última data cacheada
   // en localStorage (render instantáneo) y se refresca silenciosamente abajo.
   const [activitiesWeek, setActivitiesWeek] = usePersistentState<PersonalActivity[]>('v1:dash:activitiesWeek', []);
@@ -177,6 +180,7 @@ export const PersonalDashboard: React.FC<Props> = ({ onLogout }) => {
         title=""
         rightSlot={
           <div className="flex items-center gap-1">
+            <HideBalanceToggle />
             <button
               type="button"
               onClick={() => navigate('settings')}
@@ -285,7 +289,7 @@ export const PersonalDashboard: React.FC<Props> = ({ onLogout }) => {
                   {accounts.length > 0 ? (
                     <>
                       <span className="text-xs text-[var(--color-ink-muted)]">$</span>
-                      <span className="font-serif text-3xl text-[var(--color-ink)]">{Math.round(totalArs).toLocaleString('es-AR')}</span>
+                      <span className="font-serif text-3xl text-[var(--color-ink)]">{mask(Math.round(totalArs).toLocaleString('es-AR'))}</span>
                     </>
                   ) : (
                     <span className="text-sm text-[var(--color-ink-muted)] italic">Creá tu primera cuenta</span>
@@ -293,7 +297,7 @@ export const PersonalDashboard: React.FC<Props> = ({ onLogout }) => {
                 </div>
                 {accounts.length > 0 && monthSpending > 0 && (
                   <p className="text-[11px] text-[var(--color-ink-muted)] mt-1.5">
-                    Gastaste <span className="font-semibold text-[var(--color-ink)]">${Math.round(monthSpending).toLocaleString('es-AR')}</span> este mes
+                    Gastaste <span className="font-semibold text-[var(--color-ink)]">${mask(Math.round(monthSpending).toLocaleString('es-AR'))}</span> este mes
                     {prevMonthSpending > 0 && (
                       <span className={spendingDelta >= 0 ? 'text-rose-600 ml-1' : 'text-emerald-600 ml-1'}>
                         ({spendingDelta >= 0 ? '+' : ''}{Math.round((spendingDelta / prevMonthSpending) * 100)}% vs mes anterior)

@@ -3,6 +3,9 @@ import { Wallet, Banknote, Landmark, TrendingUp, CircleDollarSign } from 'lucide
 import { PersonalAccount } from '../../../../shared/types';
 import { accountGradient, gradientCss } from './accountGradient';
 import { ACCOUNT_KIND_LABELS } from './accountKindLabels';
+import { LeatherWalletCard } from './LeatherWalletCard';
+import { TicketCard } from './TicketCard';
+import { useHideBalances } from '../../../hooks/useHideBalances';
 
 interface Props {
   account: PersonalAccount;
@@ -31,10 +34,22 @@ function fmt(n: number): string {
 }
 
 export const AccountCard: React.FC<Props> = ({ account, onClick, variant = 'hero', className = '' }) => {
+  // Hooks SIEMPRE al tope — el dispatch va después.
+  const { mask } = useHideBalances();
   const grad = accountGradient(account);
   const Icon = KIND_ICONS[account.kind] ?? CircleDollarSign;
   const currencySymbol = CURRENCY_LABELS[account.currency] ?? account.currency;
   const balance = Number(account.current_balance) || 0;
+
+  // Dispatch skeuomorphic por kind: cash → billetera de cuero,
+  // wallet → ticket digital. Las otras (bank/investment/other) caen al
+  // diseño gradient genérico de abajo (queda igual que antes).
+  if (account.kind === 'cash' && variant !== 'mini') {
+    return <LeatherWalletCard account={account} variant={variant} onClick={onClick} className={className} />;
+  }
+  if (account.kind === 'wallet' && variant !== 'mini') {
+    return <TicketCard account={account} variant={variant} onClick={onClick} className={className} />;
+  }
 
   if (variant === 'mini') {
     return (
@@ -49,7 +64,7 @@ export const AccountCard: React.FC<Props> = ({ account, onClick, variant = 'hero
           <p className="text-[10px] uppercase tracking-wider opacity-80">{account.name}</p>
           <p className="text-sm font-semibold whitespace-nowrap">
             <span className="opacity-70 mr-0.5 text-[11px]">{account.currency}</span>
-            {fmt(balance)}
+            {mask(fmt(balance))}
           </p>
         </div>
       </button>
@@ -72,7 +87,7 @@ export const AccountCard: React.FC<Props> = ({ account, onClick, variant = 'hero
             <p className="text-[11px] uppercase tracking-wider opacity-80 truncate">{account.name}</p>
             <p className="font-serif text-2xl leading-none mt-0.5 truncate">
               <span className="opacity-70 text-base mr-1">{currencySymbol}</span>
-              {fmt(balance)}
+              {mask(fmt(balance))}
             </p>
           </div>
         </div>
@@ -110,7 +125,7 @@ export const AccountCard: React.FC<Props> = ({ account, onClick, variant = 'hero
           <p className="text-xs uppercase tracking-wider opacity-80 truncate">{account.name}</p>
           <p className="font-serif text-4xl leading-none mt-1.5 break-words">
             <span className="opacity-70 text-base mr-1">{currencySymbol}</span>
-            {fmt(balance)}
+            {mask(fmt(balance))}
           </p>
         </div>
       </div>
