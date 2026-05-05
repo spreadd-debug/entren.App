@@ -27,7 +27,8 @@ export const PersonalSettings: React.FC = () => {
   const [garminStatus, setGarminStatus] = useState<GarminStatus | null>(null);
   const [garminLoading, setGarminLoading] = useState(false);
   const [garminForm, setGarminForm] = useState({ email: '', password: '' });
-  const [garminBusy, setGarminBusy] = useState<'connect' | 'sync' | 'disconnect' | null>(null);
+  const [garminBusy, setGarminBusy] = useState<'connect' | 'sync' | 'backfill' | 'disconnect' | null>(null);
+  const [backfillDays, setBackfillDays] = useState<number>(90);
   const [garminError, setGarminError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -101,6 +102,22 @@ export const PersonalSettings: React.FC = () => {
       await refreshGarminStatus();
     } catch (err: any) {
       setGarminError(err?.message ?? 'Sync falló');
+    } finally {
+      setGarminBusy(null);
+    }
+  };
+
+  const handleGarminBackfill = async () => {
+    if (!profile) return;
+    if (!confirm(`Importar ${backfillDays} días de actividades, sueño y métricas. Puede tardar 2-3 minutos. ¿Continuar?`)) return;
+    setGarminBusy('backfill');
+    setGarminError(null);
+    try {
+      const result = await api.garmin.backfill(profile.id, backfillDays);
+      await refreshGarminStatus();
+      alert(`Listo: ${result.activities} actividades, ${result.days_synced} días de sleep/métricas.`);
+    } catch (err: any) {
+      setGarminError(err?.message ?? 'Backfill falló');
     } finally {
       setGarminBusy(null);
     }
@@ -198,6 +215,48 @@ export const PersonalSettings: React.FC = () => {
                   <Trash2 size={13} />
                   Desconectar
                 </button>
+              </div>
+
+              {/* Backfill profundo: trae histórico viejo que el sync diario no
+                  alcanza. El daily sync sólo trae los últimos 2 días. */}
+              <div className="mt-3 pt-3 border-t border-[var(--color-ink)]/8">
+                <p className="text-xs text-[var(--color-ink-muted)] mb-2">
+                  Importar historial: trae actividades + sueño + métricas viejas que no sincronizaron al conectar.
+                </p>
+                <div className="flex gap-2">
+                  <select
+                    value={backfillDays}
+                    onChange={e => setBackfillDays(Number(e.target.value))}
+                    disabled={garminBusy !== null}
+                    className="flex-1 px-3 py-2 rounded-full bg-white border border-[var(--color-ink)]/15 text-[var(--color-ink)] text-sm disabled:opacity-50"
+                  >
+                    <option value={30}>30 días</option>
+                    <option value={60}>60 días</option>
+                    <option value={90}>90 días</option>
+                    <option value={180}>180 días</option>
+                    <option value={365}>1 año</option>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={handleGarminBackfill}
+                    disabled={garminBusy !== null}
+                    className="px-4 py-2 rounded-full bg-[var(--color-cream-200)] text-[var(--color-ink)] text-sm font-medium flex items-center gap-1.5 disabled:opacity-50"
+                  >
+                    {garminBusy === 'backfill' ? (
+                      <>
+                        <RefreshCw size={13} className="animate-spin" />
+                        Importando…
+                      </>
+                    ) : (
+                      'Importar'
+                    )}
+                  </button>
+                </div>
+                {garminBusy === 'backfill' && (
+                  <p className="text-[11px] text-[var(--color-ink-muted)] mt-2 italic">
+                    Esto puede tardar varios minutos. No cierres la app.
+                  </p>
+                )}
               </div>
             </div>
           )}

@@ -704,6 +704,20 @@ export const api = {
       });
     },
 
+    // Backfill profundo: trae N días de actividades + sleep + daily metrics.
+    // Long-running — 90 días pueden tardar 2-3 min porque es 1 request por día.
+    async backfill(profileId: string, days: number): Promise<{
+      ok: true;
+      activities: number;
+      days_synced: number;
+    }> {
+      return fetchJson(`${API_BASE}/garmin/backfill/${profileId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ days }),
+      });
+    },
+
     // Auto-sync silencioso: si la última sincronización es vieja, dispara una nueva
     // en background. Devuelve true si la disparó. La UI puede usar el flag para
     // refrescar la data después de N segundos. Falla en silencio.

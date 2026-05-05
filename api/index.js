@@ -33284,11 +33284,24 @@ function toIsoDateLocal(d) {
 async function syncActivities(profileId, days = 30) {
   const client = await getClient(profileId);
   const since = Date.now() - days * 24 * 60 * 60 * 1e3;
-  const all = await client.getActivities(0, 100);
-  const filtered = (all || []).filter((a) => {
-    const t = a.beginTimestamp ?? Date.parse(a.startTimeLocal ?? "");
-    return t && t >= since;
-  });
+  const PAGE = 100;
+  const MAX_PAGES = 10;
+  const filtered = [];
+  let stop = false;
+  for (let page = 0; page < MAX_PAGES && !stop; page++) {
+    const batch = await client.getActivities(page * PAGE, PAGE);
+    if (!batch || batch.length === 0) break;
+    for (const a of batch) {
+      const t = a.beginTimestamp ?? Date.parse(a.startTimeLocal ?? "");
+      if (!t) continue;
+      if (t < since) {
+        stop = true;
+        break;
+      }
+      filtered.push(a);
+    }
+    if (batch.length < PAGE) break;
+  }
   let imported = 0;
   for (const a of filtered) {
     const sportType = mapGarminSportType(a.activityType?.typeKey ?? "");
@@ -33460,6 +33473,32 @@ var GarminService = {
   // Sync inicial al conectar — más histórico (30 días).
   async initialBackfill(profileId) {
     return this.syncRecent(profileId, 14);
+  },
+  // Backfill profundo on-demand: trae N días de actividades + sleep + daily metrics.
+  // Pensado para que el usuario pueda recuperar histórico viejo desde Settings.
+  // Sleep/daily metrics son requests por día, así que en N=180 son ~360 requests
+  // (sleep + daily). Garmin suele aguantarlo, pero le ponemos un sleep entre
+  // requests para no abusar y un cap de 365.
+  async backfillHistory(profileId, days) {
+    const cappedDays = Math.max(1, Math.min(365, Math.floor(days)));
+    const activities = await syncActivities(profileId, cappedDays);
+    const today = /* @__PURE__ */ new Date();
+    let daysSynced = 0;
+    for (let i = 0; i < cappedDays; i++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      const iso = toIsoDateLocal(d);
+      try {
+        await syncSleep(profileId, iso);
+        await syncDailyMetrics(profileId, iso);
+        daysSynced += 1;
+      } catch (err) {
+        console.error("[garmin] backfill daily failed for", iso, err);
+      }
+      await new Promise((r) => setTimeout(r, 80));
+    }
+    await supabase.from("garmin_connections").update({ last_sync_at: (/* @__PURE__ */ new Date()).toISOString(), last_sync_error: null }).eq("profile_id", profileId);
+    return { activities, days_synced: daysSynced };
   },
   // Para el cron diario.
   async backfillRecentForAllConnections() {
@@ -35262,6 +35301,16 @@ router15.post("/sync/:profileId", async (req, res) => {
   } catch (err) {
     console.error("[garmin] sync failed", err);
     res.status(500).json({ error: err?.message ?? "sync_failed" });
+  }
+});
+router15.post("/backfill/:profileId", async (req, res) => {
+  try {
+    const days = Number(req.body?.days) || 90;
+    const result = await GarminService.backfillHistory(req.params.profileId, days);
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    console.error("[garmin] backfill failed", err);
+    res.status(500).json({ error: err?.message ?? "backfill_failed" });
   }
 });
 var garmin_default = router15;

@@ -75,15 +75,31 @@ function toIsoDateLocal(d: Date): string {
 
 async function syncActivities(profileId: string, days = 30): Promise<number> {
   const client = await getClient(profileId);
-  // getActivities usa offset (no fecha). Pedimos hasta 100 actividades recientes
-  // y filtramos por timestamp local. Para 'days' bajos esto es más que suficiente;
-  // si el usuario hace muchísimas actividades por día, ajustar el limit.
+  // getActivities(offset, limit) usa offset, no fecha — paginamos en chunks de
+  // 100 hasta que las actividades recibidas son anteriores a `since`. Sin esto,
+  // un solo fetch de 100 puede no alcanzar para 90 días si entrenás todos los
+  // días (90 días * 1.5 actividades = 135).
   const since = Date.now() - days * 24 * 60 * 60 * 1000;
-  const all = await client.getActivities(0, 100);
-  const filtered = (all || []).filter((a: any) => {
-    const t = a.beginTimestamp ?? Date.parse(a.startTimeLocal ?? '');
-    return t && t >= since;
-  });
+  const PAGE = 100;
+  const MAX_PAGES = 10; // hard ceiling — cubre ~1000 actividades, más que un año normal
+  const filtered: any[] = [];
+  let stop = false;
+  for (let page = 0; page < MAX_PAGES && !stop; page++) {
+    const batch = await client.getActivities(page * PAGE, PAGE);
+    if (!batch || batch.length === 0) break;
+    for (const a of batch) {
+      const t = a.beginTimestamp ?? Date.parse(a.startTimeLocal ?? '');
+      if (!t) continue;
+      if (t < since) {
+        // Las activities vienen ordenadas desc — al ver una más vieja que since,
+        // ya no hay nada útil más adelante.
+        stop = true;
+        break;
+      }
+      filtered.push(a);
+    }
+    if (batch.length < PAGE) break; // no hay más páginas
+  }
 
   let imported = 0;
   for (const a of filtered) {
@@ -297,6 +313,43 @@ export const GarminService = {
   // Sync inicial al conectar — más histórico (30 días).
   async initialBackfill(profileId: string): Promise<{ activities: number; days_synced: number }> {
     return this.syncRecent(profileId, 14);
+  },
+
+  // Backfill profundo on-demand: trae N días de actividades + sleep + daily metrics.
+  // Pensado para que el usuario pueda recuperar histórico viejo desde Settings.
+  // Sleep/daily metrics son requests por día, así que en N=180 son ~360 requests
+  // (sleep + daily). Garmin suele aguantarlo, pero le ponemos un sleep entre
+  // requests para no abusar y un cap de 365.
+  async backfillHistory(profileId: string, days: number): Promise<{ activities: number; days_synced: number }> {
+    const cappedDays = Math.max(1, Math.min(365, Math.floor(days)));
+
+    // 1. Activities en una sola tirada (con paginación interna en syncActivities).
+    const activities = await syncActivities(profileId, cappedDays);
+
+    // 2. Sleep + daily metrics día por día. Tarda — para 90 días, ~3 minutos.
+    const today = new Date();
+    let daysSynced = 0;
+    for (let i = 0; i < cappedDays; i++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      const iso = toIsoDateLocal(d);
+      try {
+        await syncSleep(profileId, iso);
+        await syncDailyMetrics(profileId, iso);
+        daysSynced += 1;
+      } catch (err) {
+        console.error('[garmin] backfill daily failed for', iso, err);
+      }
+      // pausa cortita para no saturar Garmin
+      await new Promise(r => setTimeout(r, 80));
+    }
+
+    await supabase
+      .from('garmin_connections')
+      .update({ last_sync_at: new Date().toISOString(), last_sync_error: null })
+      .eq('profile_id', profileId);
+
+    return { activities, days_synced: daysSynced };
   },
 
   // Para el cron diario.

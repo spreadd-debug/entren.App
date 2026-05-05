@@ -58,4 +58,18 @@ router.post('/sync/:profileId', async (req, res) => {
   }
 });
 
+// POST /api/garmin/backfill/:profileId
+// Backfill profundo on-demand. Body: { days: number } (cap a 365).
+// Long-running — 90 días pueden tardar ~3 min.
+router.post('/backfill/:profileId', async (req, res) => {
+  try {
+    const days = Number(req.body?.days) || 90;
+    const result = await GarminService.backfillHistory(req.params.profileId, days);
+    res.json({ ok: true, ...result });
+  } catch (err: any) {
+    console.error('[garmin] backfill failed', err);
+    res.status(500).json({ error: err?.message ?? 'backfill_failed' });
+  }
+});
+
 export default router;
