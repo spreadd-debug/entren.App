@@ -393,7 +393,6 @@ const Step1Amount: React.FC<{ state: State; setState: (s: State) => void; active
           value={state.amount}
           onChange={v => setState({ ...state, amount: v })}
           size="xl"
-          autoFocus
           inputClassName="px-0"
         />
       </div>

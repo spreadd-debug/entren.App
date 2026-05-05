@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface Props {
@@ -17,6 +17,12 @@ export const BottomSheet: React.FC<Props> = ({
   children,
   dismissOnBackdrop = true,
 }) => {
+  // Offset del teclado virtual (iOS) — calculamos cuánto se "comió" la altura
+  // del visualViewport para levantar el bottom del sheet por encima del teclado.
+  // Sin esto, los CTAs (Guardar / Confirmar) quedan tapados por el teclado o
+  // el sheet entero scrollea con el parent y no se ve.
+  const [keyboardOffset, setKeyboardOffset] = useState(0);
+
   // Bloquear scroll del body cuando está abierto
   useEffect(() => {
     if (!open) return;
@@ -33,12 +39,36 @@ export const BottomSheet: React.FC<Props> = ({
     return () => window.removeEventListener('keydown', handler);
   }, [open, onClose]);
 
+  // Tracking del teclado virtual (iOS / Android) usando VisualViewport API.
+  // El sheet sólo se renderiza cuando open=true, así que el listener queda
+  // limpio al cerrarse.
+  useEffect(() => {
+    if (!open || typeof window === 'undefined') return;
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const update = () => {
+      const inset = window.innerHeight - vv.height - vv.offsetTop;
+      setKeyboardOffset(Math.max(0, inset));
+    };
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    update();
+    return () => {
+      vv.removeEventListener('resize', update);
+      vv.removeEventListener('scroll', update);
+      setKeyboardOffset(0);
+    };
+  }, [open]);
+
   return (
     <AnimatePresence>
       {open && (
         <>
           <motion.div
-            className="absolute inset-0 z-40 bg-black/40"
+            // fixed en mobile (queda anclado al viewport, no scrollea con el
+            // PersonalLayout cuando estás en mitad del feed), absolute en
+            // desktop (dentro del frame iPhone).
+            className="fixed md:absolute inset-0 z-40 bg-black/40"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -46,7 +76,12 @@ export const BottomSheet: React.FC<Props> = ({
             onClick={dismissOnBackdrop ? onClose : undefined}
           />
           <motion.div
-            className="absolute left-0 right-0 bottom-0 z-50 bg-[var(--color-cream-50)] rounded-t-[2rem] shadow-2xl flex flex-col max-h-[85%]"
+            className="fixed md:absolute left-0 right-0 z-50 mx-auto md:mx-0 max-w-[480px] md:max-w-none bg-[var(--color-cream-50)] rounded-t-[2rem] shadow-2xl flex flex-col"
+            // bottom dinámico: si hay teclado virtual, se levanta por encima.
+            // En desktop keyboardOffset es 0 → bottom: 0px (= bottom-0 visual).
+            // max-height: calc resta el teclado al 85dvh para que el sheet
+            // nunca extienda arriba del viewport cuando hay teclado abierto.
+            style={{ bottom: keyboardOffset, maxHeight: `calc(85dvh - ${keyboardOffset}px)` }}
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
