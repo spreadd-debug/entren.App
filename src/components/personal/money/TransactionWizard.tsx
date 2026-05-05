@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, ArrowUpRight, ArrowDownLeft, ArrowRightLeft,
 import { MoneyInput, PillChip } from '../ui';
 import { AccountCard } from './AccountCard';
 import { CreditCardVisual } from './CreditCardVisual';
+import { resolveCategoryIcon } from './categoryIcons';
 import {
   PersonalAccount,
   PersonalCategory,
@@ -719,16 +720,36 @@ const Step3Details: React.FC<{ state: State; setState: (s: State) => void; categ
       {state.kind !== 'transfer' && categories.length > 0 && (
         <div>
           <p className="text-xs uppercase tracking-wider text-[var(--color-ink-muted)] font-semibold">Categoría</p>
-          <div className="flex flex-wrap gap-1.5 mt-2">
-            {categories.map(c => (
-              <PillChip
-                key={c.id}
-                variant={state.category_id === c.id ? 'selected' : 'outline'}
-                onClick={() => setState({ ...state, category_id: state.category_id === c.id ? null : c.id })}
-              >
-                {c.name}
-              </PillChip>
-            ))}
+          <div className="grid grid-cols-4 gap-2 mt-2">
+            {categories.map(c => {
+              const Icon = resolveCategoryIcon(c.icon);
+              const selected = state.category_id === c.id;
+              const accent = c.color ?? '#64748B';
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setState({ ...state, category_id: selected ? null : c.id })}
+                  className={`flex flex-col items-center gap-1.5 py-2.5 px-1 rounded-2xl transition-all ${
+                    selected
+                      ? 'bg-[var(--color-ink)] text-white shadow-md'
+                      : 'bg-white text-[var(--color-ink)] border border-[var(--color-ink)]/8 hover:border-[var(--color-ink)]/20 active:scale-[0.97]'
+                  }`}
+                >
+                  <span
+                    className="w-9 h-9 rounded-2xl flex items-center justify-center"
+                    style={
+                      selected
+                        ? { background: 'rgba(255,255,255,0.15)', color: 'white' }
+                        : { background: accent + '22', color: accent }
+                    }
+                  >
+                    <Icon size={16} strokeWidth={1.85} />
+                  </span>
+                  <span className="text-[11px] font-medium leading-tight text-center">{c.name}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
       )}

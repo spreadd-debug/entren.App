@@ -14,6 +14,7 @@ import {
   PersonalCardSubscriptionsService,
   PersonalCategoriesService,
 } from '../../services/PersonalTrackerService';
+import { resolveCategoryIcon } from '../../components/personal/money/categoryIcons';
 import {
   PersonalCreditCard,
   PersonalCardStatement,
@@ -393,11 +394,18 @@ export const PersonalCardDetail: React.FC = () => {
                   </p>
                 )}
                 <div className="space-y-2">
-                  {stmtTxs.map(t => (
+                  {stmtTxs.map(t => {
+                    const cat = categories.find(c => c.id === t.category_id);
+                    const CatIcon = cat ? resolveCategoryIcon(cat.icon) : null;
+                    const accent = cat?.color ?? '#F43F5E';
+                    return (
                     <Card key={t.id} padding="sm">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
-                          <CreditCardIcon size={15} />
+                        <div
+                          className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0"
+                          style={{ background: accent + '22', color: accent }}
+                        >
+                          {CatIcon ? <CatIcon size={16} strokeWidth={1.85} /> : <CreditCardIcon size={15} />}
                         </div>
                         <div className="flex-1 min-w-0">
                           <h4 className="font-serif text-base text-[var(--color-ink)] leading-tight truncate">
@@ -420,7 +428,8 @@ export const PersonalCardDetail: React.FC = () => {
                         </button>
                       </div>
                     </Card>
-                  ))}
+                    );
+                  })}
                 </div>
               </>
             )}

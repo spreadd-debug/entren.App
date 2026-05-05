@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Plus, ArrowDownLeft, ArrowUpRight, ArrowRightLeft, Wallet, Trash2, Tag, CreditCard as CreditCardIcon } from 'lucide-react';
+import { Plus, ArrowDownLeft, ArrowUpRight, ArrowRightLeft, Wallet, Trash2, CreditCard as CreditCardIcon } from 'lucide-react';
 import { BarChart, Bar, ResponsiveContainer, Cell, Tooltip } from 'recharts';
 import { MobileHeader, Card, Fab, PillChip } from '../../components/personal/ui';
 import { AccountStack } from '../../components/personal/money/AccountStack';
 import { HideBalanceToggle } from '../../components/personal/money/HideBalanceToggle';
+import { resolveCategoryIcon } from '../../components/personal/money/categoryIcons';
 import { useHideBalances } from '../../hooks/useHideBalances';
 import { CreditCardVisual } from '../../components/personal/money/CreditCardVisual';
 import { TransactionWizard, WizardKind, WizardResult } from '../../components/personal/money/TransactionWizard';
@@ -432,10 +433,11 @@ export const PersonalMoney: React.FC = () => {
                 const isIn = t.kind === 'income' || t.kind === 'transfer_in';
                 const sign = isIn ? '+' : '−';
                 const color = t.kind === 'expense' ? '#F43F5E' : t.kind === 'income' ? '#10B981' : '#3B82F6';
-                const icon = card ? <CreditCardIcon size={14} /> :
-                  t.kind === 'expense' ? <ArrowUpRight size={14} /> :
-                  t.kind === 'income' ? <ArrowDownLeft size={14} /> :
-                  <ArrowRightLeft size={14} />;
+                const CatIcon = cat ? resolveCategoryIcon(cat.icon) : null;
+                const fallbackIcon = card ? <CreditCardIcon size={15} /> :
+                  t.kind === 'expense' ? <ArrowUpRight size={15} /> :
+                  t.kind === 'income' ? <ArrowDownLeft size={15} /> :
+                  <ArrowRightLeft size={15} />;
                 return (
                   <Card key={t.id} padding="sm">
                     <div className="flex items-center gap-3">
@@ -443,7 +445,7 @@ export const PersonalMoney: React.FC = () => {
                         className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0"
                         style={{ background: (cat?.color ?? color) + '22', color: cat?.color ?? color }}
                       >
-                        {cat ? <Tag size={15} /> : icon}
+                        {CatIcon ? <CatIcon size={16} strokeWidth={1.85} /> : fallbackIcon}
                       </div>
                       <div className="flex-1 min-w-0">
                         <h4 className="font-serif text-base text-[var(--color-ink)] leading-tight truncate">

@@ -252,20 +252,38 @@ export const PersonalAccountsService = {
 // ── Categories (Finance v2) ──────────────────────────────────────────────────
 
 const DEFAULT_EXPENSE_CATEGORIES = [
-  { name: 'Comida',     icon: 'UtensilsCrossed', color: '#F97316' },
-  { name: 'Transporte', icon: 'Car',             color: '#0EA5E9' },
-  { name: 'Hogar',      icon: 'Home',            color: '#84CC16' },
-  { name: 'Ocio',       icon: 'Sparkles',        color: '#A855F7' },
-  { name: 'Salud',      icon: 'HeartPulse',      color: '#EF4444' },
-  { name: 'Servicios',  icon: 'Plug',            color: '#06B6D4' },
-  { name: 'Otros',      icon: 'Tag',             color: '#64748B' },
+  { name: 'Comida',       icon: 'ShoppingBasket',  color: '#F97316' }, // groceries / supermercado
+  { name: 'Café',         icon: 'Coffee',          color: '#92400E' },
+  { name: 'Restaurante',  icon: 'UtensilsCrossed', color: '#DC2626' },
+  { name: 'Nafta',        icon: 'Fuel',            color: '#0EA5E9' },
+  { name: 'Auto',         icon: 'Car',             color: '#475569' }, // mantenimiento, peajes, lavado
+  { name: 'Transporte',   icon: 'Bus',             color: '#0891B2' }, // colectivo, taxi, uber
+  { name: 'Hogar',        icon: 'Home',            color: '#84CC16' },
+  { name: 'Servicios',    icon: 'Plug',            color: '#06B6D4' }, // luz, gas, agua
+  { name: 'Internet',     icon: 'Wifi',            color: '#3B82F6' },
+  { name: 'Ropa',         icon: 'Shirt',           color: '#EC4899' },
+  { name: 'Salud',        icon: 'HeartPulse',      color: '#EF4444' },
+  { name: 'Farmacia',     icon: 'Pill',            color: '#F43F5E' },
+  { name: 'Gimnasio',     icon: 'Dumbbell',        color: '#A855F7' },
+  { name: 'Ocio',         icon: 'Sparkles',        color: '#7C3AED' },
+  { name: 'Streaming',    icon: 'Film',            color: '#1F2937' },
+  { name: 'Tecnología',   icon: 'Smartphone',      color: '#6366F1' },
+  { name: 'Mascotas',     icon: 'PawPrint',        color: '#F59E0B' },
+  { name: 'Regalos',      icon: 'Gift',            color: '#FB923C' },
+  { name: 'Viajes',       icon: 'Plane',           color: '#0EA5E9' },
+  { name: 'Educación',    icon: 'GraduationCap',   color: '#10B981' },
+  { name: 'Impuestos',    icon: 'Receipt',         color: '#64748B' },
+  { name: 'Otros',        icon: 'Tag',             color: '#94A3B8' },
 ];
 
 const DEFAULT_INCOME_CATEGORIES = [
   { name: 'Sueldo',     icon: 'Briefcase',  color: '#10B981' },
   { name: 'Freelance',  icon: 'Laptop',     color: '#22C55E' },
   { name: 'Inversión',  icon: 'TrendingUp', color: '#3B82F6' },
-  { name: 'Otros',      icon: 'PiggyBank',  color: '#A855F7' },
+  { name: 'Reembolso',  icon: 'Undo2',      color: '#06B6D4' },
+  { name: 'Venta',      icon: 'ShoppingBag', color: '#F59E0B' },
+  { name: 'Regalo',     icon: 'Gift',       color: '#A855F7' },
+  { name: 'Otros',      icon: 'PiggyBank',  color: '#0EA5E9' },
 ];
 
 export const PersonalCategoriesService = {
@@ -283,19 +301,31 @@ export const PersonalCategoriesService = {
     return (data ?? []) as PersonalCategory[];
   },
 
+  // Aditivo: para cada categoría default que NO exista (match por nombre+kind),
+  // la inserta. Permite expandir el set de defaults sin romper a usuarios que
+  // ya tienen las viejas. Si borraste una default, va a volver a aparecer en el
+  // próximo load — usá archive en vez de delete si querés que no vuelva.
   async ensureDefaults(profileId: string): Promise<PersonalCategory[]> {
     const existing = await this.list(profileId, undefined, true);
-    if (existing.length > 0) return existing;
-    const rows = [
-      ...DEFAULT_EXPENSE_CATEGORIES.map(c => ({ ...c, profile_id: profileId, kind: 'expense' as const })),
-      ...DEFAULT_INCOME_CATEGORIES.map(c => ({ ...c, profile_id: profileId, kind: 'income' as const })),
+    const have = new Set(existing.map(c => `${c.kind}:${c.name.toLowerCase()}`));
+
+    const missing = [
+      ...DEFAULT_EXPENSE_CATEGORIES
+        .filter(c => !have.has(`expense:${c.name.toLowerCase()}`))
+        .map(c => ({ ...c, profile_id: profileId, kind: 'expense' as const })),
+      ...DEFAULT_INCOME_CATEGORIES
+        .filter(c => !have.has(`income:${c.name.toLowerCase()}`))
+        .map(c => ({ ...c, profile_id: profileId, kind: 'income' as const })),
     ];
+
+    if (missing.length === 0) return existing;
+
     const { data, error } = await supabase
       .from('personal_categories')
-      .insert(rows)
+      .insert(missing)
       .select('*');
     if (error) throw error;
-    return (data ?? []) as PersonalCategory[];
+    return [...existing, ...((data ?? []) as PersonalCategory[])];
   },
 
   async create(input: PersonalCategoryInput): Promise<PersonalCategory> {
