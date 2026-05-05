@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ChevronRight, Activity, Apple, Wallet, HeartPulse, Moon, Battery, Settings, LogOut, Sparkles } from 'lucide-react';
 import { MobileHeader, GradientBlob, Card, Fab, BottomSheet } from '../../components/personal/ui';
 import { usePersonalProfile } from '../../hooks/usePersonalProfile';
+import { usePersistentState } from '../../hooks/usePersistentState';
 import {
   PersonalActivitiesService,
   PersonalMealsService,
@@ -60,18 +61,21 @@ function sleepRelativeLabel(sleepDateIso: string): string {
 
 export const PersonalDashboard: React.FC<Props> = ({ onLogout }) => {
   const navigate = useNavigate();
-  const { profile, loading } = usePersonalProfile();
-  const [activitiesWeek, setActivitiesWeek] = useState<PersonalActivity[]>([]);
-  const [todayMeals, setTodayMeals] = useState<PersonalMealWithFoods[]>([]);
-  const [accounts, setAccounts] = useState<PersonalAccount[]>([]);
-  const [txsThisMonth, setTxsThisMonth] = useState<PersonalTransaction[]>([]);
-  const [txsPrevMonth, setTxsPrevMonth] = useState<PersonalTransaction[]>([]);
-  const [fxRate, setFxRate] = useState<number | null>(null);
-  const [latestBody, setLatestBody] = useState<PersonalBodyMetric | null>(null);
-  const [latestSleep, setLatestSleep] = useState<PersonalSleep | null>(null);
-  const [latestDaily, setLatestDaily] = useState<PersonalDailyMetrics | null>(null);
-  const [garminConnected, setGarminConnected] = useState<boolean | null>(null);
+  const { profile, loading: profileLoading } = usePersonalProfile();
+  // Stale-while-revalidate: cada estado se hidrata con la última data cacheada
+  // en localStorage (render instantáneo) y se refresca silenciosamente abajo.
+  const [activitiesWeek, setActivitiesWeek] = usePersistentState<PersonalActivity[]>('v1:dash:activitiesWeek', []);
+  const [todayMeals, setTodayMeals] = usePersistentState<PersonalMealWithFoods[]>('v1:dash:todayMeals', []);
+  const [accounts, setAccounts] = usePersistentState<PersonalAccount[]>('v1:dash:accounts', []);
+  const [txsThisMonth, setTxsThisMonth] = usePersistentState<PersonalTransaction[]>('v1:dash:txsThisMonth', []);
+  const [txsPrevMonth, setTxsPrevMonth] = usePersistentState<PersonalTransaction[]>('v1:dash:txsPrevMonth', []);
+  const [fxRate, setFxRate] = usePersistentState<number | null>('v1:dash:fxRate', null);
+  const [latestBody, setLatestBody] = usePersistentState<PersonalBodyMetric | null>('v1:dash:latestBody', null);
+  const [latestSleep, setLatestSleep] = usePersistentState<PersonalSleep | null>('v1:dash:latestSleep', null);
+  const [latestDaily, setLatestDaily] = usePersistentState<PersonalDailyMetrics | null>('v1:dash:latestDaily', null);
+  const [garminConnected, setGarminConnected] = usePersistentState<boolean | null>('v1:dash:garminConnected', null);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const loading = profileLoading;
 
   // Garmin a veces deja una fila sin minutos válidos para la fecha del día actual
   // antes de que el reloj termine de sincronizar. Buscamos el último registro real.

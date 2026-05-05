@@ -4,6 +4,7 @@ import { Battery, Footprints, Flame, Heart, Activity } from 'lucide-react';
 import { LineChart, Line, ResponsiveContainer, YAxis, Tooltip } from 'recharts';
 import { MobileHeader, Card } from '../../components/personal/ui';
 import { usePersonalProfile } from '../../hooks/usePersonalProfile';
+import { usePersistentState } from '../../hooks/usePersistentState';
 import { PersonalDailyMetricsService } from '../../services/PersonalTrackerService';
 import { api } from '../../services/api';
 import { PersonalDailyMetrics } from '../../../shared/types';
@@ -21,8 +22,8 @@ const METRIC_LABELS: Record<MetricKey, string> = {
 export const PersonalVitals: React.FC = () => {
   const navigate = useNavigate();
   const { profile } = usePersonalProfile();
-  const [items, setItems] = useState<PersonalDailyMetrics[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [items, setItems, hadCache] = usePersistentState<PersonalDailyMetrics[]>('v1:vitals:items', []);
+  const [loading, setLoading] = useState(!hadCache);
   const [chartMetric, setChartMetric] = useState<MetricKey>('steps');
 
   const reload = async (profileId: string) => {
@@ -34,7 +35,7 @@ export const PersonalVitals: React.FC = () => {
 
   useEffect(() => {
     if (!profile) return;
-    setLoading(true);
+    if (!hadCache) setLoading(true);
     reload(profile.id)
       .catch(err => console.error('[vitals] load failed', err))
       .finally(() => setLoading(false));

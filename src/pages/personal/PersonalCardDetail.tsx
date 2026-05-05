@@ -5,6 +5,7 @@ import { MobileHeader, Card, BottomSheet, PillChip, MoneyInput } from '../../com
 import { CreditCardVisual } from '../../components/personal/money/CreditCardVisual';
 import { resolveStatementWindow, formatDueDate } from '../../components/personal/money/cardStatement';
 import { usePersonalProfile } from '../../hooks/usePersonalProfile';
+import { usePersistentState } from '../../hooks/usePersistentState';
 import {
   PersonalCreditCardsService,
   PersonalCardStatementsService,
@@ -50,11 +51,14 @@ export const PersonalCardDetail: React.FC = () => {
   const { cardId } = useParams<{ cardId: string }>();
   const navigate = useNavigate();
   const { profile } = usePersonalProfile();
-  const [card, setCard] = useState<PersonalCreditCard | null>(null);
-  const [statements, setStatements] = useState<PersonalCardStatement[]>([]);
-  const [accounts, setAccounts] = useState<PersonalAccount[]>([]);
-  const [txs, setTxs] = useState<PersonalTransaction[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Cache por tarjeta — la key incluye el cardId para no mezclar entre tarjetas.
+  const cacheKey = (suffix: string) => `v1:card:${cardId ?? 'unknown'}:${suffix}`;
+  const [card, setCard, cardCached] = usePersistentState<PersonalCreditCard | null>(cacheKey('card'), null);
+  const [statements, setStatements, stmtsCached] = usePersistentState<PersonalCardStatement[]>(cacheKey('statements'), []);
+  const [accounts, setAccounts] = usePersistentState<PersonalAccount[]>('v1:money:accounts', []);
+  const [txs, setTxs, txsCached] = usePersistentState<PersonalTransaction[]>(cacheKey('txs'), []);
+  const hasAnyCache = cardCached || stmtsCached || txsCached;
+  const [loading, setLoading] = useState(!hasAnyCache);
   const [tab, setTab] = useState<Tab>('current');
   const [activeCurrency, setActiveCurrency] = useState<string>('ARS');
   const [payOpen, setPayOpen] = useState(false);
@@ -74,7 +78,7 @@ export const PersonalCardDetail: React.FC = () => {
 
   const refresh = async () => {
     if (!profile || !cardId) return;
-    setLoading(true);
+    if (!hasAnyCache) setLoading(true);
     try {
       // Materializa subs vencidas antes de pedir statements/txs (lazy cron).
       try { await PersonalCardSubscriptionsService.materializeDue(profile.id); }

@@ -4,6 +4,7 @@ import { Moon } from 'lucide-react';
 import { LineChart, Line, ResponsiveContainer, YAxis, Tooltip } from 'recharts';
 import { MobileHeader, Card } from '../../components/personal/ui';
 import { usePersonalProfile } from '../../hooks/usePersonalProfile';
+import { usePersistentState } from '../../hooks/usePersistentState';
 import { PersonalSleepService } from '../../services/PersonalTrackerService';
 import { api } from '../../services/api';
 import { PersonalSleep as PSleep } from '../../../shared/types';
@@ -34,8 +35,8 @@ function relativeLabel(sleepDateIso: string): string {
 export const PersonalSleep: React.FC = () => {
   const navigate = useNavigate();
   const { profile } = usePersonalProfile();
-  const [items, setItems] = useState<PSleep[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [items, setItems, hadCache] = usePersistentState<PSleep[]>('v1:sleep:items', []);
+  const [loading, setLoading] = useState(!hadCache);
 
   const reload = async (profileId: string) => {
     const rows = await PersonalSleepService.list(profileId, 30);
@@ -46,7 +47,7 @@ export const PersonalSleep: React.FC = () => {
 
   useEffect(() => {
     if (!profile) return;
-    setLoading(true);
+    if (!hadCache) setLoading(true);
     reload(profile.id)
       .catch(err => console.error('[sleep] load failed', err))
       .finally(() => setLoading(false));

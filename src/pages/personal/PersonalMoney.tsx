@@ -7,6 +7,7 @@ import { AccountStack } from '../../components/personal/money/AccountStack';
 import { CreditCardVisual } from '../../components/personal/money/CreditCardVisual';
 import { TransactionWizard, WizardKind, WizardResult } from '../../components/personal/money/TransactionWizard';
 import { usePersonalProfile } from '../../hooks/usePersonalProfile';
+import { usePersistentState } from '../../hooks/usePersistentState';
 import {
   PersonalAccountsService,
   PersonalCategoriesService,
@@ -41,12 +42,15 @@ export const PersonalMoney: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { profile } = usePersonalProfile();
 
-  const [accounts, setAccounts] = useState<PersonalAccount[]>([]);
-  const [cards, setCards] = useState<PersonalCreditCard[]>([]);
-  const [categories, setCategories] = useState<PersonalCategory[]>([]);
-  const [transactions, setTransactions] = useState<PersonalTransaction[]>([]);
-  const [fxRates, setFxRates] = useState<{ name: string; sell: number | null }[]>([]);
-  const [loading, setLoading] = useState(true);
+  // SWR via localStorage: data instantánea de la última visita, refetch en background.
+  const [accounts, setAccounts, accountsCached] = usePersistentState<PersonalAccount[]>('v1:money:accounts', []);
+  const [cards, setCards, cardsCached] = usePersistentState<PersonalCreditCard[]>('v1:money:cards', []);
+  const [categories, setCategories] = usePersistentState<PersonalCategory[]>('v1:money:categories', []);
+  const [transactions, setTransactions, txsCached] = usePersistentState<PersonalTransaction[]>('v1:money:txs', []);
+  const [fxRates, setFxRates] = usePersistentState<{ name: string; sell: number | null }[]>('v1:money:fx', []);
+  // Sólo mostramos 'Cargando' la primera vez (sin caché). Después es silencioso.
+  const hasAnyCache = accountsCached || cardsCached || txsCached;
+  const [loading, setLoading] = useState(!hasAnyCache);
   const [chartMode, setChartMode] = useState<'spending' | 'earning'>('spending');
   const [wizardOpen, setWizardOpen] = useState(false);
   const [wizardKind, setWizardKind] = useState<WizardKind>('expense');
@@ -54,7 +58,7 @@ export const PersonalMoney: React.FC = () => {
 
   const refresh = async () => {
     if (!profile) return;
-    setLoading(true);
+    if (!hasAnyCache) setLoading(true);
     try {
       // Lazy materialize: si hay débitos automáticos vencidos, los cargamos
       // antes de leer las txs. Idempotente por last_charged_period.
