@@ -23,6 +23,8 @@ import {
   PersonalCreditCardInput,
   PersonalCardStatement,
   PayCardStatementInput,
+  PersonalCardSubscription,
+  PersonalCardSubscriptionInput,
 } from '../../shared/types';
 import { resolveStatementWindow } from '../components/personal/money/cardStatement';
 
@@ -836,6 +838,120 @@ export const PersonalCardStatementsService = {
       .single();
     if (stmtErr) throw stmtErr;
     return { statement: stmtData as PersonalCardStatement, transaction };
+  },
+};
+
+// ── Card subscriptions (débitos automáticos recurrentes) ─────────────────────
+
+function periodKey(date: Date): string {
+  // 'YYYY-MM' en local time — usado para idempotencia mensual.
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+export const PersonalCardSubscriptionsService = {
+  async list(profileId: string, cardId?: string): Promise<PersonalCardSubscription[]> {
+    let q = supabase
+      .from('personal_card_subscriptions')
+      .select('*')
+      .eq('profile_id', profileId)
+      .order('day_of_month', { ascending: true });
+    if (cardId) q = q.eq('credit_card_id', cardId);
+    const { data, error } = await q;
+    if (error) throw error;
+    return (data ?? []) as PersonalCardSubscription[];
+  },
+
+  async create(input: PersonalCardSubscriptionInput): Promise<PersonalCardSubscription> {
+    const { data, error } = await supabase
+      .from('personal_card_subscriptions')
+      .insert({
+        profile_id: input.profile_id,
+        credit_card_id: input.credit_card_id,
+        category_id: input.category_id ?? null,
+        description: input.description,
+        amount: input.amount,
+        currency: input.currency,
+        day_of_month: input.day_of_month,
+        active: input.active ?? true,
+        starts_on: input.starts_on ?? new Date().toISOString().slice(0, 10),
+      })
+      .select('*')
+      .single();
+    if (error) throw error;
+    return data as PersonalCardSubscription;
+  },
+
+  async update(id: string, patch: Partial<PersonalCardSubscriptionInput>): Promise<PersonalCardSubscription> {
+    const { data, error } = await supabase
+      .from('personal_card_subscriptions')
+      .update({ ...patch, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select('*')
+      .single();
+    if (error) throw error;
+    return data as PersonalCardSubscription;
+  },
+
+  async delete(id: string): Promise<void> {
+    const { error } = await supabase
+      .from('personal_card_subscriptions')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
+  },
+
+  // Crea las txs de las subs que les toca este mes y todavía no se cargaron.
+  // Devuelve cuántas materializó. Idempotente por last_charged_period.
+  async materializeDue(profileId: string, today: Date = new Date()): Promise<number> {
+    const subs = await this.list(profileId);
+    const todayDay = today.getDate();
+    const period = periodKey(today);
+    let created = 0;
+
+    for (const sub of subs) {
+      if (!sub.active) continue;
+      if (sub.last_charged_period === period) continue; // ya se cobró este mes
+      if (sub.day_of_month > todayDay) continue;        // todavía no llega el día
+      if (sub.starts_on && new Date(sub.starts_on) > today) continue;
+
+      // Fecha de la tx: día day_of_month del mes corriente.
+      const occurred = new Date(today.getFullYear(), today.getMonth(), sub.day_of_month, 12, 0, 0);
+      const occurredIso = occurred.toISOString();
+
+      const statement = await PersonalCardStatementsService.ensureForCardAndDate(
+        sub.credit_card_id,
+        sub.profile_id,
+        occurredIso,
+        sub.currency,
+      );
+
+      const { error: insertErr } = await supabase
+        .from('personal_transactions')
+        .insert({
+          profile_id: sub.profile_id,
+          account_id: null,
+          credit_card_id: sub.credit_card_id,
+          statement_id: statement.id,
+          subscription_id: sub.id,
+          category_id: sub.category_id,
+          kind: 'expense',
+          amount: sub.amount,
+          currency: sub.currency,
+          occurred_at: occurredIso,
+          description: `${sub.description} · Auto`,
+        });
+      if (insertErr) {
+        console.error('[subscriptions] insert tx failed', insertErr);
+        continue;
+      }
+      await PersonalCardStatementsService.adjustTotal(statement.id, sub.amount);
+      await supabase
+        .from('personal_card_subscriptions')
+        .update({ last_charged_period: period, updated_at: new Date().toISOString() })
+        .eq('id', sub.id);
+      created++;
+    }
+    return created;
   },
 };
 

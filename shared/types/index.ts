@@ -1058,6 +1058,8 @@ export interface PersonalTransaction {
   installment_total: number | null;
   installment_number: number | null;
   installment_group_id: string | null;
+  // Materialización de un débito automático recurrente: liga la tx con la sub.
+  subscription_id?: string | null;
   raw?: any;
   created_at: string;
 }
@@ -1146,6 +1148,37 @@ export interface PayCardStatementInput {
   amount: number;
   occurred_at?: string;
   description?: string | null;
+}
+
+// Débito automático recurrente sobre una tarjeta de crédito (gym, Netflix, etc).
+// Cada mes, si hoy >= day_of_month y todavía no se cobró, se materializa
+// como una tx 'expense' con credit_card_id en el statement correspondiente.
+export interface PersonalCardSubscription {
+  id: string;
+  profile_id: string;
+  credit_card_id: string;
+  category_id: string | null;
+  description: string;
+  amount: number;
+  currency: string;
+  day_of_month: number;          // 1..28
+  active: boolean;
+  last_charged_period: string | null; // 'YYYY-MM'
+  starts_on: string;             // YYYY-MM-DD
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PersonalCardSubscriptionInput {
+  profile_id: string;
+  credit_card_id: string;
+  category_id?: string | null;
+  description: string;
+  amount: number;
+  currency: string;
+  day_of_month: number;
+  active?: boolean;
+  starts_on?: string;
 }
 
 export interface PersonalTransferInput {

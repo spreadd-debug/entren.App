@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Trash2, CreditCard as CreditCardIcon, CheckCircle, Clock } from 'lucide-react';
+import { Trash2, CreditCard as CreditCardIcon, CheckCircle, Clock, Repeat, Plus, Power } from 'lucide-react';
 import { MobileHeader, Card, BottomSheet, PillChip, MoneyInput } from '../../components/personal/ui';
 import { CreditCardVisual } from '../../components/personal/money/CreditCardVisual';
 import { resolveStatementWindow, formatDueDate } from '../../components/personal/money/cardStatement';
@@ -10,12 +10,16 @@ import {
   PersonalCardStatementsService,
   PersonalAccountsService,
   PersonalTransactionsService,
+  PersonalCardSubscriptionsService,
+  PersonalCategoriesService,
 } from '../../services/PersonalTrackerService';
 import {
   PersonalCreditCard,
   PersonalCardStatement,
   PersonalAccount,
   PersonalTransaction,
+  PersonalCardSubscription,
+  PersonalCategory,
 } from '../../../shared/types';
 
 type Tab = 'current' | 'next' | 'history';
@@ -56,19 +60,38 @@ export const PersonalCardDetail: React.FC = () => {
   const [payOpen, setPayOpen] = useState(false);
   const [payForm, setPayForm] = useState<PayForm>({ account_id: '', amount: '' });
   const [selectedStatement, setSelectedStatement] = useState<PersonalCardStatement | null>(null);
+  const [subscriptions, setSubscriptions] = useState<PersonalCardSubscription[]>([]);
+  const [categories, setCategories] = useState<PersonalCategory[]>([]);
+  const [subOpen, setSubOpen] = useState(false);
+  const [subEditing, setSubEditing] = useState<PersonalCardSubscription | null>(null);
+  const [subForm, setSubForm] = useState({
+    description: '',
+    amount: '',
+    currency: 'ARS',
+    day_of_month: '1',
+    category_id: '' as string | '',
+  });
 
   const refresh = async () => {
     if (!profile || !cardId) return;
     setLoading(true);
     try {
-      const [c, sts, accs] = await Promise.all([
+      // Materializa subs vencidas antes de pedir statements/txs (lazy cron).
+      try { await PersonalCardSubscriptionsService.materializeDue(profile.id); }
+      catch (err) { console.warn('[card detail] materialize subs failed', err); }
+
+      const [c, sts, accs, subs, cats] = await Promise.all([
         PersonalCreditCardsService.getById(cardId),
         PersonalCardStatementsService.listByCard(cardId, 48),
         PersonalAccountsService.list(profile.id),
+        PersonalCardSubscriptionsService.list(profile.id, cardId),
+        PersonalCategoriesService.list(profile.id),
       ]);
       setCard(c);
       setStatements(sts);
       setAccounts(accs);
+      setSubscriptions(subs);
+      setCategories(cats);
       const allTxs = await PersonalTransactionsService.list(profile.id, {}, 1000);
       setTxs(allTxs.filter(t => t.credit_card_id === cardId));
     } catch (err) {
@@ -79,6 +102,77 @@ export const PersonalCardDetail: React.FC = () => {
   };
 
   useEffect(() => { refresh(); /* eslint-disable-next-line */ }, [profile?.id, cardId]);
+
+  const openSubModal = (sub: PersonalCardSubscription | null) => {
+    setSubEditing(sub);
+    if (sub) {
+      setSubForm({
+        description: sub.description,
+        amount: String(sub.amount),
+        currency: sub.currency,
+        day_of_month: String(sub.day_of_month),
+        category_id: sub.category_id ?? '',
+      });
+    } else {
+      setSubForm({ description: '', amount: '', currency: 'ARS', day_of_month: '1', category_id: '' });
+    }
+    setSubOpen(true);
+  };
+
+  const handleSaveSub = async () => {
+    if (!profile || !card) return;
+    const amount = Number(subForm.amount);
+    const day = Number(subForm.day_of_month);
+    if (!subForm.description.trim()) { alert('Poné una descripción'); return; }
+    if (!(amount > 0)) { alert('Monto inválido'); return; }
+    if (!(day >= 1 && day <= 28)) { alert('Día entre 1 y 28'); return; }
+    try {
+      if (subEditing) {
+        await PersonalCardSubscriptionsService.update(subEditing.id, {
+          description: subForm.description.trim(),
+          amount,
+          currency: subForm.currency,
+          day_of_month: day,
+          category_id: subForm.category_id || null,
+        });
+      } else {
+        await PersonalCardSubscriptionsService.create({
+          profile_id: profile.id,
+          credit_card_id: card.id,
+          description: subForm.description.trim(),
+          amount,
+          currency: subForm.currency,
+          day_of_month: day,
+          category_id: subForm.category_id || null,
+        });
+      }
+      setSubOpen(false);
+      setSubEditing(null);
+      refresh();
+    } catch (err: any) {
+      console.error('[card detail] save sub failed', err);
+      alert(`No se pudo guardar: ${err?.message ?? 'Error'}`);
+    }
+  };
+
+  const handleToggleSub = async (sub: PersonalCardSubscription) => {
+    try {
+      await PersonalCardSubscriptionsService.update(sub.id, { active: !sub.active });
+      refresh();
+    } catch (err) {
+      console.error('[card detail] toggle sub failed', err);
+    }
+  };
+
+  const handleDeleteSub = async (sub: PersonalCardSubscription) => {
+    if (!confirm(`¿Eliminar el débito automático "${sub.description}"? Las transacciones ya cargadas no se borran.`)) return;
+    try {
+      await PersonalCardSubscriptionsService.delete(sub.id);
+      refresh();
+    } catch (err) {
+      console.error('[card detail] delete sub failed', err);
+    }
+  };
 
   // Currencies activas: las que tienen al menos un statement.
   const availableCurrencies = useMemo(() => {
@@ -349,6 +443,75 @@ export const PersonalCardDetail: React.FC = () => {
                 ))}
               </div>
             )}
+
+            {/* Pagos automáticos — siempre visible, debajo de los tabs */}
+            <div className="mt-8">
+              <div className="flex items-center justify-between mb-2 px-1">
+                <div className="flex items-center gap-2">
+                  <Repeat size={14} className="text-[var(--color-ink-muted)]" />
+                  <p className="text-xs uppercase tracking-wider text-[var(--color-ink-muted)] font-semibold">Pagos automáticos</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => openSubModal(null)}
+                  className="w-7 h-7 rounded-full bg-[var(--color-ink)] text-white flex items-center justify-center active:scale-95 transition-transform"
+                  aria-label="Agregar débito"
+                >
+                  <Plus size={14} />
+                </button>
+              </div>
+
+              {subscriptions.length === 0 && (
+                <Card tone="tinted">
+                  <p className="text-xs text-[var(--color-ink-muted)] leading-relaxed">
+                    Cargá tus débitos recurrentes (gym, Netflix, servicios). Cada mes se suman solos al resumen el día que vos elijas.
+                  </p>
+                </Card>
+              )}
+
+              <div className="space-y-2">
+                {subscriptions.map(sub => (
+                  <Card key={sub.id} padding="sm">
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleSub(sub)}
+                        className={`w-9 h-9 rounded-2xl flex items-center justify-center shrink-0 transition-colors ${
+                          sub.active ? 'bg-emerald-100 text-emerald-700' : 'bg-[var(--color-ink)]/5 text-[var(--color-ink-muted)]'
+                        }`}
+                        aria-label={sub.active ? 'Pausar' : 'Reanudar'}
+                      >
+                        <Power size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openSubModal(sub)}
+                        className="flex-1 min-w-0 text-left"
+                      >
+                        <h4 className="font-serif text-base text-[var(--color-ink)] leading-tight truncate">
+                          {sub.description}
+                        </h4>
+                        <p className="text-[11px] text-[var(--color-ink-muted)] mt-0.5">
+                          Día {sub.day_of_month} · {sub.active ? 'Activo' : 'Pausado'}
+                          {sub.last_charged_period && ` · cobrado ${sub.last_charged_period}`}
+                        </p>
+                      </button>
+                      <p className="font-serif text-base text-[var(--color-ink)] shrink-0">
+                        {currencySymbol(sub.currency)} {fmt(Number(sub.amount))}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteSub(sub)}
+                        className="p-1 text-[var(--color-ink-muted)] hover:text-rose-600 shrink-0"
+                        aria-label="Eliminar"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </div>
           </>
         )}
       </div>
@@ -410,6 +573,93 @@ export const PersonalCardDetail: React.FC = () => {
             </button>
           </div>
         )}
+      </BottomSheet>
+
+      <BottomSheet
+        open={subOpen}
+        onClose={() => { setSubOpen(false); setSubEditing(null); }}
+        title={subEditing ? 'Editar débito automático' : 'Nuevo débito automático'}
+      >
+        <div className="space-y-4 mt-2">
+          <label className="block">
+            <span className="text-xs uppercase tracking-wider text-[var(--color-ink-muted)] font-semibold block mb-1.5">Descripción</span>
+            <input
+              type="text"
+              value={subForm.description}
+              onChange={e => setSubForm({ ...subForm, description: e.target.value })}
+              placeholder="Gym Atalaya, Netflix, Spotify…"
+              className="w-full px-4 py-2.5 rounded-2xl bg-white text-[var(--color-ink)] text-sm border border-[var(--color-ink)]/10 focus:outline-none focus:border-[var(--color-ink)]/40"
+            />
+          </label>
+
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block">
+              <span className="text-xs uppercase tracking-wider text-[var(--color-ink-muted)] font-semibold block mb-1.5">Monto</span>
+              <div className="rounded-2xl bg-white border border-[var(--color-ink)]/10 px-4 py-1">
+                <MoneyInput
+                  value={subForm.amount}
+                  onChange={v => setSubForm({ ...subForm, amount: v })}
+                  size="md"
+                  inputClassName="px-0"
+                />
+              </div>
+            </label>
+            <label className="block">
+              <span className="text-xs uppercase tracking-wider text-[var(--color-ink-muted)] font-semibold block mb-1.5">Moneda</span>
+              <div className="flex gap-2">
+                {['ARS', 'USD'].map(c => (
+                  <PillChip
+                    key={c}
+                    variant={subForm.currency === c ? 'selected' : 'outline'}
+                    onClick={() => setSubForm({ ...subForm, currency: c })}
+                  >
+                    {c}
+                  </PillChip>
+                ))}
+              </div>
+            </label>
+          </div>
+
+          <label className="block">
+            <span className="text-xs uppercase tracking-wider text-[var(--color-ink-muted)] font-semibold block mb-1.5">Día del mes (1–28)</span>
+            <input
+              type="number"
+              min={1}
+              max={28}
+              value={subForm.day_of_month}
+              onChange={e => setSubForm({ ...subForm, day_of_month: e.target.value })}
+              className="w-full px-4 py-2.5 rounded-2xl bg-white text-[var(--color-ink)] text-sm border border-[var(--color-ink)]/10 focus:outline-none focus:border-[var(--color-ink)]/40 tabular-nums"
+            />
+            <p className="text-[11px] text-[var(--color-ink-muted)] mt-1">
+              Ese día de cada mes se carga al resumen automáticamente.
+            </p>
+          </label>
+
+          {categories.filter(c => c.kind === 'expense').length > 0 && (
+            <label className="block">
+              <span className="text-xs uppercase tracking-wider text-[var(--color-ink-muted)] font-semibold block mb-1.5">Categoría (opcional)</span>
+              <div className="flex flex-wrap gap-1.5">
+                {categories.filter(c => c.kind === 'expense').map(c => (
+                  <PillChip
+                    key={c.id}
+                    variant={subForm.category_id === c.id ? 'selected' : 'outline'}
+                    onClick={() => setSubForm({ ...subForm, category_id: subForm.category_id === c.id ? '' : c.id })}
+                  >
+                    {c.name}
+                  </PillChip>
+                ))}
+              </div>
+            </label>
+          )}
+
+          <button
+            type="button"
+            onClick={handleSaveSub}
+            className="w-full py-3 mt-2 rounded-full bg-[var(--color-ink)] text-white font-medium"
+          >
+            {subEditing ? 'Guardar cambios' : 'Crear débito automático'}
+          </button>
+        </div>
       </BottomSheet>
     </>
   );

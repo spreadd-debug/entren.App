@@ -12,6 +12,7 @@ import {
   PersonalCategoriesService,
   PersonalTransactionsService,
   PersonalCreditCardsService,
+  PersonalCardSubscriptionsService,
 } from '../../services/PersonalTrackerService';
 import { api } from '../../services/api';
 import {
@@ -55,6 +56,11 @@ export const PersonalMoney: React.FC = () => {
     if (!profile) return;
     setLoading(true);
     try {
+      // Lazy materialize: si hay débitos automáticos vencidos, los cargamos
+      // antes de leer las txs. Idempotente por last_charged_period.
+      try { await PersonalCardSubscriptionsService.materializeDue(profile.id); }
+      catch (err) { console.warn('[money] materialize subs failed', err); }
+
       const [acc, ccs, cats, txs, fx] = await Promise.all([
         PersonalAccountsService.list(profile.id),
         PersonalCreditCardsService.list(profile.id),

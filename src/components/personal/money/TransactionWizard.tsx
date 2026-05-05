@@ -101,6 +101,10 @@ export const TransactionWizard: React.FC<Props> = ({
   const [direction, setDirection] = useState<1 | -1>(1);
   const [state, setState] = useState<State>({ ...EMPTY_STATE, kind: defaultKind });
   const [submitting, setSubmitting] = useState(false);
+  // Offset del teclado virtual (iOS) — calculamos cuánto se "comió" la altura
+  // del visualViewport para levantar el bottom del panel por encima del teclado.
+  // Sin esto, el footer (Siguiente) queda tapado y el step content scrollea raro.
+  const [keyboardOffset, setKeyboardOffset] = useState(0);
 
   // Reset al abrir
   useEffect(() => {
@@ -127,6 +131,27 @@ export const TransactionWizard: React.FC<Props> = ({
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [open, onClose]);
+
+  // Tracking del teclado virtual (iOS / Android) usando VisualViewport API.
+  // Si el visualViewport es más chico que window.innerHeight, la diferencia
+  // es lo que ocupa el teclado — ese alto se aplica como bottom inset al panel.
+  useEffect(() => {
+    if (!open || typeof window === 'undefined') return;
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const update = () => {
+      const inset = window.innerHeight - vv.height - vv.offsetTop;
+      setKeyboardOffset(Math.max(0, inset));
+    };
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    update();
+    return () => {
+      vv.removeEventListener('resize', update);
+      vv.removeEventListener('scroll', update);
+      setKeyboardOffset(0);
+    };
+  }, [open]);
 
   const goNext = () => {
     if (step < 3) {
@@ -204,7 +229,10 @@ export const TransactionWizard: React.FC<Props> = ({
       {open && (
         <>
           <motion.div
-            className="absolute inset-0 z-40 bg-black/40"
+            // fixed en mobile (queda anclado al viewport, no scrollea con el inner
+            // del PersonalLayout cuando iOS abre el teclado), absolute en desktop
+            // (queda dentro del frame iPhone).
+            className="fixed md:absolute inset-0 z-40 bg-black/40"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -212,7 +240,10 @@ export const TransactionWizard: React.FC<Props> = ({
             onClick={onClose}
           />
           <motion.div
-            className="absolute left-0 right-0 bottom-0 top-12 z-50 bg-[var(--color-cream-50)] rounded-t-[2rem] shadow-2xl flex flex-col overflow-hidden"
+            className="fixed md:absolute left-0 right-0 top-12 z-50 mx-auto md:mx-0 md:max-w-none max-w-[480px] bg-[var(--color-cream-50)] rounded-t-[2rem] shadow-2xl flex flex-col overflow-hidden"
+            // bottom dinámico: si hay teclado virtual, se levanta por encima.
+            // En desktop keyboardOffset es 0 → bottom: 0px (= bottom-0 visual).
+            style={{ bottom: keyboardOffset }}
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
