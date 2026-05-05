@@ -416,11 +416,13 @@ export const PersonalMoney: React.FC = () => {
             {/* Transactions del mes (sólo pasadas + hoy — futuras viven en el resumen de la tarjeta) */}
             <div className="flex items-center justify-between mt-6 mb-2 px-1">
               <h3 className="font-serif text-xl text-[var(--color-ink)]">Movimientos</h3>
-              {upcomingCount > 0 && (
-                <span className="text-[11px] text-[var(--color-ink-muted)]">
-                  + {upcomingCount} próxima{upcomingCount === 1 ? '' : 's'} este mes
-                </span>
-              )}
+              <button
+                type="button"
+                onClick={() => navigate('/admin/personal/movements')}
+                className="text-xs text-[var(--color-ink-muted)] hover:text-[var(--color-ink)]"
+              >
+                Ver todos {upcomingCount > 0 && `· +${upcomingCount} próx.`}
+              </button>
             </div>
             <div className="space-y-2">
               {recentTxs.length === 0 && (
