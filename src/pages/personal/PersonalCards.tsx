@@ -57,6 +57,7 @@ export const PersonalCards: React.FC = () => {
   const [formOpen, setFormOpen] = useState(false);
   const [form, setForm] = useState<CardForm>(EMPTY);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [savingCard, setSavingCard] = useState(false);
 
   const refresh = async () => {
     if (!profile) return;
@@ -120,12 +121,14 @@ export const PersonalCards: React.FC = () => {
 
   const handleSubmit = async () => {
     if (!profile) return;
+    if (savingCard) return; // anti-doble-tap
     if (!form.name.trim()) { alert('Ponele nombre a la tarjeta'); return; }
     const closingDay = Number(form.closing_day);
     const dueDay = Number(form.due_day);
     if (!(closingDay >= 1 && closingDay <= 31)) { alert('Día de cierre inválido (1-31)'); return; }
     if (!(dueDay >= 1 && dueDay <= 31)) { alert('Día de vencimiento inválido (1-31)'); return; }
 
+    setSavingCard(true);
     try {
       const payload = {
         name: form.name.trim(),
@@ -147,10 +150,12 @@ export const PersonalCards: React.FC = () => {
       setForm(EMPTY);
       setEditingId(null);
       setFormOpen(false);
-      refresh();
+      await refresh();
     } catch (err: any) {
       console.error('[cards] save failed', err);
       alert(`No se pudo guardar: ${err?.message ?? 'Error'}`);
+    } finally {
+      setSavingCard(false);
     }
   };
 
@@ -345,9 +350,10 @@ export const PersonalCards: React.FC = () => {
           <button
             type="button"
             onClick={handleSubmit}
-            className="w-full py-3 mt-2 rounded-full bg-[var(--color-ink)] text-white font-medium"
+            disabled={savingCard}
+            className="w-full py-3 mt-2 rounded-full bg-[var(--color-ink)] text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {editingId ? 'Guardar cambios' : 'Crear tarjeta'}
+            {savingCard ? 'Guardando…' : (editingId ? 'Guardar cambios' : 'Crear tarjeta')}
           </button>
         </div>
       </BottomSheet>

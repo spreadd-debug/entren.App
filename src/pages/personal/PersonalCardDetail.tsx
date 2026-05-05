@@ -64,6 +64,10 @@ export const PersonalCardDetail: React.FC = () => {
   const [payOpen, setPayOpen] = useState(false);
   const [payForm, setPayForm] = useState<PayForm>({ account_id: '', amount: '' });
   const [selectedStatement, setSelectedStatement] = useState<PersonalCardStatement | null>(null);
+  // Locks anti-doble-tap para los CTAs async — sin esto, dos taps rápidos
+  // disparan el submit dos veces y se duplican txs / subs.
+  const [savingSub, setSavingSub] = useState(false);
+  const [paying, setPaying] = useState(false);
   const [subscriptions, setSubscriptions] = useState<PersonalCardSubscription[]>([]);
   const [categories, setCategories] = useState<PersonalCategory[]>([]);
   const [subOpen, setSubOpen] = useState(false);
@@ -125,11 +129,13 @@ export const PersonalCardDetail: React.FC = () => {
 
   const handleSaveSub = async () => {
     if (!profile || !card) return;
+    if (savingSub) return; // anti-doble-tap
     const amount = Number(subForm.amount);
     const day = Number(subForm.day_of_month);
     if (!subForm.description.trim()) { alert('Poné una descripción'); return; }
     if (!(amount > 0)) { alert('Monto inválido'); return; }
     if (!(day >= 1 && day <= 28)) { alert('Día entre 1 y 28'); return; }
+    setSavingSub(true);
     try {
       if (subEditing) {
         await PersonalCardSubscriptionsService.update(subEditing.id, {
@@ -152,10 +158,12 @@ export const PersonalCardDetail: React.FC = () => {
       }
       setSubOpen(false);
       setSubEditing(null);
-      refresh();
+      await refresh();
     } catch (err: any) {
       console.error('[card detail] save sub failed', err);
       alert(`No se pudo guardar: ${err?.message ?? 'Error'}`);
+    } finally {
+      setSavingSub(false);
     }
   };
 
@@ -244,9 +252,11 @@ export const PersonalCardDetail: React.FC = () => {
 
   const handlePay = async () => {
     if (!profile || !selectedStatement) return;
+    if (paying) return; // anti-doble-tap
     const amount = Number(payForm.amount);
     if (!(amount > 0)) { alert('Monto inválido'); return; }
     if (!payForm.account_id) { alert('Elegí cuenta'); return; }
+    setPaying(true);
     try {
       await PersonalCardStatementsService.pay({
         profile_id: profile.id,
@@ -256,10 +266,12 @@ export const PersonalCardDetail: React.FC = () => {
       });
       setPayOpen(false);
       setSelectedStatement(null);
-      refresh();
+      await refresh();
     } catch (err: any) {
       console.error('[card detail] pay failed', err);
       alert(`No se pudo pagar: ${err?.message ?? 'Error'}`);
+    } finally {
+      setPaying(false);
     }
   };
 
@@ -571,9 +583,10 @@ export const PersonalCardDetail: React.FC = () => {
             <button
               type="button"
               onClick={handlePay}
-              className="w-full py-3 mt-2 rounded-full bg-[var(--color-ink)] text-white font-medium"
+              disabled={paying}
+              className="w-full py-3 mt-2 rounded-full bg-[var(--color-ink)] text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Confirmar pago
+              {paying ? 'Procesando…' : 'Confirmar pago'}
             </button>
           </div>
         )}
@@ -659,9 +672,10 @@ export const PersonalCardDetail: React.FC = () => {
           <button
             type="button"
             onClick={handleSaveSub}
-            className="w-full py-3 mt-2 rounded-full bg-[var(--color-ink)] text-white font-medium"
+            disabled={savingSub}
+            className="w-full py-3 mt-2 rounded-full bg-[var(--color-ink)] text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {subEditing ? 'Guardar cambios' : 'Crear débito automático'}
+            {savingSub ? 'Guardando…' : (subEditing ? 'Guardar cambios' : 'Crear débito automático')}
           </button>
         </div>
       </BottomSheet>
